@@ -1,0 +1,56 @@
+{
+  "mode_id": "AI_USAGE",
+  "display_name": "AI 用量",
+  "icon": "electric_bolt",
+  "cacheable": false,
+  "description": "DeepSeek 余额 + Codex 订阅额度（5h/7d 剩余）",
+  "settings_schema": [
+    {
+      "key": "codex_refresh_delta_pct",
+      "label": "Codex 额度变化触发刷新(%)",
+      "type": "number",
+      "default": 1,
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "description": "任一窗口已用百分比变化超过该值才刷新屏幕"
+    },
+    {
+      "key": "deepseek_refresh_delta_cny",
+      "label": "DeepSeek 余额变化触发刷新(元)",
+      "type": "number",
+      "default": 1,
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "description": "余额变化超过该值（元）才刷新屏幕"
+    }
+  ],
+  "content": {
+    "type": "external_data",
+    "provider": "ai_usage",
+    "fallback": {
+      "deepseek_balance": "--",
+      "deepseek_currency": "CNY",
+      "deepseek_granted": "--",
+      "deepseek_topped_up": "--",
+      "deepseek_available": false,
+      "codex_windows_text": "暂无额度数据",
+      "codex_meta": "数据不可用"
+    }
+  },
+  "layout": {
+    "status_bar": {"line_width": 1, "dashed": false},
+    "body_align": "top",
+    "body": [
+      {"type": "section", "title": "DeepSeek"},
+      {"type": "big_number", "field": "deepseek_balance", "font_size": 52, "unit": "{deepseek_currency}", "align": "left", "margin_x": 20},
+      {"type": "text", "field": "deepseek_extra", "font_size": 14, "align": "left", "margin_x": 20, "max_lines": 2},
+      {"type": "separator", "style": "solid", "line_width": 1, "margin_x": 20},
+      {"type": "section", "title": "Codex"},
+      {"type": "text", "field": "codex_windows_text", "font_size": 16, "align": "left", "margin_x": 20, "max_lines": 4},
+      {"type": "text", "field": "codex_meta", "font_size": 12, "align": "left", "margin_x": 20, "max_lines": 2}
+    ],
+    "footer": {"label": "AI 用量"}
+  }
+}

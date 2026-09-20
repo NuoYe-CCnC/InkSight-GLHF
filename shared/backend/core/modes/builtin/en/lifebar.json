@@ -1,0 +1,139 @@
+{
+  "mode_id": "LIFEBAR",
+  "display_name": "Life Progress",
+  "icon": "flag",
+  "cacheable": false,
+  "description": "Visual progress bars for year, month, week, and life",
+  "content": {
+    "type": "computed",
+    "provider": "lifebar",
+    "fallback": {
+      "year_pct": 15.6,
+      "year_label": "2026 Year Progress",
+      "month_pct": 83.3,
+      "month_label": "Feb",
+      "week_pct": 57.1,
+      "week_label": "Week",
+      "life_pct": 38.8,
+      "life_label": "Life",
+      "day_of_year": 57,
+      "days_in_year": 365,
+      "day": 25,
+      "days_in_month": 28,
+      "weekday_num": 4,
+      "week_total": 7,
+      "age": 31,
+      "life_expect": 80
+    }
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": false
+    },
+    "layout_engine": "component_tree",
+    "body_preset": "lifebar_card",
+    "preset_props": {
+      "top_gap": 12,
+      "padding_x": 32,
+      "gap": 14,
+      "row_gap": 10,
+      "left_panel_width": 163,
+      "right_panel_width": 163,
+      "divider_margin_x": 32,
+      "primary_metric": {
+        "label_field": "year_label",
+        "label_font_size": 12,
+        "value_template": "{year_pct}%",
+        "value_font": "noto_serif_bold",
+        "value_font_size": 28,
+        "bar_field": "day_of_year",
+        "bar_max_field": "days_in_year",
+        "bar_width": 336,
+        "bar_height": 8
+      },
+      "left_metric": {
+        "label_field": "month_label",
+        "label_font_size": 11,
+        "value_template": "{month_pct}%",
+        "value_font": "noto_serif_bold",
+        "value_font_size": 20,
+        "bar_field": "day",
+        "bar_max_field": "days_in_month",
+        "bar_width": 140,
+        "bar_height": 6
+      },
+      "right_metric": {
+        "label_field": "week_label",
+        "label_font_size": 11,
+        "value_template": "{week_pct}%",
+        "value_font": "noto_serif_bold",
+        "value_font_size": 20,
+        "bar_field": "weekday_num",
+        "bar_max_field": "week_total",
+        "bar_width": 140,
+        "bar_height": 6
+      },
+      "bottom_metric": {
+        "label_field": "life_label",
+        "label_font_size": 11,
+        "value_template": "{life_pct}%",
+        "value_font": "noto_serif_bold",
+        "value_font_size": 20,
+        "bar_field": "age",
+        "bar_max_field": "life_expect",
+        "bar_width": 336,
+        "bar_height": 8
+      }
+    },
+    "footer": {
+      "label": "Life Bar",
+      "attribution_template": "— Time Flies"
+    }
+  },
+  "layout_overrides": {
+    "400x300": {
+      "preset_props": {
+        "show_divider": false,
+        "gap": 10
+      }
+    },
+    "296x128": {
+      "preset_props": {
+        "top_gap": 4,
+        "padding_x": 8,
+        "gap": 6,
+        "show_middle": false,
+        "show_divider": false,
+        "primary_metric": {
+          "label_field": "year_label",
+          "label_font_size": 10,
+          "value_template": "{year_pct}%",
+          "value_font": "noto_serif_bold",
+          "value_font_size": 16,
+          "gap": 3,
+          "bar_field": "day_of_year",
+          "bar_max_field": "days_in_year",
+          "bar_width": 200,
+          "bar_height": 6
+        },
+        "bottom_metric": {
+          "label_field": "life_label",
+          "label_font_size": 10,
+          "value_template": "{life_pct}%",
+          "value_font": "noto_serif_bold",
+          "value_font_size": 16,
+          "gap": 3,
+          "bar_field": "age",
+          "bar_max_field": "life_expect",
+          "bar_width": 200,
+          "bar_height": 6
+        }
+      },
+      "footer": {
+        "label": "Life Bar",
+        "height": 20
+      }
+    }
+  }
+}

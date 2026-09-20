@@ -1,0 +1,205 @@
+{
+  "schema_version": 2,
+  "secret_refs": {
+    "wifi_networks": "wifi.networks",
+    "deepseek_api_key": "services.deepseek_api_key",
+    "news_deepseek_api_key": "services.news_deepseek_api_key",
+    "goldapi_key": "services.goldapi_key",
+    "openai_admin_api_key": "services.openai_admin_api_key",
+    "cloud_base_url": "cloud.base_url",
+    "cloud_user": "cloud.user",
+    "cloud_password": "cloud.password"
+  },
+  "codex_member": {},
+  "panel_display": {
+    "show_codex_credits": false,
+    "codex_credit_balance": null,
+    "show_openai_api_info": false,
+    "openai_api_balance_usd": null,
+    "show_reset_opportunities": true,
+    "show_weekday": true,
+    "show_lunar": true,
+    "show_solar_terms": true,
+    "show_festivals": true
+  },
+  "openai_costs": {
+    "poll_interval_minutes": 60,
+    "manual_refresh_cooldown_seconds": 60,
+    "organization_id": null
+  },
+  "deepseek_token_tracking": {
+    "initial_date": null,
+    "initial_tokens": 0,
+    "initial_prompt_tokens": 0,
+    "initial_completion_tokens": 0,
+    "initial_complete": true,
+    "balance_refresh_threshold_cny": 0.1,
+    "balance_estimate_output_ratio": 0.1
+  },
+  "news_digest": {
+    "enabled": true,
+    "model": "deepseek-v4-flash",
+    "monthly_budget_cny": null,
+    "max_input_tokens": 4000,
+    "max_output_tokens": 500,
+    "max_calls_per_issue": 5,
+    "precollect_minutes": 5,
+    "retry_window_minutes": 30,
+    "allow_missed_catchup": true,
+    "workday_cutoff": "22:00",
+    "restday_cutoff": "20:00",
+    "failure_policy": "revise_then_source_title_fallback",
+    "sources": [],
+    "source_enabled": {
+      "ithome": false,
+      "qbitai": false,
+      "ars": false,
+      "verge": false,
+      "techcrunch": false,
+      "openai": false
+    },
+    "topic_preferences": [],
+    "schedules": [
+      {"id": "morning", "label": "科技 / AI 早报", "time": "08:55", "enabled": true, "day_types": ["all"]},
+      {"id": "noon", "label": "科技 / AI 中报", "time": "12:55", "enabled": true, "day_types": ["workday"]},
+      {"id": "evening", "label": "科技 / AI 晚报", "time": "16:55", "enabled": true, "day_types": ["workday"]}
+    ]
+  },
+  "gold_refresh": {
+    "scheduled_enabled": true,
+    "mode_enabled": {"active": true, "light": true, "night": true},
+    "wake_enabled": true,
+    "minimum_request_interval_seconds": 30,
+    "midnight_tolerance_seconds": 120,
+    "intraday_recovery_cooldown_seconds": 21600,
+    "intraday_recovery_max_attempts_per_day": 2
+  },
+  "device_policy": {
+    "timezone": "Asia/Shanghai",
+    "news_check": {
+      "enabled": true,
+      "followup_seconds": 300,
+      "followup_poll_seconds": 60
+    },
+    "activity_windows": {
+      "workday": [
+        {"id": "work-active", "start": "08:30", "end": "18:30", "mode": "active"},
+        {"id": "work-light", "start": "18:30", "end": "22:00", "mode": "light"},
+        {"id": "work-night", "start": "22:00", "end": "08:30", "mode": "night"}
+      ],
+      "restday": [
+        {"id": "rest-light", "start": "08:00", "end": "20:00", "mode": "light"},
+        {"id": "rest-night", "start": "20:00", "end": "08:00", "mode": "night"}
+      ]
+    },
+    "adaptive_check": {
+      "observation_seconds": 300,
+      "observation_poll_seconds": 60,
+      "unknown_max_age_seconds": 1800,
+      "active": [{"after_seconds": 0, "interval_seconds": 60}],
+      "light": [
+        {"after_seconds": 0, "interval_seconds": 60},
+        {"after_seconds": 300, "interval_seconds": 180},
+        {"after_seconds": 900, "interval_seconds": 300}
+      ],
+      "night": [
+        {"after_seconds": 0, "interval_seconds": 60},
+        {"after_seconds": 300, "interval_seconds": 300},
+        {"after_seconds": 900, "interval_seconds": 600},
+        {"after_seconds": 1800, "interval_seconds": 900},
+        {"after_seconds": 3600, "interval_seconds": 1800}
+      ]
+    },
+    "page_switch": {
+      "enabled": true,
+      "default_page": "ai",
+      "minimum_ai_hold_seconds": 300,
+      "active_idle_seconds": 600,
+      "light_idle_seconds": 300,
+      "night_behavior": "keep_current"
+    },
+    "time_sync": {
+      "enabled": true,
+      "interval_seconds": 3600,
+      "servers": ["ntp.aliyun.com", "pool.ntp.org"]
+    },
+    "network": {
+      "association_timeout_ms": 9000,
+      "connect_round_budget_ms": 25000,
+      "fetch_round_budget_ms": 60000,
+      "http_timeout_ms": 15000,
+      "fallback_tries": 1,
+      "retry_backoff_seconds": [30, 60, 120, 300]
+    },
+    "calendar_overrides": {"manual_workdays": [], "manual_holidays": []}
+  },
+  "reserved": {
+    "activity_policy": {
+      "enabled": false,
+      "timezone": "Asia/Shanghai",
+      "windows": {
+        "workday": [
+          {"id": "work-active", "start": "08:30", "end": "18:30", "mode": "active"},
+          {"id": "work-light", "start": "18:30", "end": "22:00", "mode": "light"},
+          {"id": "work-night", "start": "22:00", "end": "08:30", "mode": "night"}
+        ],
+        "restday": [
+          {"id": "rest-light", "start": "08:00", "end": "20:00", "mode": "light"},
+          {"id": "rest-night", "start": "20:00", "end": "08:00", "mode": "night"}
+        ]
+      },
+      "intervals_s": {
+        "active": [60],
+        "light": [60, 180, 300],
+        "night": [60, 300, 600, 900, 1800]
+      }
+    },
+    "device_runtime": {
+      "enabled": false,
+      "page_switch_s": {"active": 600, "light": 300, "night": 0},
+      "ntp_servers": ["ntp.aliyun.com", "pool.ntp.org"],
+      "network": {
+        "association_timeout_ms": 9000,
+        "connect_round_budget_ms": 25000,
+        "fetch_round_budget_ms": 60000,
+        "http_timeout_ms": 15000,
+        "fallback_tries": 1
+      },
+      "calendar": {"manual_workdays": [], "manual_holidays": []}
+    },
+    "news": {
+      "enabled": false,
+      "model": "deepseek-v4-flash",
+      "monthly_budget_cny": null,
+      "max_input_tokens": 4000,
+      "max_output_tokens": 500,
+      "max_calls_per_issue": 5,
+      "failure_policy": "revise_then_source_title_fallback",
+      "sources": ["ithome", "qbitai", "ars", "verge", "techcrunch", "openai"],
+      "schedules": [
+        {"id": "weekday-morning", "label": "科技 / AI 早报", "time": "08:55", "enabled": true, "day_types": ["workday"]},
+        {"id": "weekday-noon", "label": "科技 / AI 中报", "time": "12:55", "enabled": true, "day_types": ["workday"]},
+        {"id": "weekday-evening", "label": "科技 / AI 晚报", "time": "16:55", "enabled": true, "day_types": ["workday"]},
+        {"id": "restday-morning", "label": "科技 / AI 早报", "time": "08:55", "enabled": true, "day_types": ["restday"]}
+      ]
+    },
+    "gold": {
+      "enabled": false,
+      "provider": "goldapi.io",
+      "instrument": "XAU/CNY",
+      "cold_start_stale_after_s": 86400,
+      "shared_quota_calls_per_token": 100,
+      "automatic_token_rotation": false,
+      "schedules": [
+        {"id": "gold-morning", "label": "上午金价", "time": "09:05", "enabled": true, "day_types": ["all"]},
+        {"id": "gold-afternoon", "label": "下午金价", "time": "15:05", "enabled": true, "day_types": ["all"]}
+      ]
+    },
+    "market_data": {
+      "enabled": false,
+      "international_gold": {"instrument": "XAU", "currency": "CNY", "unit": "g"},
+      "domestic_gold": {"instrument": null, "currency": "CNY", "unit": "g"},
+      "fx": {"pair": null, "display_decimals": 2, "smaller_font": true}
+    }
+  }
+}

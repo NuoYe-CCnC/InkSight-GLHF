@@ -1,0 +1,242 @@
+{
+  "mode_id": "FITNESS",
+  "display_name": "健身计划",
+  "icon": "exercise",
+  "cacheable": false,
+  "description": "简单的居家健身训练计划",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "你是一位健身教练。推荐一套简单的健身计划，用 JSON 格式输出：\n\n{{\n  \"workout_name\": \"训练名称（如：晨间拉伸、核心训练）\",\n  \"duration\": \"总时长（如：15分钟）\",\n  \"exercises\": [\n    {{\"name\": \"动作名称\", \"reps\": \"次数/时长\"}},\n    {{\"name\": \"动作名称\", \"reps\": \"次数/时长\"}},\n    {{\"name\": \"动作名称\", \"reps\": \"次数/时长\"}},\n    {{\"name\": \"动作名称\", \"reps\": \"次数/时长\"}},\n    {{\"name\": \"动作名称\", \"reps\": \"次数/时长\"}}\n  ],\n  \"tip\": \"健康提示（30字以内）\"\n}}\n\n要求：\n1. 动作简单，适合居家训练\n2. 不需要器械\n3. 只输出 JSON，不要其他内容",
+    "output_schema": {
+      "workout_name": {
+        "type": "string",
+        "default": "晨间拉伸"
+      },
+      "duration": {
+        "type": "string",
+        "default": "15分钟"
+      },
+      "exercises": {
+        "type": "array",
+        "default": [
+          {
+            "name": "颈部拉伸",
+            "reps": "10次"
+          },
+          {
+            "name": "肩部环绕",
+            "reps": "15次"
+          },
+          {
+            "name": "腰部扭转",
+            "reps": "20次"
+          },
+          {
+            "name": "腿部拉伸",
+            "reps": "30秒"
+          },
+          {
+            "name": "深呼吸",
+            "reps": "5次"
+          }
+        ]
+      },
+      "tip": {
+        "type": "string",
+        "default": "运动前充分热身，避免受伤。保持规律作息，健康生活。"
+      }
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "workout_name": "晨间拉伸",
+      "duration": "15分钟",
+      "exercises": [
+        {
+          "name": "颈部拉伸",
+          "reps": "10次"
+        },
+        {
+          "name": "肩部环绕",
+          "reps": "15次"
+        },
+        {
+          "name": "腰部扭转",
+          "reps": "20次"
+        },
+        {
+          "name": "腿部拉伸",
+          "reps": "30秒"
+        },
+        {
+          "name": "深呼吸",
+          "reps": "5次"
+        }
+      ],
+      "tip": "运动前充分热身，避免受伤。保持规律作息，健康生活。"
+    },
+    "fallback_pool": [
+      {
+        "workout_name": "晨间拉伸",
+        "duration": "15分钟",
+        "exercises": [
+          {
+            "name": "颈部拉伸",
+            "reps": "10次"
+          },
+          {
+            "name": "肩部环绕",
+            "reps": "15次"
+          },
+          {
+            "name": "腰部扭转",
+            "reps": "20次"
+          },
+          {
+            "name": "腿部拉伸",
+            "reps": "30秒"
+          },
+          {
+            "name": "深呼吸",
+            "reps": "5次"
+          }
+        ],
+        "tip": "运动前充分热身，避免受伤。保持规律作息，健康生活。"
+      },
+      {
+        "workout_name": "核心力量",
+        "duration": "20分钟",
+        "exercises": [
+          {
+            "name": "平板支撑",
+            "reps": "30秒"
+          },
+          {
+            "name": "卷腹",
+            "reps": "15次"
+          },
+          {
+            "name": "侧平板",
+            "reps": "20秒每侧"
+          },
+          {
+            "name": "登山跑",
+            "reps": "30秒"
+          },
+          {
+            "name": "臀桥",
+            "reps": "15次"
+          }
+        ],
+        "tip": "核心稳定是一切运动的基础，坚持练出好体态。"
+      },
+      {
+        "workout_name": "肩颈放松",
+        "duration": "10分钟",
+        "exercises": [
+          {
+            "name": "颈部左右转头",
+            "reps": "10次"
+          },
+          {
+            "name": "耸肩放下",
+            "reps": "15次"
+          },
+          {
+            "name": "扩胸运动",
+            "reps": "12次"
+          },
+          {
+            "name": "肩部画圈",
+            "reps": "前后各10次"
+          },
+          {
+            "name": "拉伸斜方肌",
+            "reps": "30秒每侧"
+          }
+        ],
+        "tip": "久坐族必备，预防颈椎病。"
+      }
+    ]
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": false
+    },
+    "layout_engine": "component_tree",
+    "body_preset": "fitness_card",
+    "preset_props": {
+      "top_gap": 14,
+      "title_field": "workout_name",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 16,
+      "duration_field": "duration",
+      "duration_font": "noto_serif_regular",
+      "duration_font_size": 14,
+      "header_divider_margin_x": 24,
+      "exercise_title": "训练动作",
+      "exercise_icon": "exercise",
+      "section_title_font": "noto_serif_regular",
+      "section_title_font_size": 14,
+      "section_content_indent": 32,
+      "exercise_limit": 8,
+      "exercise_gap": 6,
+      "exercise_row_gap": 8,
+      "exercise_template": "{index}. {name}",
+      "exercise_font": "noto_serif_regular",
+      "exercise_font_size": 13,
+      "exercise_reps_field": "reps",
+      "exercise_reps_font": "noto_serif_regular",
+      "exercise_reps_font_size": 13,
+      "tip_divider_margin_x": 24,
+      "tip_title": "提示",
+      "tip_icon": "tips",
+      "tip_field": "tip",
+      "tip_font": "noto_serif_light",
+      "tip_font_size": 14,
+      "tip_max_lines": 3
+    },
+    "footer": {
+      "label": "FITNESS",
+      "attribution_template": "Stay Healthy"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "top_gap": 0,
+        "padding_x": 8,
+        "gap": 4,
+        "title_font_size": 13,
+        "title_align": "left",
+        "duration_font_size": 10,
+        "duration_align": "left",
+        "show_header_divider": false,
+        "exercise_title": "",
+        "exercise_limit": 3,
+        "exercise_gap": 4,
+        "exercise_font_size": 11,
+        "exercise_reps_font_size": 11,
+        "exercise_content_ink_offset_y": -10,
+        "show_tip_divider": false,
+        "tip_field": null
+      },
+      "footer": { "label": "FITNESS", "height": 20 }
+    },
+    "648x480": {
+      "preset_props": {
+        "top_gap": 20,
+        "title_font_size": 22,
+        "duration_font_size": 18,
+        "header_divider_margin_x": 40,
+        "section_title_font_size": 18,
+        "section_content_indent": 40,
+        "exercise_gap": 8,
+        "exercise_font_size": 17,
+        "exercise_reps_font_size": 17,
+        "tip_divider_margin_x": 40,
+        "tip_font_size": 16
+      }
+    }
+  }
+}

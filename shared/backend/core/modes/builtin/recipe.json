@@ -1,0 +1,114 @@
+{
+  "mode_id": "RECIPE",
+  "display_name": "今日食谱",
+  "icon": "food",
+  "cacheable": false,
+  "description": "时令三餐方案",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "你是一位营养师。根据当前季节推荐一套简洁的早中晚三餐方案。\n输出 JSON：{{\"season\":\"季节（如：早春）\",\"breakfast\":\"早餐（15字以内）\",\"lunch\":\"午餐（15字以内）\",\"dinner\":\"晚餐（15字以内）\",\"tip\":\"一句养生小贴士（15字以内）\"}}\n要求：简洁明了；早中晚每项内如有多个菜式，必须用间隔号「·」分隔，且「·」两侧各加一个空格（例：小米粥 · 茶叶蛋 · 凉拌菠菜）。只输出 JSON。\n环境：{context}",
+    "output_schema": {
+      "season": { "type": "string", "default": "早春" },
+      "breakfast": { "type": "string", "default": "小米粥 · 茶叶蛋 · 凉拌黑木耳" },
+      "lunch": { "type": "string", "default": "番茄炖牛腩 · 清炒芥兰 · 白米饭" },
+      "dinner": { "type": "string", "default": "清蒸鲈鱼 · 蒜蓉西兰花 · 蛋花汤" },
+      "tip": { "type": "string", "default": "春季宜养肝，多食绿色蔬菜" }
+    },
+    "post_process": {
+      "breakfast": "recipe_normalize_item_sep",
+      "lunch": "recipe_normalize_item_sep",
+      "dinner": "recipe_normalize_item_sep"
+    },
+    "fallback": {
+      "season": "早春",
+      "breakfast": "小米粥 · 茶叶蛋 · 凉拌黑木耳",
+      "lunch": "番茄炖牛腩 · 清炒芥兰 · 白米饭",
+      "dinner": "清蒸鲈鱼 · 蒜蓉西兰花 · 蛋花汤",
+      "tip": "春季宜养肝，多食绿色蔬菜"
+    },
+    "fallback_pool": [
+      {
+        "season": "早春",
+        "breakfast": "小米粥 · 茶叶蛋 · 凉拌黑木耳",
+        "lunch": "番茄炖牛腩 · 清炒芥兰 · 白米饭",
+        "dinner": "清蒸鲈鱼 · 蒜蓉西兰花 · 蛋花汤",
+        "tip": "春季宜养肝，多食绿色蔬菜"
+      },
+      {
+        "season": "盛夏",
+        "breakfast": "绿豆粥 · 酱黄瓜 · 煮玉米",
+        "lunch": "凉拌鸡丝 · 拍黄瓜 · 凉面",
+        "dinner": "清炒虾仁 · 蒜蓉空心菜 · 番茄蛋汤",
+        "tip": "夏季多补水，少食油腻"
+      },
+      {
+        "season": "深秋",
+        "breakfast": "南瓜粥 · 煎蛋 · 凉拌海带丝",
+        "lunch": "红烧排骨 · 清炒时蔬 · 糙米饭",
+        "dinner": "清炖鸡汤 · 炒菠菜 · 山药粥",
+        "tip": "秋季宜润燥，多食白色食物"
+      }
+    ]
+  },
+  "layout": {
+    "layout_engine": "component_tree",
+    "status_bar": { "line_width": 1, "dashed": false },
+    "body_preset": "recipe_card",
+    "preset_props": {
+      "season_field": "season",
+      "season_font": "noto_serif_bold",
+      "season_font_size": 16,
+      "separator_width": 70,
+      "section_font_size": 13,
+      "meal_font": "noto_serif_regular",
+      "meal_font_size": 13,
+      "meal_max_lines": 2,
+      "meal_inset_x": 0,
+      "breakfast_title": "早餐",
+      "lunch_title": "午餐",
+      "dinner_title": "晚餐",
+      "tip_field": "tip",
+      "tip_font": "noto_serif_light",
+      "tip_font_size": 12,
+      "tip_max_lines": 2,
+      "tip_divider_margin_x": 30
+    },
+    "footer": {
+      "label": "RECIPE",
+      "attribution_template": "— Eat Well"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "variant": "compact",
+        "padding_x": 8,
+        "gap": 4,
+        "season_font_size": 12,
+        "show_season_separator": false,
+        "separator_width": 30,
+        "compact_delimiter": "：",
+        "compact_font": "noto_serif_regular",
+        "compact_font_size": 10,
+        "compact_align": "left",
+        "compact_max_lines": 1,
+        "breakfast_label": "早",
+        "lunch_label": "午",
+        "dinner_label": "晚",
+        "compact_tip_field": null
+      },
+      "footer": { "label": "RECIPE", "height": 20 }
+    },
+    "648x480": {
+      "preset_props": {
+        "gap": 10,
+        "season_font_size": 22,
+        "separator_width": 110,
+        "section_font_size": 18,
+        "meal_font_size": 17,
+        "tip_font_size": 16,
+        "tip_divider_margin_x": 48
+      }
+    }
+  }
+}

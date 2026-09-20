@@ -1,0 +1,51 @@
+{
+  "wifi": {
+    "max_networks": 5,
+    "networks": [
+      {"ssid": "", "password": ""},
+      {"ssid": "", "password": ""},
+      {"ssid": "", "password": ""},
+      {"ssid": "", "password": ""},
+      {"ssid": "", "password": ""}
+    ]
+  },
+  "codex_member": {
+    "plan": "PLUS",
+    "renewal_status": "cancelled",
+    "valid_until_date": "",
+    "precision": "date",
+    "source": "manual"
+  },
+  "panel_display": {
+    "show_codex_credits": false,
+    "show_openai_api_info": false,
+    "show_reset_opportunities": true,
+    "show_weekday": true,
+    "show_lunar": true,
+    "show_solar_terms": true,
+    "show_festivals": true
+  },
+  "services": {
+    "deepseek_api_key": "",
+    "news_deepseek_api_key": "",
+    "goldapi_key": "",
+    "openai_admin_api_key": ""
+  },
+  "cloud": {
+    "base_url": "",
+    "user": "",
+    "password": ""
+  },
+  "deepseek_token_tracking": {
+    "initial_date": "",
+    "initial_tokens": 0,
+    "initial_prompt_tokens": 0,
+    "initial_completion_tokens": 0,
+    "initial_complete": true,
+    "balance_refresh_threshold_cny": 0.1,
+    "balance_estimate_output_ratio": 0.1
+  },
+  "news_digest": {
+    "max_calls_per_issue": 5
+  }
+}

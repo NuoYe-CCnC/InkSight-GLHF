@@ -1,0 +1,122 @@
+{
+  "mode_id": "ARTWALL",
+  "display_name": "AI Art",
+  "icon": "art",
+  "cacheable": false,
+  "description": "AI-generated minimalist line art",
+  "content": {
+    "type": "image_gen",
+    "provider": "text2image",
+    "fallback": {
+      "artwork_title": "Ink Muse",
+      "image_url": "/static/art/moyun.png",
+      "description": "Today's artwork"
+    },
+    "fallback_pool": [
+      {
+        "artwork_title": "Ink Muse",
+        "image_url": "/static/art/moyun.png",
+        "description": "Today's artwork"
+      },
+      {
+        "artwork_title": "Mountain Dusk",
+        "image_url": "/static/art/shanjuqiuming.png",
+        "description": "Ink wash landscape"
+      },
+      {
+        "artwork_title": "Bamboo Sages",
+        "image_url": "/static/art/zhulinqixian.png",
+        "description": "Classical woodcut figures"
+      },
+      {
+        "artwork_title": "Zen Lotus",
+        "image_url": "/static/art/chanyilianhua.png",
+        "description": "Minimalist zen aesthetics"
+      },
+      {
+        "artwork_title": "Cloud Drift",
+        "image_url": "/static/art/yunjuanyunshu.png",
+        "description": "Black and white cloud sea"
+      }
+    ]
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": false
+    },
+    "body": [
+      {
+        "type": "text",
+        "field": "artwork_title",
+        "font_size": 14,
+        "align": "center",
+        "max_lines": 1
+      },
+      {
+        "type": "image",
+        "field": "image_url",
+        "width": 248,
+        "height": 166,
+        "fit": "cover",
+        "align_x": "center",
+        "align_y": "center"
+      }
+    ],
+    "footer": {
+      "label": "Art Wall",
+      "attribution_template": "— Ink Art"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "body_align": "top",
+      "body": [
+        {
+          "type": "text",
+          "field": "artwork_title",
+          "font_size": 10,
+          "align": "center",
+          "max_lines": 1,
+          "line_height": 12
+        },
+        { "type": "spacer", "height": 3 },
+        {
+          "type": "image",
+          "field": "image_url",
+          "width": 322,
+          "height": 77,
+          "fit": "contain",
+          "align_x": "center",
+          "align_y": "center",
+          "margin_bottom": 0
+        }
+      ],
+      "footer": {
+        "label": "Art Wall",
+        "height": 20
+      }
+    },
+    "648x480": {
+      "body_align": "top",
+      "body": [
+        {
+          "type": "text",
+          "field": "artwork_title",
+          "font_size": 18,
+          "align": "center",
+          "max_lines": 1
+        },
+        {
+          "type": "image",
+          "field": "image_url",
+          "width": 400,
+          "height": 214,
+          "fit": "cover",
+          "align_x": "center",
+          "align_y": "center"
+        }
+      ]
+    }
+  }
+}

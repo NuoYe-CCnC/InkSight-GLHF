@@ -1,0 +1,142 @@
+{
+  "mode_id": "MEMO",
+  "display_name": "Memo",
+  "icon": "memo",
+  "cacheable": false,
+  "description": "Display your custom message on the screen",
+  "settings_schema": [
+    {
+      "key": "memo_title_1",
+      "label": "Title 1",
+      "type": "text",
+      "placeholder": "Enter a title, e.g. Today's TODO"
+    },
+    {
+      "key": "memo_text_1",
+      "label": "Content 1",
+      "type": "textarea",
+      "placeholder": "Enter first memo content"
+    },
+    {
+      "key": "memo_title_2",
+      "label": "Title 2",
+      "type": "text",
+      "placeholder": "Optional, second title"
+    },
+    {
+      "key": "memo_text_2",
+      "label": "Content 2",
+      "type": "textarea",
+      "placeholder": "Optional, second memo content"
+    },
+    {
+      "key": "memo_title_3",
+      "label": "Title 3",
+      "type": "text",
+      "placeholder": "Optional, third title"
+    },
+    {
+      "key": "memo_text_3",
+      "label": "Content 3",
+      "type": "textarea",
+      "placeholder": "Optional, third memo content"
+    }
+  ],
+  "content": {
+    "type": "computed",
+    "provider": "memo",
+    "fallback": {"memo_title_1": "TODO", "memo_text_1": "1. \n2. \n3. "},
+    "fallback_pool": [
+      {"memo_title_1": "TODO", "memo_text_1": "1. \n2. \n3. "}
+    ]
+  },
+  "layout": {
+    "status_bar": {"line_width": 1, "dashed": false},
+    "layout_engine": "component_tree",
+    "body_preset": "memo_card",
+    "preset_props": {
+      "padding_x": 86,
+      "padding_y": 26,
+      "justify": "top",
+      "gap": 4,
+      "sections": 3,
+      "title_prefix": "memo_title_",
+      "text_prefix": "memo_text_",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 18,
+      "text_font": "noto_serif_light",
+      "text_font_size": 14,
+      "text_align": "left",
+      "text_max_lines": 3,
+      "text_inset_x": 0
+    },
+    "decorations": [
+      {
+        "icon": "memo_img",
+        "anchor": "top_left",
+        "size": 60,
+        "margin": 8,
+        "image_mode": "invert_dither"
+      }
+    ],
+    "footer": {"label": "MEMO"}
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 56,
+        "padding_y": 4,
+        "text_font_size": 13,
+        "text_max_lines": 3,
+        "text_inset_x": 0
+      },
+      "decorations": [
+        {
+          "icon": "memo_img",
+          "anchor": "top_left",
+          "size": 48,
+          "margin": 6,
+          "image_mode": "invert_dither"
+        }
+      ],
+      "footer": {"label": "MEMO", "height": 18}
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 54,
+        "padding_y": 16,
+        "title_font_size": 20,
+        "text_font_size": 18,
+        "text_max_lines": 8,
+        "text_inset_x": 0
+      },
+      "decorations": [
+        {
+          "icon": "memo_img",
+          "anchor": "top_left",
+          "size": 60,
+          "margin": 12,
+          "image_mode": "invert_dither"
+        }
+      ]
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 80,
+        "padding_y": 12,
+        "text_font_size": 22,
+        "text_max_lines": 10,
+        "text_inset_x": 0
+      },
+      "decorations": [
+        {
+          "icon": "memo_img",
+          "anchor": "top_left",
+          "size": 60,
+          "margin": 16,
+          "image_mode": "invert_dither"
+        }
+      ]
+    }
+  }
+}

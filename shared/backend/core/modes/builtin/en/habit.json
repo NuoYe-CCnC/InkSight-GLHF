@@ -1,0 +1,66 @@
+{
+  "mode_id": "HABIT",
+  "display_name": "Habit Tracker",
+  "icon": "habit",
+  "cacheable": false,
+  "description": "Track your daily habit completion",
+  "content": {
+    "type": "computed",
+    "provider": "habit",
+    "fallback": {"habits": [], "habit_list": "Set up habits to track in the config page.", "habit_footer": "", "summary": "Set up habits to track in the config page.", "week_progress": 0, "week_total": 7},
+    "fallback_pool": [
+      {"habits": [], "habit_list": "Set up habits to track in the config page.", "habit_footer": "", "summary": "Set up habits to track in the config page.", "week_progress": 0, "week_total": 7}
+    ]
+  },
+  "layout": {
+    "status_bar": {"line_width": 1, "dashed": false},
+    "layout_engine": "component_tree",
+    "body_preset": "habit_card",
+    "preset_props": {
+      "padding_x": 24,
+      "padding_y": 18,
+      "justify": "space_between",
+      "gap": 6,
+      "list_field": "habit_list",
+      "list_font": "noto_serif_light",
+      "list_font_size": 16,
+      "list_max_lines": 10,
+      "footer_field": "habit_footer",
+      "footer_font": "noto_serif_light",
+      "footer_font_size": 13
+    },
+    "footer": {"label": "Habit Tracker"},
+    "decorations": []
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 10,
+        "padding_y": 4,
+        "list_font_size": 12,
+        "list_max_lines": 4,
+        "footer_font_size": 10,
+        "footer_ink_offset_y": -10
+      },
+      "footer": {"label": "Habits", "height": 18}
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "padding_y": 12,
+        "list_font_size": 17,
+        "list_max_lines": 10,
+        "footer_font_size": 13
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 40,
+        "padding_y": 16,
+        "list_font_size": 20,
+        "list_max_lines": 12,
+        "footer_font_size": 16
+      }
+    }
+  }
+}

@@ -1,0 +1,245 @@
+{
+  "mode_id": "FITNESS",
+  "display_name": "Workout Plan",
+  "icon": "exercise",
+  "cacheable": false,
+  "description": "A simple home workout plan with 5 exercises",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "You are a fitness coach. Recommend a simple workout plan in JSON:\n\n{{\n  \"workout_name\": \"Name (e.g. Morning Stretch, Core Blast)\",\n  \"duration\": \"Total time (e.g. 15 min)\",\n  \"exercises\": [\n    {{\"name\": \"Exercise name\", \"reps\": \"Reps/duration\"}},\n    {{\"name\": \"Exercise name\", \"reps\": \"Reps/duration\"}},\n    {{\"name\": \"Exercise name\", \"reps\": \"Reps/duration\"}},\n    {{\"name\": \"Exercise name\", \"reps\": \"Reps/duration\"}},\n    {{\"name\": \"Exercise name\", \"reps\": \"Reps/duration\"}}\n  ],\n  \"tip\": \"Health tip (under 30 chars)\"\n}}\n\nRequirements:\n1. Simple, home-friendly\n2. No equipment needed\n3. Output JSON only",
+    "output_schema": {
+      "workout_name": {
+        "type": "string",
+        "default": "Morning Stretch"
+      },
+      "duration": {
+        "type": "string",
+        "default": "15 min"
+      },
+      "exercises": {
+        "type": "array",
+        "default": [
+          {
+            "name": "Jumping Jacks",
+            "reps": "30 sec"
+          },
+          {
+            "name": "Push-ups",
+            "reps": "10 reps"
+          },
+          {
+            "name": "Plank",
+            "reps": "30 sec"
+          },
+          {
+            "name": "Squats",
+            "reps": "15 reps"
+          },
+          {
+            "name": "Stretching",
+            "reps": "60 sec"
+          }
+        ]
+      },
+      "tip": {
+        "type": "string",
+        "default": "Stay hydrated between sets."
+      }
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "workout_name": "Morning Stretch",
+      "duration": "15 min",
+      "exercises": [
+        {
+          "name": "Jumping Jacks",
+          "reps": "30 sec"
+        },
+        {
+          "name": "Push-ups",
+          "reps": "10 reps"
+        },
+        {
+          "name": "Plank",
+          "reps": "30 sec"
+        },
+        {
+          "name": "Squats",
+          "reps": "15 reps"
+        },
+        {
+          "name": "Stretching",
+          "reps": "60 sec"
+        }
+      ],
+      "tip": "Stay hydrated between sets."
+    },
+    "fallback_pool": [
+      {
+        "workout_name": "Morning Stretch",
+        "duration": "15 min",
+        "exercises": [
+          {
+            "name": "Jumping Jacks",
+            "reps": "30 sec"
+          },
+          {
+            "name": "Push-ups",
+            "reps": "10 reps"
+          },
+          {
+            "name": "Plank",
+            "reps": "30 sec"
+          },
+          {
+            "name": "Squats",
+            "reps": "15 reps"
+          },
+          {
+            "name": "Stretching",
+            "reps": "60 sec"
+          }
+        ],
+        "tip": "Stay hydrated between sets."
+      },
+      {
+        "workout_name": "Core Blast",
+        "duration": "20 min",
+        "exercises": [
+          {
+            "name": "Plank Hold",
+            "reps": "30 sec"
+          },
+          {
+            "name": "Crunches",
+            "reps": "15 reps"
+          },
+          {
+            "name": "Side Plank",
+            "reps": "20 sec each"
+          },
+          {
+            "name": "Mountain Climbers",
+            "reps": "30 sec"
+          },
+          {
+            "name": "Glute Bridge",
+            "reps": "15 reps"
+          }
+        ],
+        "tip": "A strong core is the foundation of all movement."
+      },
+      {
+        "workout_name": "Neck & Shoulder Relief",
+        "duration": "10 min",
+        "exercises": [
+          {
+            "name": "Neck Turns",
+            "reps": "10 reps"
+          },
+          {
+            "name": "Shoulder Shrugs",
+            "reps": "15 reps"
+          },
+          {
+            "name": "Chest Opener",
+            "reps": "12 reps"
+          },
+          {
+            "name": "Arm Circles",
+            "reps": "10 each way"
+          },
+          {
+            "name": "Trapezius Stretch",
+            "reps": "30 sec each"
+          }
+        ],
+        "tip": "Desk workers: do this every 2 hours."
+      }
+    ]
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": false
+    },
+    "layout_engine": "component_tree",
+    "body_preset": "fitness_card",
+    "preset_props": {
+      "top_gap": 14,
+      "title_field": "workout_name",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 16,
+      "duration_field": "duration",
+      "duration_font": "noto_serif_regular",
+      "duration_font_size": 14,
+      "header_divider_margin_x": 24,
+      "exercise_title": "Exercises",
+      "exercise_icon": "exercise",
+      "section_title_font": "noto_serif_regular",
+      "section_title_font_size": 14,
+      "section_content_indent": 32,
+      "exercise_limit": 8,
+      "exercise_gap": 6,
+      "exercise_row_gap": 8,
+      "exercise_template": "{index}. {name}",
+      "exercise_font": "noto_serif_regular",
+      "exercise_font_size": 13,
+      "exercise_reps_field": "reps",
+      "exercise_reps_font": "noto_serif_regular",
+      "exercise_reps_font_size": 13,
+      "tip_divider_margin_x": 24,
+      "tip_title": "Tip",
+      "tip_icon": "tips",
+      "tip_field": "tip",
+      "tip_font": "noto_serif_light",
+      "tip_font_size": 14,
+      "tip_max_lines": 3
+    },
+    "footer": {
+      "label": "Fitness",
+      "attribution_template": "— Stay Healthy"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "top_gap": 0,
+        "padding_x": 8,
+        "gap": 4,
+        "title_font_size": 13,
+        "title_align": "left",
+        "duration_font_size": 10,
+        "duration_align": "left",
+        "show_header_divider": false,
+        "exercise_title": "",
+        "exercise_limit": 3,
+        "exercise_gap": 4,
+        "exercise_font_size": 11,
+        "exercise_reps_font_size": 11,
+        "exercise_content_ink_offset_y": -10,
+        "show_tip_divider": false,
+        "tip_field": null
+      },
+      "footer": {
+        "label": "Fitness",
+        "height": 20
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "top_gap": 20,
+        "title_font_size": 22,
+        "duration_font_size": 18,
+        "header_divider_margin_x": 40,
+        "section_title_font_size": 18,
+        "section_content_indent": 40,
+        "exercise_gap": 8,
+        "exercise_font_size": 17,
+        "exercise_reps_font_size": 17,
+        "tip_divider_margin_x": 40,
+        "tip_font_size": 16
+      }
+    }
+  }
+}

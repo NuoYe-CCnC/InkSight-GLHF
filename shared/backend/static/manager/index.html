@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>InkSight 本机管理</title>
+  <link rel="stylesheet" href="/static/manager/manager.css">
+  <script src="/static/manager/manager.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><span>I</span><div><strong>InkSight</strong><small>本机管理</small></div></div>
+      <nav>
+        <button class="nav is-active" data-page="overview">总览</button>
+        <button class="nav" data-page="content">内容管理</button>
+        <button class="nav" data-page="settings">设备与运行</button>
+        <button class="nav" data-page="accounts">API 与账户</button>
+        <button class="nav" data-page="maintenance">维护</button>
+      </nav>
+      <div class="local-state"><i></i><div><strong>仅本机访问</strong><small>127.0.0.1</small></div></div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <button class="menu secondary" id="menu">菜单</button>
+        <div><p class="eyebrow">INKSIGHT CONTROL</p><h1 id="pageTitle">总览</h1></div>
+        <div class="top-actions"><span id="saveState">尚未读取</span><button class="secondary" id="refresh">刷新</button><button class="secondary" id="logout">退出</button></div>
+      </header>
+
+      <section class="page is-active" data-page-panel="overview">
+        <div class="status-strip" id="systemStatus"><div><i></i><strong>正在读取本机状态</strong></div><p>请稍候</p></div>
+        <div class="two-col">
+          <article class="panel preview-panel">
+            <div class="heading"><div><p class="eyebrow">屏幕</p><h2>真实渲染预览</h2></div><span class="pill">800 x 480</span></div>
+            <div class="preview-controls"><label><span>数据来源</span><select id="previewDevice"><option value="">不绑定设备，显示未知值</option></select></label><label><span>页面</span><select id="previewPage"><option value="ai">AI 用量</option><option value="news_gold">今日关注</option></select></label></div>
+            <div class="preview-frame"><img id="previewImage" alt="InkSight 墨水屏真实渲染预览"><button class="secondary" id="loadPreview">加载当前渲染</button></div>
+            <p class="fine">这是持久化数据文档的按需渲染，不是设备实时截图。未选择设备时不会借用其他设备数据，也不会调用余额、行情或模型接口。</p>
+          </article>
+          <div class="stack">
+            <article class="panel"><div class="heading"><div><p class="eyebrow">当前内容</p><h2 id="currentTitle">尚未读取</h2></div><span class="pill" id="freshness">未知</span></div><p class="issue-text" id="currentText">--</p><dl class="details"><div><dt>来源</dt><dd id="currentOrigin">--</dd></div><div><dt>生成时间</dt><dd id="currentTime">--</dd></div></dl></article>
+            <article class="panel"><div class="heading"><div><p class="eyebrow">接口</p><h2>新闻生成</h2></div><span class="pill" id="apiState">未知</span></div><p class="fine" id="apiNote">尚未读取。</p><button class="primary full" data-go="content">进入内容管理</button></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" data-page-panel="content">
+        <div class="intro"><div><p class="eyebrow">CONTENT</p><h2>内容管理</h2><p>手动生成使用独立操作编号，不改变定时计划。关闭页面后可从记录继续查看。</p></div><button class="primary" id="newIssue">手动生成新一期</button></div>
+        <div class="two-col content-grid">
+          <article class="panel"><div class="heading"><div><p class="eyebrow">已发布</p><h2 id="contentTitle">--</h2></div><span class="pill" id="contentFresh">--</span></div><div class="published" id="contentBody">暂无内容</div><div class="source-meta" id="contentSources"></div><div class="safe-note"><strong>安全保留</strong><span>新一期失败或终检未通过时，继续保留上一份有效内容。</span></div></article>
+          <div class="stack"><article class="panel"><div class="heading"><div><p class="eyebrow">今日计划</p><h2>发布时间</h2></div></div><ol class="timeline" id="scheduleList"></ol></article><article class="panel"><div class="heading"><div><p class="eyebrow">操作记录</p><h2>最近手动任务</h2></div></div><div id="taskList" class="task-list"></div></article></div>
+        </div>
+      </section>
+
+      <section class="page" data-page-panel="settings">
+        <div class="intro"><div><p class="eyebrow">DEVICE</p><h2>设备与运行</h2><p>先保存草稿，再确认应用。新闻参数从下一期生效，Wi-Fi 需要重新编译并刷写。</p></div><div class="actions"><button class="secondary" id="discardDraft">放弃草稿</button><button class="primary" id="saveDraft">保存草稿</button></div></div>
+        <form id="settingsForm" class="form-stack">
+          <fieldset>
+            <legend>新闻生成</legend>
+            <div class="form-grid three"><label><span>每期最多调用次数</span><input id="maxCalls" type="number" min="1" step="1"><small>正整数，不设置 5 次上限</small></label><label><span>最大输入 Token</span><input id="maxInput" type="number" min="1" step="1"></label><label><span>最大输出 Token</span><input id="maxOutput" type="number" min="1" step="1"></label><label><span>工作日自动截止</span><input id="workdayNewsCutoff" type="time"><small>默认 22:00</small></label><label><span>休息日自动截止</span><input id="restdayNewsCutoff" type="time"><small>默认 20:00</small></label><label class="confirm"><input id="allowMissedCatchup" type="checkbox"><span>允许在当前一期窗口内补跑</span></label></div>
+            <div class="subheading"><strong>远程新闻源</strong><span class="pill">新安装默认关闭</span></div>
+            <p class="fine">启用开关不等于获得转载或 AI 改写许可；请先核对各来源条款。全部关闭时只显示本地每日寄语，不联网采集，也不调用新闻模型。</p>
+            <div class="toggle-grid" id="newsSourceSwitches"><label><input type="checkbox" data-news-source="ithome"><span><strong>IT之家</strong><small>公开 AI 改写范围未确认</small></span></label><label><input type="checkbox" data-news-source="qbitai"><span><strong>量子位</strong><small>公开 AI 改写范围未确认</small></span></label><label><input type="checkbox" data-news-source="ars"><span><strong>Ars Technica</strong><small>公开 AI 改写范围未确认</small></span></label><label><input type="checkbox" data-news-source="verge"><span><strong>The Verge</strong><small>需另行确认授权</small></span></label><label><input type="checkbox" data-news-source="techcrunch"><span><strong>TechCrunch</strong><small>需另行确认授权</small></span></label><label><input type="checkbox" data-news-source="openai"><span><strong>OpenAI News</strong><small>公开 AI 改写范围未确认</small></span></label></div>
+            <div class="subheading"><strong>出刊计划</strong><button class="secondary compact" id="addSchedule" type="button">增加一期</button></div>
+            <p class="fine">每期窗口从发布时间开始，在下一期开始或当日自动截止时结束，以更早者为准。单期截止可留空。</p><div id="scheduleEditor" class="schedule-editor"></div><div class="window-preview" id="newsWindowPreview" aria-live="polite"></div>
+          </fieldset>
+          <fieldset><legend>运行时段</legend><p class="fine">工作日和休息日分别设置。跨午夜时段允许结束时间早于开始时间。</p><div class="window-columns"><section><div class="subheading"><strong>工作日</strong><button class="secondary compact" type="button" data-add-window="workday">增加时段</button></div><div id="workdayWindows" class="window-editor"></div></section><section><div class="subheading"><strong>休息日</strong><button class="secondary compact" type="button" data-add-window="restday">增加时段</button></div><div id="restdayWindows" class="window-editor"></div></section></div></fieldset>
+          <fieldset><legend>补跑与自适应检查</legend><p class="fine">这些设置直接对应设备运行策略。阶梯格式为“等待秒数:检查间隔秒数”，多组用英文逗号分开。</p><div class="toggle-grid"><label><input id="newsCheckEnabled" type="checkbox"><span><strong>检查新一期</strong><small>在设备运行时检查是否有新内容</small></span></label></div><div class="form-grid three"><label><span>出刊后跟进（秒）</span><input id="newsFollowup" type="number" min="0" max="900" step="1"></label><label><span>跟进检查间隔（秒）</span><input id="newsFollowupPoll" type="number" min="30" max="300" step="1"></label><label><span>观察期（秒）</span><input id="observationSeconds" type="number" min="0" max="3600" step="1"></label><label><span>观察期检查间隔（秒）</span><input id="observationPoll" type="number" min="10" max="3600" step="1"></label><label><span>未知数据最长沿用（秒）</span><input id="unknownMaxAge" type="number" min="60" max="86400" step="1"></label></div><div class="form-grid"><label><span>活跃模式阶梯</span><input id="adaptiveActive" placeholder="0:60"><small>例如 0:60</small></label><label><span>轻量模式阶梯</span><input id="adaptiveLight" placeholder="0:60, 300:180, 900:300"><small>等待越久，检查可逐步放慢</small></label><label><span>夜间模式阶梯</span><input id="adaptiveNight" placeholder="0:60, 300:300, 900:600"><small>仅填写非负整数</small></label></div><div class="form-grid"><label><span>手动工作日</span><input id="manualWorkdays" placeholder="2026-10-10, 2026-10-11"><small>YYYY-MM-DD，英文逗号分开</small></label><label><span>手动休息日</span><input id="manualHolidays" placeholder="2026-10-01, 2026-10-02"><small>同一天不能同时出现在两处</small></label></div></fieldset>
+          <fieldset><legend>金价更新</legend><div class="toggle-grid"><label><input id="goldScheduled" type="checkbox"><span><strong>定时更新</strong><small>按运行模式执行</small></span></label><label><input id="goldWake" type="checkbox"><span><strong>唤醒补取</strong><small>设备唤醒时允许补取</small></span></label><label><input id="goldActive" type="checkbox"><span><strong>活跃时段</strong><small>允许更新金价</small></span></label><label><input id="goldLight" type="checkbox"><span><strong>轻量时段</strong><small>允许更新金价</small></span></label><label><input id="goldNight" type="checkbox"><span><strong>夜间时段</strong><small>允许更新金价</small></span></label></div><div class="form-grid three"><label><span>最短请求间隔（秒）</span><input id="goldMinInterval" type="number" min="30" max="3600" step="1"></label><label><span>日内恢复冷却（秒）</span><input id="goldRecoveryCooldown" type="number" min="1800" max="86400" step="1"></label><label><span>每日恢复次数</span><input id="goldRecoveryAttempts" type="number" min="1" max="8" step="1"></label></div></fieldset>
+          <fieldset><legend>屏幕显示</legend><div class="toggle-grid"><label><input id="showWeekday" type="checkbox"><span><strong>星期</strong><small>日期右侧显示</small></span></label><label><input id="showLunar" type="checkbox"><span><strong>农历</strong><small>与日期组合显示</small></span></label><label><input id="showSolar" type="checkbox"><span><strong>节气</strong><small>有节气时显示</small></span></label><label><input id="showFestivals" type="checkbox"><span><strong>节日</strong><small>有节日时显示</small></span></label><label><input id="showCodex" type="checkbox"><span><strong>点数余额</strong><small>自动读取，默认关闭</small></span></label><label><input id="showApi" type="checkbox"><span><strong>API 本月消费</strong><small>UTC 月，默认关闭</small></span></label></div></fieldset>
+          <fieldset><legend>页面切换</legend><div class="form-grid three"><label><span>默认页面</span><select id="defaultPage"><option value="ai">AI 用量</option><option value="news_gold">今日关注</option></select></label><label><span>活跃模式停留秒数</span><input id="activeIdle" type="number" min="0"></label><label><span>轻量模式停留秒数</span><input id="lightIdle" type="number" min="0"></label></div></fieldset>
+        </form>
+        <div class="apply-bar" id="applyBar" hidden><div><strong>草稿已经保存</strong><span>再次确认后才会成为有效配置。</span></div><button class="primary" id="applyDraft">确认应用</button></div>
+      </section>
+
+      <section class="page" data-page-panel="accounts">
+        <div class="intro"><div><p class="eyebrow">CREDENTIALS</p><h2>API 与账户</h2><p>密钥和密码只允许写入，不会在网页、接口或诊断信息中回显。</p></div><button class="primary" id="saveAccounts">保存到草稿</button></div>
+        <div class="cards">
+          <article class="panel credential"><div class="heading"><div><p class="eyebrow">新闻</p><h2>DeepSeek API</h2></div><span class="pill" data-secret="news_deepseek_api_key">--</span></div><label><span>替换密钥</span><input id="newsKey" type="password" autocomplete="new-password"><small>留空表示保持原值</small></label><button class="secondary" id="validateNewsKey">验证当前已应用密钥</button></article>
+          <article class="panel credential"><div class="heading"><div><p class="eyebrow">余额</p><h2>DeepSeek 余额</h2></div><span class="pill" data-secret="deepseek_api_key">--</span></div><label><span>替换密钥</span><input id="deepseekKey" type="password" autocomplete="new-password"><small>可与新闻密钥分开</small></label></article>
+          <article class="panel credential"><div class="heading"><div><p class="eyebrow">行情</p><h2>金价 API</h2></div><span class="pill" data-secret="goldapi_key">--</span></div><label><span>替换密钥</span><input id="goldKey" type="password" autocomplete="new-password"><small>留空表示保持原值</small></label></article>
+          <article class="panel credential"><div class="heading"><div><p class="eyebrow">同步</p><h2>坚果云或兼容服务</h2></div><span class="pill" data-secret="cloud_password">--</span></div><label><span>服务地址</span><input id="cloudUrl" autocomplete="off"></label><label><span>账户</span><input id="cloudUser" autocomplete="off"></label><label><span>替换密码</span><input id="cloudPassword" type="password" autocomplete="new-password"></label></article>
+          <article class="panel credential"><div class="heading"><div><p class="eyebrow">手动资料</p><h2>Codex 账户</h2></div><span class="pill">手动</span></div><label><span>套餐</span><select id="codexPlan"><option value="">不填写</option><option>FREE</option><option>PLUS</option><option>PRO</option><option>BUSINESS</option><option>ENTERPRISE</option></select></label><label><span>状态</span><select id="codexStatus"><option value="active">有效</option><option value="cancelled">已取消续订</option><option value="expired">已过期</option><option value="unknown">未知</option></select></label><label><span>有效期</span><input id="codexDate" type="date"></label></article>
+          <article class="panel credential openai-cost-card"><div class="heading"><div><p class="eyebrow">OPENAI 费用</p><h2>API 本月消费</h2></div><span class="pill" id="openaiCostState">未配置</span></div><p class="metric" id="openaiCostValue">-- USD</p><p class="fine" id="openaiCostNote">按 UTC 自然月统计整个所选组织。只有完整翻页成功后才显示数值。</p><label><span>OpenAI 费用查询密钥（Admin API Key）</span><input id="openaiAdminKey" type="password" autocomplete="new-password"><small>留空保持原值。仅 Organization Owner 可创建；密钥不会回显。</small></label><div class="form-grid"><label><span>自动刷新间隔（分钟）</span><input id="openaiPollMinutes" type="number" min="5" max="1440" step="1"></label><label><span>组织 ID（可选）</span><input id="openaiOrganization" autocomplete="off"><small>留空使用当前密钥所选组织</small></label></div><div class="actions"><a class="secondary link-button compact" href="https://platform.openai.com/settings/organization/admin-keys" target="_blank" rel="noreferrer">创建 Admin API Key</a><button class="secondary" id="verifyOpenaiCosts" type="button">验证并首次查询</button><button class="secondary" id="refreshOpenaiCosts" type="button">刷新月消费</button></div></article>
+          <article class="panel wifi-card"><div class="heading"><div><p class="eyebrow">设备网络</p><h2>Wi-Fi 列表</h2></div><span class="pill" data-secret="wifi_networks">--</span></div><p class="fine">最多 5 组。填写任意一行会完整替换现有列表，顺序就是连接优先级。空密码用于开放网络。</p><div id="wifiRows" class="wifi-rows"></div><label class="confirm clear-choice"><input id="clearWifi" type="checkbox"><span>明确清空全部已保存 Wi-Fi</span></label></article>
+          <article class="panel wifi-card"><div class="heading"><div><p class="eyebrow">清除凭据</p><h2>明确删除</h2></div></div><p class="fine">勾选后会在保存草稿时清除对应内容。未勾选且输入框为空仍表示保留。</p><div class="toggle-grid"><label><input id="clearNewsKey" type="checkbox"><span><strong>新闻密钥</strong></span></label><label><input id="clearDeepseekKey" type="checkbox"><span><strong>余额密钥</strong></span></label><label><input id="clearGoldKey" type="checkbox"><span><strong>金价密钥</strong></span></label><label><input id="clearOpenaiKey" type="checkbox"><span><strong>OpenAI 费用密钥</strong></span></label><label><input id="clearCloud" type="checkbox"><span><strong>云端凭据</strong></span></label></div></article>
+        </div>
+      </section>
+
+      <section class="page" data-page-panel="maintenance">
+        <div class="intro"><div><p class="eyebrow">MAINTENANCE</p><h2>维护</h2><p>构建和烧录分开执行，烧录前必须识别目标设备并再次确认。</p></div></div>
+        <div class="two-col"><article class="panel"><div class="heading"><div><p class="eyebrow">配置</p><h2>当前状态</h2></div><span class="pill" id="configState">--</span></div><dl class="details wide"><div><dt>配置指纹</dt><dd id="fingerprint">--</dd></div><div><dt>草稿</dt><dd id="draftState">--</dd></div><div><dt>后台版本</dt><dd id="backendVersion">--</dd></div></dl><a class="secondary link-button" href="/admin/analytics">打开旧统计页</a></article><article class="panel"><div class="heading"><div><p class="eyebrow">固件</p><h2>构建与刷写</h2></div><span class="pill" id="firmwareState">待接入</span></div><p class="fine">目标固定为 32MB ESP32-S3 与 4.26 英寸墨水屏。已有设备更新和全新空板采用不同写入范围，必须手动选择。</p><div class="actions"><button class="secondary" id="buildFirmware" disabled>构建固件</button><button class="primary" id="openFlash" disabled>识别并刷写</button></div></article></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="overlay" id="loginOverlay">
+    <form class="dialog login" id="loginForm"><p class="eyebrow">LOCAL ROOT</p><h2>登录本机管理端</h2><p>仅允许当前电脑访问，需要 root 账户。</p><label><span>用户名</span><input id="username" autocomplete="username" required></label><label><span>密码</span><input id="password" type="password" autocomplete="current-password" required></label><p class="error" id="loginError"></p><button class="primary full" type="submit">登录</button></form>
+    <form class="dialog login" id="setupForm" hidden><p class="eyebrow">FIRST START</p><h2>创建首位管理员</h2><p>当前数据库中还没有 root 管理员。此入口仅在本机且仅能成功一次。</p><label><span>管理员用户名</span><input id="setupUsername" autocomplete="username" minlength="2" maxlength="30" required></label><label><span>密码（至少 12 位）</span><input id="setupPassword" type="password" autocomplete="new-password" minlength="12" required></label><label><span>再次输入密码</span><input id="setupPasswordAgain" type="password" autocomplete="new-password" minlength="12" required></label><p class="error" id="setupError"></p><button class="primary full" type="submit">创建并登录</button></form>
+  </div>
+
+  <div class="overlay" id="issueOverlay" hidden><section class="dialog"><button class="close" data-close="issueOverlay">关闭</button><p class="eyebrow">MANUAL ISSUE</p><h2>手动生成新一期</h2><p>参数会按当前配置冻结。网络结果不确定时会保守计入调用次数。</p><div class="operation" id="issuePreflight"></div><ul class="checks"><li>不会改变下一次定时计划</li><li>每次调用前先持久化预留</li><li>终检失败保留上一份有效内容</li><li>没有新闻 API 时显示本地每日寄语</li></ul><label class="confirm"><input id="confirmIssue" type="checkbox"><span>我了解该操作可能产生 API 费用</span></label><div class="dialog-actions"><button class="secondary" data-close="issueOverlay">返回</button><button class="primary" id="runIssue" disabled>确认生成</button></div></section></div>
+  <div class="overlay" id="flashOverlay" hidden><section class="dialog"><button class="close" data-close="flashOverlay">关闭</button><p class="eyebrow">DEVICE FLASH</p><h2>识别并刷写设备</h2><p>先选择安装模式，再核对芯片、32MB Flash、分区和固件产物。只有最后确认会写入设备。</p><div class="operation" id="flashSummary"></div><div class="form-grid"><label id="deviceSelectWrap"><span>检测到的 USB 设备</span><select id="deviceSelect"></select></label><label><span>安装模式</span><select id="installMode"><option value="update">已有设备安全更新</option><option value="fresh">全新空白开发板</option></select></label></div><div class="dialog-actions" id="identifyActions"><button class="secondary" data-close="flashOverlay">返回</button><button class="primary" id="identifyDevice">核对设备与分区</button></div><div id="flashConfirmBlock" hidden><div class="safe-note"><strong>写入范围</strong><span id="flashScope">--</span></div><label class="confirm"><input id="confirmFlash" type="checkbox"><span>我确认设备指纹、安装模式和固件产物无误，并同意开始写入</span></label><div class="dialog-actions"><button class="secondary" data-close="flashOverlay">返回</button><button class="primary" id="runFlash" disabled>开始刷写</button></div></div></section></div>
+  <div class="toast" id="toast" hidden></div>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "mode_id": "MOYU",
+  "display_name": "Moyu Hot List",
+  "icon": "global",
+  "cacheable": false,
+  "description": "Timeline hot list across the web",
+  "content": {
+    "type": "static",
+    "static_data": {
+      "image_url": "https://moyu.110x.de/eink.png?w=400&h=234"
+    }
+  },
+  "layout": {
+    "status_bar": {
+      "style": "minimal"
+    },
+    "body": [
+      {
+        "type": "image",
+        "field": "image_url",
+        "width": 400,
+        "height": 234,
+        "x": 0,
+        "fit": "fill"
+      }
+    ]
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "mode_id": "BIAS",
+  "display_name": "Cognitive Bias",
+  "icon": "tips",
+  "cacheable": true,
+  "description": "Learn a cognitive bias with definition, example, and antidote",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "You are a cognitive psychology professor. Introduce one cognitive bias or psychological effect.\nOutput JSON:\n{{\"name\": \"Bias name (e.g. Survivorship Bias)\", \"definition\": \"One-line definition (under 50 chars)\", \"example\": \"A relatable daily-life example (under 80 chars)\", \"antidote\": \"How to counter it (under 40 chars)\"}}\nRequirements: Cover decision-making, memory, social, and consumer biases. Examples should be relatable. All text must be in English. Output JSON only.\nContext: {context}",
+    "output_schema": {
+      "name": {
+        "type": "string",
+        "default": "Survivorship Bias"
+      },
+      "definition": {
+        "type": "string",
+        "default": "Focusing on successes while ignoring failures"
+      },
+      "example": {
+        "type": "string",
+        "default": "\"Drop out like Gates\" — ignoring millions who dropped out and failed."
+      },
+      "antidote": {
+        "type": "string",
+        "default": "Actively seek counter-evidence"
+      }
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "name": "Survivorship Bias",
+      "definition": "Focusing on successes while ignoring failures",
+      "example": "\"Drop out like Gates\" — ignoring millions who dropped out and failed.",
+      "antidote": "Actively seek counter-evidence"
+    }
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": false
+    },
+    "layout_engine": "component_tree",
+    "body_preset": "bias_card",
+    "preset_props": {
+      "padding_x": 18,
+      "padding_y": 8,
+      "justify": "center",
+      "gap": 8,
+      "title_field": "name",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 18,
+      "separator_width": 70,
+      "definition_field": "definition",
+      "definition_font_size": 14,
+      "definition_max_lines": 2,
+      "example_title": "Example",
+      "example_field": "example",
+      "example_font": "noto_serif_regular",
+      "example_font_size": 12,
+      "example_max_lines": 3,
+      "example_inset_x": 36,
+      "show_antidote_divider": true,
+      "antidote_divider_margin_x": 40,
+      "antidote_label": "Antidote",
+      "antidote_label_font_size": 12,
+      "antidote_label_margin_x": 24,
+      "antidote_field": "antidote",
+      "antidote_font": "noto_serif_regular",
+      "antidote_font_size": 12,
+      "antidote_max_lines": 2,
+      "antidote_inset_x": 40
+    },
+    "footer": {
+      "label": "Bias",
+      "attribution_template": "— Think Clearly"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "padding_y": 4,
+        "gap": 5,
+        "title_font_size": 13,
+        "separator_width": 50,
+        "definition_font_size": 11,
+        "definition_align": "center",
+        "definition_max_lines": 2,
+        "example_field": null,
+        "show_antidote_divider": false,
+        "antidote_label": null,
+        "antidote_field": "antidote",
+        "antidote_font_size": 10,
+        "antidote_align": "center",
+        "antidote_max_lines": 1,
+        "antidote_inset_x": 12
+      },
+      "footer": {
+        "label": "Bias",
+        "attribution_template": "— Think Clearly",
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 14,
+        "padding_y": 10,
+        "gap": 8,
+        "title_font_size": 20,
+        "subtitle_font_size": 12,
+        "separator_width": 74,
+        "definition_font_size": 15,
+        "definition_max_lines": 3,
+        "example_font_size": 12,
+        "example_max_lines": 4,
+        "example_inset_x": 34,
+        "antidote_divider_margin_x": 40,
+        "antidote_label_font_size": 12,
+        "antidote_label_margin_x": 26,
+        "antidote_font_size": 12,
+        "antidote_max_lines": 3,
+        "antidote_inset_x": 34
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 18,
+        "padding_y": 14,
+        "gap": 10,
+        "title_font_size": 26,
+        "separator_width": 100,
+        "definition_font_size": 20,
+        "definition_max_lines": 3,
+        "example_font": "noto_serif_regular",
+        "example_font_size": 16,
+        "example_max_lines": 4,
+        "example_inset_x": 56,
+        "antidote_divider_margin_x": 60,
+        "antidote_label_font_size": 16,
+        "antidote_label_margin_x": 40,
+        "antidote_font": "noto_serif_regular",
+        "antidote_font_size": 16,
+        "antidote_max_lines": 3,
+        "antidote_inset_x": 56
+      }
+    }
+  }
+}

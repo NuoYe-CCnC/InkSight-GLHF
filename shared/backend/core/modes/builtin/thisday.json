@@ -1,0 +1,147 @@
+{
+  "mode_id": "THISDAY",
+  "display_name": "历史上的今天",
+  "icon": "thisday",
+  "cacheable": true,
+  "description": "同一天发生过的重大历史事件",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "你是一位历史学家。今天的日期信息如下，请选择历史上同一天（同月同日）发生的一件最有趣或最重要的事件。\n用 JSON 输出：\n{{\"year\": \"事件发生年份（如：1969）\", \"event_title\": \"事件标题（15字以内）\", \"event_desc\": \"事件描述（50字以内，生动有画面感）\", \"years_ago\": \"距今多少年（如：57年前）\", \"significance\": \"一句话评价这件事的意义（20字以内）\"}}\n要求：选择真实历史事件，涵盖科学、文化、政治、体育各领域，避免敏感政治话题。每次推荐不同的事件。只输出 JSON。\n环境：{context}",
+    "output_schema": {
+      "year": { "type": "string", "default": "1969" },
+      "event_title": { "type": "string", "default": "人类首次登月" },
+      "event_desc": { "type": "string", "default": "阿波罗11号宇航员阿姆斯特朗踏上月球表面，说出了那句著名的话。" },
+      "years_ago": { "type": "string", "default": "57年前" },
+      "significance": { "type": "string", "default": "人类太空探索的里程碑" }
+    },
+    "temperature": 0.85,
+    "fallback": {
+      "year": "1969",
+      "event_title": "人类首次登月",
+      "event_desc": "阿波罗11号宇航员阿姆斯特朗踏上月球表面，说出了那句著名的话。",
+      "years_ago": "57年前",
+      "significance": "人类太空探索的里程碑"
+    }
+  },
+  "layout": {
+    "layout_engine": "component_tree",
+    "status_bar": { "line_width": 1, "dashed": false },
+    "component_theme": {
+      "body_font": "noto_serif_regular",
+      "body_font_size": 13,
+      "body_line_gap": 5
+    },
+    "body_preset": "thisday_card",
+    "preset_props": {
+      "padding_x": 18,
+      "padding_y": 8,
+      "justify": "center",
+      "gap": 8,
+      "meta_field": "years_ago",
+      "meta_font_size": 11,
+      "hero_field": "year",
+      "hero_font_size": 38,
+      "separator_width": 70,
+      "title_field": "event_title",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 16,
+      "title_max_lines": 2,
+      "body_field": "event_desc",
+      "body_font_size": 13,
+      "body_inset_x": 28,
+      "body_max_lines": 4,
+      "divider_inset_x": 40,
+      "footer_field": "significance",
+      "footer_font": "noto_serif_light",
+      "footer_font_size": 11,
+      "footer_max_lines": 2
+    },
+    "footer": {
+      "label": "THIS DAY",
+      "attribution_template": "— History"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "padding_y": 4,
+        "justify": "space_between",
+        "gap": 5,
+        "float_wrap_body": true,
+        "float_column_width": 94,
+        "float_wrap_gap": 4,
+        "float_below_gap": 3,
+        "wrap_below_max_lines": 12,
+        "hero_show_separator": false,
+        "float_show_event_title": false,
+        "meta_field": "years_ago",
+        "meta_font_size": 9,
+        "meta_align": "left",
+        "hero_field": "year",
+        "hero_font_size": 26,
+        "hero_align": "left",
+        "title_field": "event_title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 12,
+        "title_max_lines": 2,
+        "title_align": "left",
+        "body_field": "event_desc",
+        "body_font_size": 10
+      },
+      "footer": { "label": "THIS DAY", "height": 18 }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 22,
+        "padding_y": 10,
+        "justify": "center",
+        "gap": 10,
+        "meta_field": "years_ago",
+        "meta_font_size": 13,
+        "hero_field": "year",
+        "hero_font_size": 46,
+        "separator_width": 82,
+        "title_field": "event_title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 18,
+        "title_max_lines": 2,
+        "body_field": "event_desc",
+        "body_font_size": 14,
+        "body_inset_x": 32,
+        "body_max_lines": 4,
+        "divider_inset_x": 44,
+        "footer_field": "significance",
+        "footer_font": "noto_serif_light",
+        "footer_font_size": 12,
+        "footer_max_lines": 2
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "padding_y": 14,
+        "justify": "center",
+        "gap": 12,
+        "meta_field": "years_ago",
+        "meta_font_size": 16,
+        "hero_field": "year",
+        "hero_font_size": 60,
+        "separator_width": 100,
+        "title_field": "event_title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 24,
+        "title_max_lines": 2,
+        "body_field": "event_desc",
+        "body_font_size": 19,
+        "body_inset_x": 48,
+        "body_max_lines": 5,
+        "divider_inset_x": 60,
+        "footer_field": "significance",
+        "footer_font": "noto_serif_light",
+        "footer_font_size": 16,
+        "footer_max_lines": 3
+      }
+    }
+  }
+}

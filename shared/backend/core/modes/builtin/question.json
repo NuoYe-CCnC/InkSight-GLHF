@@ -1,0 +1,97 @@
+{
+  "mode_id": "QUESTION",
+  "display_name": "每日一问",
+  "icon": "question",
+  "cacheable": true,
+  "description": "一个值得思考的开放式问题",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "你是一位善于提问的哲学家和心理咨询师。生成一个能引发深度思考的开放式问题，适合在工作间隙花3分钟思考。\n用 JSON 输出：\n{{\"question\": \"问题（30字以内，简洁有力）\", \"context_note\": \"为什么这个问题值得思考（25字以内）\", \"category\": \"问题类别（自我/关系/工作/人生/创造力）\"}}\n要求：\n1. 问题要有深度但不沉重，引发思考但不制造焦虑\n2. 不要是/否题，要开放式的\n3. 与当前季节、天气、时间有微妙的关联更佳\n只输出 JSON。\n环境：{context}",
+    "output_schema": {
+      "question": { "type": "string", "default": "你最近一次改变想法是什么时候？" },
+      "context_note": { "type": "string", "default": "改变想法是成长的标志" },
+      "category": { "type": "string", "default": "自我" }
+    },
+    "temperature": 0.9,
+    "fallback": {
+      "question": "你最近一次改变想法是什么时候？",
+      "context_note": "改变想法是成长的标志",
+      "category": "自我"
+    }
+  },
+  "layout": {
+    "status_bar": { "line_width": 1, "dashed": true },
+    "layout_engine": "component_tree",
+    "body_preset": "prompt_card",
+    "preset_props": {
+      "padding_x": 18,
+      "padding_y": 10,
+      "justify": "center",
+      "gap": 8,
+      "meta_template": "{category}",
+      "meta_font_size": 10,
+      "separator_width": 60,
+      "hero_inset_x": 44,
+      "hero_field": "question",
+      "hero_font": "noto_serif_bold",
+      "hero_font_size": 20,
+      "hero_max_lines": 3,
+      "note_field": "context_note",
+      "note_font": "noto_serif_light",
+      "note_font_size": 10,
+      "note_max_lines": 2,
+      "note_divider_margin_x": 50
+    },
+    "footer": {
+      "label": "?",
+      "attribution_template": "— Take a Moment",
+      "dashed": true
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "padding_y": 4,
+        "gap": 6,
+        "meta_template": null,
+        "hero_inset_x": 8,
+        "hero_font_size": 14,
+        "hero_max_lines": 3,
+        "note_field": null,
+        "show_note_divider": false
+      },
+      "footer": { "label": "?", "attribution_template": "— Take a Moment", "dashed": true, "height": 18 }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 20,
+        "padding_y": 12,
+        "gap": 9,
+        "meta_font_size": 11,
+        "separator_width": 68,
+        "hero_inset_x": 56,
+        "hero_font_size": 20,
+        "hero_max_lines": 3,
+        "note_font_size": 11,
+        "note_max_lines": 2,
+        "note_divider_margin_x": 54
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "padding_y": 16,
+        "gap": 12,
+        "meta_font_size": 14,
+        "separator_width": 90,
+        "hero_inset_x": 112,
+        "hero_font_size": 28,
+        "hero_max_lines": 3,
+        "note_font_size": 14,
+        "note_max_lines": 2,
+        "note_divider_margin_x": 80
+      }
+    }
+  }
+}

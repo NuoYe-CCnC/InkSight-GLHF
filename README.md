@@ -4,7 +4,9 @@
 
 > 面向 ESP32-S3 与 4.26 英寸墨水屏的本地双页信息面板，提供 AI 用量、新闻/金价展示、网页配置与可复现固件构建。
 
-InkSight-GLHF 是一个仍处于首个测试版候选阶段的开源项目。它由本机后端、浏览器管理端和 ESP32 固件组成，主要面向愿意自行接线、配置与维护服务的开发者和硬件爱好者。本项目不是 OpenAI、DeepSeek、小米或硬件厂商的官方产品或合作项目。
+InkSight-GLHF 是一个公开测试阶段的开源项目。它由本机后端、浏览器管理端和 ESP32 固件组成，主要面向愿意自行接线、配置与维护服务的开发者和硬件爱好者。本项目不是 OpenAI、DeepSeek、小米或硬件厂商的官方产品或合作项目。
+
+仓库：[`NuoYe-CCnC/InkSight-GLHF`](https://github.com/NuoYe-CCnC/InkSight-GLHF) · 当前测试版：[`v0.1.0-test.1`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.1)
 
 ## 能做什么
 
@@ -32,7 +34,12 @@ InkSight-GLHF 是一个仍处于首个测试版候选阶段的开源项目。它
 
 ## 快速开始
 
-以下命令均从解压后的发行目录根执行。首个验证基线使用 Python 3.9：
+可以克隆仓库或下载 Release 源码包。以下命令均从源码根目录执行；首个验证基线使用 Python 3.9：
+
+```bash
+git clone https://github.com/NuoYe-CCnC/InkSight-GLHF.git
+cd InkSight-GLHF
+```
 
 ```bash
 python3.9 -m venv shared/backend/.venv
@@ -76,7 +83,7 @@ shared/backend/run-backend.sh
 
 - [安装、配置、字体、构建、刷写、升级与恢复](docs/INSTALLATION.zh-CN.md)
 - [English installation guide](docs/INSTALLATION.en.md)
-- [首个测试版 Release Notes 草案](docs/RELEASE_NOTES_DRAFT.zh-CN.md)
+- [v0.1.0-test.1 测试版说明](docs/releases/v0.1.0-test.1.zh-CN.md)
 - [支持矩阵与已知限制](docs/SUPPORT_MATRIX.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全政策](SECURITY.md)
@@ -86,4 +93,4 @@ shared/backend/run-backend.sh
 
 项目有权许可的自有代码与四条发行寄语按 `GPL-3.0-only` 提供，完整文本见 [LICENSE](LICENSE)。第三方代码、字体、服务和内容继续受各自条款约束；GPL 不会重授第三方材料，也不证明发布者拥有所有外部权利。MiSans 不随发行包提供。
 
-当前材料仅为本地“工程候选可发布”状态，并不表示仓库、标签或 Release 已经公开创建。
+`v0.1.0-test.1` 是首个公开测试版，不是稳定版。已验证、用户确认与尚未验证的范围以[测试版说明](docs/releases/v0.1.0-test.1.zh-CN.md)和[支持矩阵](docs/SUPPORT_MATRIX.md)为准。

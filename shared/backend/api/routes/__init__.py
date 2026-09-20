@@ -1,0 +1,44 @@
+from .admin_analytics import router as admin_analytics_router
+from .auth import router as auth_router
+from .config import router as config_router
+from .device import router as device_router
+from .discover import router as discover_router
+from .device_ota import router as device_ota_router
+from .gold_admin import router as gold_admin_router
+from .external import router as external_router
+from .firmware import router as firmware_router
+from .locations import router as locations_router
+from .local_console import router as local_console_router
+from .mobile import router as mobile_router
+from .modes import router as modes_router
+from .pages import router as pages_router
+from .render import router as render_router
+from .stats import router as stats_router
+from .sync import router as sync_router
+from .uploads import router as uploads_router
+from .user import router as user_router
+from .voice import router as voice_router
+
+api_routers = [
+    render_router,
+    admin_analytics_router,
+    config_router,
+    device_router,
+    modes_router,
+    auth_router,
+    user_router,
+    mobile_router,
+    stats_router,
+    sync_router,
+    firmware_router,
+    device_ota_router,
+    gold_admin_router,
+    discover_router,
+    external_router,
+    locations_router,
+    local_console_router,
+    uploads_router,
+    voice_router,
+]
+
+page_routers = [pages_router]

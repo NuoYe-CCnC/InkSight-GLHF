@@ -1,0 +1,142 @@
+{
+  "mode_id": "MEMO",
+  "display_name": "便签留言",
+  "icon": "memo",
+  "cacheable": false,
+  "description": "在墨水屏上显示自定义留言",
+  "settings_schema": [
+    {
+      "key": "memo_title_1",
+      "label": "标题 1",
+      "type": "text",
+      "placeholder": "输入标题，如：今日待办"
+    },
+    {
+      "key": "memo_text_1",
+      "label": "内容 1",
+      "type": "textarea",
+      "placeholder": "输入第一组便签内容"
+    },
+    {
+      "key": "memo_title_2",
+      "label": "标题 2",
+      "type": "text",
+      "placeholder": "可选，第二组标题"
+    },
+    {
+      "key": "memo_text_2",
+      "label": "内容 2",
+      "type": "textarea",
+      "placeholder": "可选，第二组便签内容"
+    },
+    {
+      "key": "memo_title_3",
+      "label": "标题 3",
+      "type": "text",
+      "placeholder": "可选，第三组标题"
+    },
+    {
+      "key": "memo_text_3",
+      "label": "内容 3",
+      "type": "textarea",
+      "placeholder": "可选，第三组便签内容"
+    }
+  ],
+  "content": {
+    "type": "computed",
+    "provider": "memo",
+    "fallback": {"memo_title_1": "今日待办", "memo_text_1": "1. \n2. \n3. "},
+    "fallback_pool": [
+      {"memo_title_1": "今日待办", "memo_text_1": "1. \n2. \n3. "}
+    ]
+  },
+  "layout": {
+    "status_bar": {"line_width": 1, "dashed": false},
+    "layout_engine": "component_tree",
+    "body_preset": "memo_card",
+    "preset_props": {
+      "padding_x": 86,
+      "padding_y": 26,
+      "justify": "top",
+      "gap": 4,
+      "sections": 3,
+      "title_prefix": "memo_title_",
+      "text_prefix": "memo_text_",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 18,
+      "text_font": "noto_serif_light",
+      "text_font_size": 14,
+      "text_align": "left",
+      "text_max_lines": 3,
+      "text_inset_x": 0
+    },
+    "decorations": [
+      {
+        "icon": "memo_img",
+        "anchor": "top_left",
+        "size": 60,
+        "margin": 8,
+        "image_mode": "invert_dither"
+      }
+    ],
+    "footer": {"label": "MEMO"}
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 56,
+        "padding_y": 4,
+        "text_font_size": 13,
+        "text_max_lines": 3,
+        "text_inset_x": 0
+      },
+      "decorations": [
+        {
+          "icon": "memo_img",
+          "anchor": "top_left",
+          "size": 48,
+          "margin": 6,
+          "image_mode": "invert_dither"
+        }
+      ],
+      "footer": {"label": "MEMO", "height": 18}
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 54,
+        "padding_y": 16,
+        "title_font_size": 20,
+        "text_font_size": 18,
+        "text_max_lines": 8,
+        "text_inset_x": 0
+      },
+      "decorations": [
+        {
+          "icon": "memo_img",
+          "anchor": "top_left",
+          "size": 60,
+          "margin": 12,
+          "image_mode": "invert_dither"
+        }
+      ]
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 80,
+        "padding_y": 12,
+        "text_font_size": 22,
+        "text_max_lines": 10,
+        "text_inset_x": 0
+      },
+      "decorations": [
+        {
+          "icon": "memo_img",
+          "anchor": "top_left",
+          "size": 60,
+          "margin": 16,
+          "image_mode": "invert_dither"
+        }
+      ]
+    }
+  }
+}

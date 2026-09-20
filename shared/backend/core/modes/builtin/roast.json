@@ -1,0 +1,142 @@
+{
+  "mode_id": "ROAST",
+  "display_name": "毒舌吐槽",
+  "icon": "electric_bolt",
+  "cacheable": true,
+  "description": "精准情境吐槽，缓解压力",
+
+  "content": {
+    "type": "llm",
+    "prompt_template": "你是一个毒舌 AI，擅长黑色幽默和反讽。你必须精确针对以下环境信息中的某一个具体细节进行吐槽，不要泛泛而谈。\n比如：如果是周一，吐槽周一的痛苦；如果在下雨，吐槽淋雨的人；如果是深夜，吐槽还不睡的人；如果天很热，吐槽热到融化。\n吐槽要像一个损友在你旁边说的话，不要像网络段子。语气亲切但扎心，让人破防又忍不住笑。\n只输出短句本身，不要加引号，不要加前缀。\n环境：{context}",
+    "output_format": "raw",
+    "output_fields": ["quote"],
+    "temperature": 0.85,
+    "fallback": {
+      "quote": "服务器也累了，和你一样需要休息。"
+    },
+    "fallback_pool": [
+      {"quote": "服务器也累了，和你一样需要休息。"},
+      {"quote": "加载中...就像你的人生一样，一直在加载。"},
+      {"quote": "404 找到了，你的动力没找到。"},
+      {"quote": "网络超时，和你的耐心一起。"},
+      {"quote": "系统繁忙，建议你也忙点正事。"}
+    ]
+  },
+
+  "layout": {
+    "status_bar": { "line_width": 2, "dashed": false },
+    "layout_engine": "component_tree",
+    "component_theme": {
+      "body_font": "noto_serif_bold",
+      "body_font_size": 18,
+      "body_line_gap": 8
+    },
+    "body": {
+      "type": "column",
+      "padding_x": 18,
+      "justify": "center",
+      "children": [
+        {
+          "type": "box",
+          "padding_x": 6,
+          "children": [
+            {
+              "type": "text",
+              "field": "quote",
+              "font": "noto_serif_bold",
+              "font_size": 18,
+              "align": "center",
+              "max_lines": 4
+            }
+          ]
+        }
+      ]
+    },
+    "footer": {
+      "label": "ROAST",
+      "attribution_template": "— InkSight AI",
+      "line_width": 2
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "component_theme": {
+        "body_font_size": 13
+      },
+      "body": {
+        "type": "column",
+        "padding_x": 8,
+        "justify": "center",
+        "children": [
+          {
+            "type": "box",
+            "padding_x": 4,
+            "children": [
+              {
+                "type": "text",
+                "field": "quote",
+                "font": "noto_serif_bold",
+                "font_size": 13,
+                "align": "center",
+                "max_lines": 4
+              }
+            ]
+          }
+        ]
+      },
+      "footer": { "label": "ROAST", "attribution_template": "— InkSight AI", "height": 18, "line_width": 2 }
+    },
+    "648x480": {
+      "component_theme": {
+        "body_font_size": 20
+      },
+      "body": {
+        "type": "column",
+        "padding_x": 20,
+        "justify": "center",
+        "children": [
+          {
+            "type": "box",
+            "padding_x": 28,
+            "children": [
+              {
+                "type": "text",
+                "field": "quote",
+                "font": "noto_serif_bold",
+                "font_size": 20,
+                "align": "center",
+                "max_lines": 5
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "800x480": {
+      "component_theme": {
+        "body_font_size": 26
+      },
+      "body": {
+        "type": "column",
+        "padding_x": 28,
+        "justify": "center",
+        "children": [
+          {
+            "type": "box",
+            "padding_x": 44,
+            "children": [
+              {
+                "type": "text",
+                "field": "quote",
+                "font": "noto_serif_bold",
+                "font_size": 26,
+                "align": "center",
+                "max_lines": 4
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+# 本机配置、密钥与运行状态
+.local/
+shared/config/inksight_config.json
+shared/config/inksight_secrets.json
+shared/config/manual_settings.json
+shared/config/backups/
+shared/backend/.env
+shared/backend/.jwt_secret
+shared/backend/*.db
+shared/backend/state/
+shared/backend/uploads/
+shared/backend/logs/
+
+# MiSans 原始字体及本机生成的固件字库
+shared/backend/fonts/misans/
+shared/firmware/src/fonts_misans_16.h
+shared/firmware/src/fonts_misans_24.h
+shared/firmware/src/fonts_gen/misans_*.h
+
+# 构建、缓存与发布候选
+.pio/
+.pio-core/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+dist/
+release-candidate/
+.backups/

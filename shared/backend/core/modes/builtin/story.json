@@ -1,0 +1,120 @@
+{
+  "mode_id": "STORY",
+  "display_name": "微故事",
+  "icon": "book",
+  "cacheable": true,
+  "description": "一个完整的三段式微型小说",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "你是一位微型小说大师。写一个能在30秒内读完的三段式微故事。\n用 JSON 输出：\n{{\"title\": \"标题（5字以内）\", \"opening\": \"开头（25字以内，设定场景和人物）\", \"twist\": \"转折（30字以内，出人意料的展开）\", \"ending\": \"结尾（20字以内，留有余味的收束）\", \"genre\": \"类型（悬疑/温情/科幻/荒诞）\"}}\n要求：\n1. 结尾要有反转或余韵，不要平铺直叙\n2. 与当前天气/时间段有微妙的呼应\n3. 不要大团圆，要有文学性\n4. 像闪小说（flash fiction），不像寓言或鸡汤\n只输出 JSON。\n环境：{context}",
+    "output_schema": {
+      "title": { "type": "string", "default": "末班车" },
+      "opening": { "type": "string", "default": "她每天都坐末班地铁，座位对面总是同一个男人在看书。" },
+      "twist": { "type": "string", "default": "有一天她终于鼓起勇气搭话，男人抬头，手里的书封面是她写的小说。" },
+      "ending": { "type": "string", "default": "小说的最后一章写的是：她从未搭话。" },
+      "genre": { "type": "string", "default": "温情" }
+    },
+    "temperature": 0.92,
+    "fallback": {
+      "title": "末班车",
+      "opening": "她每天都坐末班地铁，座位对面总是同一个男人在看书。",
+      "twist": "有一天她终于鼓起勇气搭话，男人抬头，手里的书封面是她写的小说。",
+      "ending": "小说的最后一章写的是：她从未搭话。",
+      "genre": "温情"
+    }
+  },
+  "layout": {
+    "layout_engine": "component_tree",
+    "status_bar": { "line_width": 1, "dashed": true },
+    "component_theme": {
+      "body_font": "noto_serif_regular",
+      "body_font_size": 13,
+      "body_line_gap": 5
+    },
+    "body_preset": "story_card",
+    "preset_props": {
+      "padding_x": 18,
+      "padding_y": 6,
+      "justify": "center",
+      "gap": 6,
+      "meta_field": "genre",
+      "meta_font_size": 9,
+      "title_field": "title",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 16,
+      "title_max_lines": 2,
+      "separator_width": 50,
+      "sections": [
+        { "field": "opening", "font_size": 13, "inset_x": 28, "max_lines": 3 },
+        { "field": "twist", "font_size": 13, "inset_x": 28, "max_lines": 3 },
+        { "field": "ending", "font": "noto_serif_light", "font_size": 13, "inset_x": 28, "max_lines": 3 }
+      ]
+    },
+    "footer": {
+      "label": "STORY",
+      "attribution_template": "— Micro Fiction",
+      "dashed": true
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "padding_y": 4,
+        "justify": "center",
+        "gap": 4,
+        "meta_field": null,
+        "title_field": "title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 12,
+        "title_max_lines": 2,
+        "separator_width": 30,
+        "sections": [
+          { "field": "opening", "font_size": 10, "inset_x": 8, "max_lines": 2 },
+          { "field": "twist", "font_size": 10, "inset_x": 8, "max_lines": 2 }
+        ]
+      },
+      "footer": { "label": "STORY", "dashed": true, "height": 18 }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 22,
+        "padding_y": 8,
+        "justify": "center",
+        "gap": 8,
+        "meta_field": "genre",
+        "meta_font_size": 10,
+        "title_field": "title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 18,
+        "title_max_lines": 2,
+        "separator_width": 58,
+        "sections": [
+          { "field": "opening", "font_size": 14, "inset_x": 30, "max_lines": 3 },
+          { "field": "twist", "font_size": 14, "inset_x": 30, "max_lines": 3 },
+          { "field": "ending", "font": "noto_serif_light", "font_size": 14, "inset_x": 30, "max_lines": 3 }
+        ]
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "padding_y": 10,
+        "justify": "center",
+        "gap": 10,
+        "meta_field": "genre",
+        "meta_font_size": 13,
+        "title_field": "title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 24,
+        "title_max_lines": 2,
+        "separator_width": 70,
+        "sections": [
+          { "field": "opening", "font_size": 19, "inset_x": 48, "max_lines": 4 },
+          { "field": "twist", "font_size": 19, "inset_x": 48, "max_lines": 4 },
+          { "field": "ending", "font": "noto_serif_light", "font_size": 19, "inset_x": 48, "max_lines": 4 }
+        ]
+      }
+    }
+  }
+}

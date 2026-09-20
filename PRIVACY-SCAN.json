@@ -1,0 +1,22 @@
+{
+  "schema": 2,
+  "scope": "allowlisted candidate tree before archive, followed by independent fresh-extract scan",
+  "matched_values_included": false,
+  "source_files": 329,
+  "findings": [],
+  "coverage": [
+    "filenames and paths",
+    "text content",
+    "forbidden binary/font/archive types",
+    "common API/token/private-key signatures",
+    "absolute home paths",
+    "MAC addresses",
+    "symlinks"
+  ],
+  "limitations": [
+    "pattern scanning cannot prove absence of every secret",
+    "it cannot establish copyright ownership or external service terms",
+    "encrypted or novel credential formats may not be recognized"
+  ],
+  "publication_ready": true
+}

@@ -1,0 +1,173 @@
+{
+  "mode_id": "THISDAY",
+  "display_name": "On This Day",
+  "icon": "thisday",
+  "cacheable": true,
+  "description": "A notable historical event on the same date",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "You are a historian. Based on today's date info, select the most interesting or important event that happened on this same day (same month and day) in history.\nOutput JSON:\n{{\"year\": \"Year of the event (e.g. 1969)\", \"event_title\": \"Event title (under 30 chars)\", \"event_desc\": \"Event description (under 100 chars, vivid)\", \"years_ago\": \"How long ago (e.g. 57 years ago)\", \"significance\": \"One-line significance (under 40 chars)\"}}\nRequirements: Real historical events across science, culture, politics, sports. Avoid sensitive political topics. Different event each time. Output JSON only.\nContext: {context}",
+    "output_schema": {
+      "year": {
+        "type": "string",
+        "default": "1969"
+      },
+      "event_title": {
+        "type": "string",
+        "default": "Moon Landing"
+      },
+      "event_desc": {
+        "type": "string",
+        "default": "Apollo 11 astronauts became the first humans to walk on the Moon."
+      },
+      "years_ago": {
+        "type": "string",
+        "default": "57 years ago"
+      },
+      "significance": {
+        "type": "string",
+        "default": "Humanity's greatest leap beyond Earth."
+      }
+    },
+    "temperature": 0.85,
+    "fallback": {
+      "year": "1969",
+      "event_title": "Moon Landing",
+      "event_desc": "Apollo 11 astronauts became the first humans to walk on the Moon.",
+      "years_ago": "57 years ago",
+      "significance": "Humanity's greatest leap beyond Earth."
+    }
+  },
+  "layout": {
+    "layout_engine": "component_tree",
+    "status_bar": {
+      "line_width": 1,
+      "dashed": false
+    },
+    "component_theme": {
+      "body_font": "noto_serif_regular",
+      "body_font_size": 13,
+      "body_line_gap": 5
+    },
+    "body_preset": "thisday_card",
+    "preset_props": {
+      "padding_x": 18,
+      "padding_y": 8,
+      "justify": "center",
+      "gap": 8,
+      "meta_field": "years_ago",
+      "meta_font_size": 11,
+      "hero_field": "year",
+      "hero_font_size": 38,
+      "separator_width": 70,
+      "title_field": "event_title",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 16,
+      "title_max_lines": 2,
+      "body_field": "event_desc",
+      "body_font": "noto_serif_regular",
+      "body_font_size": 13,
+      "body_inset_x": 28,
+      "body_max_lines": 4,
+      "divider_inset_x": 40,
+      "footer_field": "significance",
+      "footer_font": "noto_serif_light",
+      "footer_font_size": 11,
+      "footer_max_lines": 2
+    },
+    "footer": {
+      "label": "On This Day",
+      "attribution_template": "— History"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "padding_y": 4,
+        "justify": "space_between",
+        "gap": 5,
+        "float_wrap_body": true,
+        "float_column_width": 94,
+        "float_wrap_gap": 4,
+        "float_below_gap": 3,
+        "wrap_below_max_lines": 12,
+        "hero_show_separator": false,
+        "float_show_event_title": false,
+        "meta_field": "years_ago",
+        "meta_font_size": 9,
+        "meta_align": "left",
+        "hero_field": "year",
+        "hero_font_size": 26,
+        "hero_align": "left",
+        "separator_width": 38,
+        "header_gap": 3,
+        "body_gap": 3,
+        "title_field": "event_title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 12,
+        "title_max_lines": 2,
+        "title_align": "left",
+        "body_field": "event_desc",
+        "body_font_size": 10
+      },
+      "footer": {
+        "label": "On This Day",
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 22,
+        "padding_y": 10,
+        "justify": "center",
+        "gap": 10,
+        "meta_field": "years_ago",
+        "meta_font_size": 13,
+        "hero_field": "year",
+        "hero_font_size": 46,
+        "separator_width": 82,
+        "title_field": "event_title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 18,
+        "title_max_lines": 2,
+        "body_field": "event_desc",
+        "body_font_size": 14,
+        "body_inset_x": 32,
+        "body_max_lines": 4,
+        "divider_inset_x": 44,
+        "footer_field": "significance",
+        "footer_font": "noto_serif_light",
+        "footer_font_size": 12,
+        "footer_max_lines": 2
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "padding_y": 14,
+        "justify": "center",
+        "gap": 12,
+        "meta_field": "years_ago",
+        "meta_font_size": 16,
+        "hero_field": "year",
+        "hero_font_size": 60,
+        "separator_width": 100,
+        "title_field": "event_title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 24,
+        "title_max_lines": 2,
+        "body_field": "event_desc",
+        "body_font": "noto_serif_regular",
+        "body_font_size": 19,
+        "body_inset_x": 48,
+        "body_max_lines": 5,
+        "divider_inset_x": 60,
+        "footer_field": "significance",
+        "footer_font": "noto_serif_light",
+        "footer_font_size": 16,
+        "footer_max_lines": 3
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "mode_id": "HOTLIST",
+  "display_name": "全网热点",
+  "icon": "hot",
+  "cacheable": true,
+  "description": "全网热点榜单（微博热搜，多源回退）",
+  "settings_schema": [
+    {
+      "key": "max_items",
+      "label": "榜单条数",
+      "type": "number",
+      "default": 10,
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "description": "显示的热点条数"
+    }
+  ],
+  "content": {
+    "type": "external_data",
+    "provider": "hotlist",
+    "fallback": {
+      "items": [
+        {"rank": 1, "title": "全网热点数据暂不可用", "hot": ""},
+        {"rank": 2, "title": "请检查网络或稍后重试", "hot": ""}
+      ],
+      "source_label": "微博热搜"
+    }
+  },
+  "layout": {
+    "status_bar": {"line_width": 1, "dashed": false},
+    "body_align": "top",
+    "body": [
+      {"type": "list", "field": "items", "field_template": "{rank}. {title}  {hot}", "max_items": 10, "font_size": 16, "margin_x": 20}
+    ],
+    "footer": {"label": "全网热点"}
+  }
+}

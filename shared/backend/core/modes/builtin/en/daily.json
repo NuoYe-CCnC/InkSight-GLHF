@@ -1,0 +1,211 @@
+{
+  "mode_id": "DAILY",
+  "display_name": "Daily Pick",
+  "icon": "sunny",
+  "cacheable": true,
+  "description": "Daily quote, book recommendation, and fun fact",
+  "content": {
+    "type": "composite",
+    "steps": [
+      {
+        "type": "computed",
+        "provider": "daily_meta",
+        "fallback": {
+          "year": 2026,
+          "day": 1,
+          "month_cn": "January",
+          "weekday_cn": "Monday",
+          "day_of_year": 1,
+          "days_in_year": 365
+        }
+      },
+      {
+        "type": "llm_json",
+        "prompt_template": "You are a well-read daily recommendation assistant. Based on the environment info, generate daily content in JSON:\n1. quote: An inspiring quote (under 40 chars), focused on reflection or motivation\n2. author: Quote author\n3. book_title: Recommend a book\n4. book_author: Book author\n5. book_desc: One-line description of the book's theme or why it is worth reading (under 42 chars); do not repeat the quote or tip\n6. tip: A concrete, practical tip or fun fact (under 32 chars); avoid inspirational phrasing and do not repeat season_text\n7. season_text: A short sentence about the current season (under 28 chars); seasonal observation only, no advice\nMake the three content sections clearly different in meaning and avoid semantic repetition. Output JSON only.\nContext: {context}",
+        "output_schema": {
+          "quote": {
+            "type": "string",
+            "default": "The only way to do great work is to love what you do."
+          },
+          "author": {
+            "type": "string",
+            "default": "Steve Jobs"
+          },
+          "book_title": {
+            "type": "string",
+            "default": "Atomic Habits"
+          },
+          "book_author": {
+            "type": "string",
+            "default": "James Clear"
+          },
+          "book_desc": {
+            "type": "string",
+            "default": "Small changes, remarkable results."
+          },
+          "tip": {
+            "type": "string",
+            "default": "Honey never spoils — edible after thousands of years."
+          },
+          "season_text": {
+            "type": "string",
+            "default": "Spring awakens the world in color."
+          }
+        },
+        "fallback": {
+          "quote": "The only way to do great work is to love what you do.",
+          "author": "Steve Jobs",
+          "book_title": "Atomic Habits",
+          "book_author": "James Clear",
+          "book_desc": "Small changes, remarkable results.",
+          "tip": "Honey never spoils — edible after thousands of years.",
+          "season_text": "Spring awakens the world in color."
+        }
+      }
+    ],
+    "fallback": {},
+    "fallback_pool": [
+      {
+        "quote": "The only way to do great work is to love what you do.",
+        "author": "Steve Jobs",
+        "book_title": "Atomic Habits",
+        "book_author": "James Clear",
+        "book_desc": "Small changes, remarkable results.",
+        "tip": "Honey never spoils — edible after thousands of years.",
+        "season_text": "Spring awakens the world in color."
+      },
+      {
+        "quote": "In the middle of difficulty lies opportunity.",
+        "author": "Albert Einstein",
+        "book_title": "Deep Work",
+        "book_author": "Cal Newport",
+        "book_desc": "Rules for focused success in a distracted world.",
+        "tip": "A 20-minute nap is ideal; longer causes grogginess.",
+        "season_text": "Winter reminds us to rest and reflect."
+      },
+      {
+        "quote": "Be yourself; everyone else is already taken.",
+        "author": "Oscar Wilde",
+        "book_title": "The Little Prince",
+        "book_author": "Antoine de Saint-Exupéry",
+        "book_desc": "A fable for grown-ups and children alike.",
+        "tip": "Blue light affects sleep — avoid screens before bed.",
+        "season_text": "Nature awakens; time for a walk outside."
+      }
+    ]
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": false
+    },
+    "layout_engine": "component_tree",
+    "component_theme": {
+      "body_font": "noto_serif_regular",
+      "body_font_size": 12
+    },
+    "body_preset": "daily_card",
+    "preset_props": {
+      "padding_x": 18,
+      "justify": "center",
+      "min_height": 170,
+      "row_gap": 10,
+      "panel_width": 116,
+      "panel_padding_x": 8,
+      "panel_gap": 4,
+      "year_font_size": 12,
+      "day_font_size": 52,
+      "month_font_size": 14,
+      "weekday_font_size": 12,
+      "progress_width": 80,
+      "season_font": "noto_serif_light",
+      "season_font_size": 10,
+      "season_inset_x": 10,
+      "content_padding_x": 6,
+      "content_justify": "space_between",
+      "quote_font": "noto_serif_regular",
+      "quote_font_size": 15,
+      "author_template": "— {author}",
+      "author_font_size": 12,
+      "book_title_font_size": 14,
+      "book_author_template": "by {book_author}",
+      "book_author_font_size": 12,
+      "book_desc_font_size": 12,
+      "tip_font_size": 12,
+      "divider_margin_x": 6
+    },
+    "footer": {
+      "label": "Daily",
+      "attribution_template": "— Carpe Diem"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "variant": "narrow_columns",
+        "padding_x": 6,
+        "col_gap": 6,
+        "left_col_width": 74,
+        "left_gap": 2,
+        "left_justify": "center",
+        "year_align": "center",
+        "year_suffix": "",
+        "year_font_size": 10,
+        "day_align": "center",
+        "day_font_size": 30,
+        "month_align": "center",
+        "month_font_size": 10,
+        "weekday_align": "center",
+        "weekday_font_size": 10,
+        "between_month_weekday_gap": 6,
+        "quote_font": "noto_serif_regular",
+        "quote_font_size": 11,
+        "quote_max_lines": 3,
+        "author_template": "— {author}",
+        "author_font_size": 9,
+        "tip_font_size": 9,
+        "tip_max_lines": 2,
+        "right_gap": 2,
+        "quote_gap": 2,
+        "content_padding_x": 0
+      },
+      "footer": {
+        "label": "Daily",
+        "height": 30
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 18,
+        "justify": "center",
+        "min_height": 230,
+        "row_gap": 12,
+        "panel_width": 145,
+        "panel_padding_x": 8,
+        "panel_gap": 5,
+        "year_font_size": 12,
+        "day_font_size": 64,
+        "month_font_size": 12,
+        "weekday_font_size": 11,
+        "progress_width": 92,
+        "season_font": "noto_serif_light",
+        "season_font_size": 10,
+        "season_inset_x": 10,
+        "content_padding_x": 6,
+        "quote_font": "noto_serif_regular",
+        "quote_font_size": 16,
+        "quote_max_lines": 3,
+        "author_template": "— {author}",
+        "author_font_size": 12,
+        "book_title_font_size": 12,
+        "book_title_max_lines": 2,
+        "book_author_template": "by {book_author}",
+        "book_author_font_size": 11,
+        "book_desc_font_size": 12,
+        "tip_font_size": 12,
+        "tip_max_lines": 2,
+        "divider_margin_x": 6
+      }
+    }
+  }
+}

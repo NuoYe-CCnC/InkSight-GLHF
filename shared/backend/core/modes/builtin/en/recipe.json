@@ -1,0 +1,136 @@
+{
+  "mode_id": "RECIPE",
+  "display_name": "Meal Plan",
+  "icon": "food",
+  "cacheable": false,
+  "description": "Seasonal breakfast, lunch, and dinner suggestions",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "You are a nutritionist. Recommend a simple breakfast, lunch, and dinner plan for today based on the season.\nOutput JSON: {{\"season\": \"Season (e.g. Early Spring)\", \"breakfast\": \"Breakfast (under 30 chars)\", \"lunch\": \"Lunch (under 30 chars)\", \"dinner\": \"Dinner (under 30 chars)\", \"tip\": \"Nutrition tip (under 30 chars)\"}}\nIf a meal lists multiple dishes, separate them with a middle dot with one space on each side: \" · \" (example: Oatmeal · Berries · Green tea). Do not omit those spaces. Output JSON only.\nContext: {context}",
+    "output_schema": {
+      "season": {
+        "type": "string",
+        "default": "Spring"
+      },
+      "breakfast": {
+        "type": "string",
+        "default": "Oatmeal · Berries · Green tea"
+      },
+      "lunch": {
+        "type": "string",
+        "default": "Grilled chicken salad · Soup"
+      },
+      "dinner": {
+        "type": "string",
+        "default": "Salmon · Roasted vegetables"
+      },
+      "tip": {
+        "type": "string",
+        "default": "Eat the rainbow for balanced nutrition."
+      }
+    },
+    "post_process": {
+      "breakfast": "recipe_normalize_item_sep",
+      "lunch": "recipe_normalize_item_sep",
+      "dinner": "recipe_normalize_item_sep"
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "season": "Spring",
+      "breakfast": "Oatmeal · Berries · Green tea",
+      "lunch": "Grilled chicken salad · Soup",
+      "dinner": "Salmon · Roasted vegetables",
+      "tip": "Eat the rainbow for balanced nutrition."
+    },
+    "fallback_pool": [
+      {
+        "season": "Spring",
+        "breakfast": "Oatmeal · Berries · Green tea",
+        "lunch": "Grilled chicken salad · Soup",
+        "dinner": "Salmon · Roasted vegetables",
+        "tip": "Eat the rainbow for balanced nutrition."
+      },
+      {
+        "season": "Summer",
+        "breakfast": "Yogurt · Granola · Fresh fruit",
+        "lunch": "Cold noodles · Cucumber salad",
+        "dinner": "Shrimp stir-fry · Steamed greens",
+        "tip": "Stay hydrated; eat light in the heat."
+      },
+      {
+        "season": "Autumn",
+        "breakfast": "Pumpkin porridge · Toast · Eggs",
+        "lunch": "Braised pork · Seasonal veggies",
+        "dinner": "Chicken soup · Sweet potato",
+        "tip": "Warm foods help fight autumn dryness."
+      }
+    ]
+  },
+  "layout": {
+    "layout_engine": "component_tree",
+    "status_bar": {
+      "line_width": 1,
+      "dashed": false
+    },
+    "body_preset": "recipe_card",
+    "preset_props": {
+      "season_field": "season",
+      "season_font": "noto_serif_bold",
+      "season_font_size": 16,
+      "separator_width": 70,
+      "section_font_size": 13,
+      "meal_font": "noto_serif_regular",
+      "meal_font_size": 13,
+      "meal_max_lines": 2,
+      "meal_inset_x": 0,
+      "breakfast_title": "Breakfast",
+      "lunch_title": "Lunch",
+      "dinner_title": "Dinner",
+      "tip_field": "tip",
+      "tip_font": "noto_serif_light",
+      "tip_font_size": 12,
+      "tip_max_lines": 2,
+      "tip_divider_margin_x": 30
+    },
+    "footer": {
+      "label": "Recipe",
+      "attribution_template": "— Eat Well"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "variant": "compact",
+        "padding_x": 8,
+        "gap": 4,
+        "season_font_size": 12,
+        "show_season_separator": false,
+        "separator_width": 30,
+        "compact_delimiter": ": ",
+        "compact_font": "noto_serif_regular",
+        "compact_font_size": 10,
+        "compact_align": "left",
+        "compact_max_lines": 1,
+        "breakfast_label": "B",
+        "lunch_label": "L",
+        "dinner_label": "D",
+        "compact_tip_field": null
+      },
+      "footer": {
+        "label": "Recipe",
+        "height": 20
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "gap": 10,
+        "season_font_size": 22,
+        "separator_width": 110,
+        "section_font_size": 18,
+        "meal_font_size": 17,
+        "tip_font_size": 16,
+        "tip_divider_margin_x": 48
+      }
+    }
+  }
+}

@@ -1,0 +1,700 @@
+import base64
+import io
+import json
+import time
+from datetime import datetime
+from json import JSONDecodeError
+from typing import Annotated, Optional
+
+from fastapi import APIRouter, Cookie, Depends, Header, Query, Request, Response
+from fastapi.responses import StreamingResponse
+from PIL import Image, UnidentifiedImageError
+
+from api.shared import (
+    _preview_push_queue,
+    _preview_push_queue_lock,
+    _render_device_unbound_image,
+    build_image,
+    content_cache,
+    ensure_web_or_device_access,
+    limiter,
+    log_render_stats,
+    logger,
+    reconnect_threshold_seconds,
+    resolve_preview_voltage,
+    resolve_refresh_minutes_for_device_state,
+)
+from core.activity_store import log_user_activity
+from core.auth import is_admin_authorized, require_device_token, validate_mac_param
+from core.config import DEFAULT_REFRESH_INTERVAL, SCREEN_HEIGHT, SCREEN_WIDTH
+from core.config_store import (
+    consume_pending_refresh,
+    get_active_config,
+    get_device_owner,
+    get_device_state,
+    get_or_create_claim_token,
+    update_device_state,
+)
+from core.context import extract_location_settings, get_date_context, get_weather
+from core.pipeline import generate_and_render
+from core.renderer import image_to_bmp_bytes, image_to_png_bytes, image_to_raw_2bpp, render_error
+from core.schemas import RenderQuery
+from core.stats_store import get_latest_heartbeat
+
+router = APIRouter(tags=["render"])
+
+
+def _sse_event(event: str, payload: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _configured_refresh_minutes(config: Optional[dict]) -> int:
+    refresh_minutes_raw = config.get("refresh_interval") if config else DEFAULT_REFRESH_INTERVAL
+    try:
+        refresh_minutes = int(refresh_minutes_raw)
+    except (TypeError, ValueError):
+        refresh_minutes = DEFAULT_REFRESH_INTERVAL
+    if refresh_minutes < 10:
+        return 10
+    if refresh_minutes > 1440:
+        return 1440
+    return refresh_minutes
+
+
+@router.get("/render")
+@limiter.limit("10/minute")
+async def render(
+    request: Request,
+    params: Annotated[RenderQuery, Depends()],
+    x_device_token: Optional[str] = Header(default=None),
+):
+    mac = params.mac
+    cfg: Optional[dict] = None
+    configured_refresh_minutes: Optional[int] = None
+    owner = None
+    if mac:
+        mac = validate_mac_param(mac)
+        await require_device_token(mac, x_device_token)
+        cfg = await get_active_config(mac, log_load=False)
+        configured_refresh_minutes = _configured_refresh_minutes(cfg)
+        owner = await get_device_owner(mac)
+
+    start_time = time.time()
+    force_next = params.next_mode == 1
+
+    try:
+        if mac and owner is None:
+            claim = await get_or_create_claim_token(mac, source="render")
+            img = _render_device_unbound_image(params.w, params.h, claim.get("pair_code", ""))
+            bmp_bytes = image_to_bmp_bytes(img)
+            headers: dict[str, str] = {}
+            if configured_refresh_minutes is not None:
+                headers["X-Refresh-Minutes"] = str(configured_refresh_minutes)
+            if await consume_pending_refresh(mac):
+                headers["X-Pending-Refresh"] = "1"
+            return Response(content=bmp_bytes, media_type="image/bmp", headers=headers)
+
+        if mac:
+            async with _preview_push_queue_lock:
+                pushed_payload = _preview_push_queue.pop(mac, None)
+            logger.info("[RENDER] Checked queue for mac=%s: found=%s, mode=%s", mac, pushed_payload is not None, pushed_payload.get("mode") if pushed_payload else None)
+            if pushed_payload and pushed_payload.get("image"):
+                try:
+                    with Image.open(io.BytesIO(pushed_payload["image"])) as pushed_img:
+                        if params.colors >= 3 and pushed_img.mode == "P":
+                            img = pushed_img.copy()
+                        else:
+                            img = pushed_img.convert("1")
+                        if img.size != (params.w, params.h):
+                            img = img.resize((params.w, params.h), Image.NEAREST)
+                    if params.colors >= 3 and img.mode == "P":
+                        out_bytes = image_to_raw_2bpp(img)
+                        out_media = "application/octet-stream"
+                    else:
+                        out_bytes = image_to_bmp_bytes(img)
+                        out_media = "image/bmp"
+                    elapsed_ms = int((time.time() - start_time) * 1000)
+                    resolved_persona = pushed_payload.get("mode") or params.persona or "PUSH_PREVIEW"
+                    await log_render_stats(
+                        mac,
+                        resolved_persona,
+                        False,
+                        elapsed_ms,
+                        voltage=params.v,
+                        rssi=params.rssi,
+                    )
+                    if params.refresh_min is not None:
+                        await update_device_state(mac, expected_refresh_min=params.refresh_min)
+                    # Clear pending_mode after delivering the pushed preview, so the device
+                    # returns to normal polling instead of re-requesting the same mode every cycle.
+                    await update_device_state(mac, pending_mode=None)
+                    headers = {"X-Preview-Push": "1"}
+                    if configured_refresh_minutes is not None:
+                        headers["X-Refresh-Minutes"] = str(configured_refresh_minutes)
+                    if await consume_pending_refresh(mac):
+                        headers["X-Pending-Refresh"] = "1"
+                    return Response(content=out_bytes, media_type=out_media, headers=headers)
+                except (OSError, TypeError, UnidentifiedImageError, ValueError) as exc:
+                    logger.warning("[RENDER] Failed to deliver pushed preview for %s: %s", mac, exc)
+
+        skip_cache_for_this_render = False
+        if mac:
+            if cfg:
+                state = await get_device_state(mac)
+                refresh_minutes = resolve_refresh_minutes_for_device_state(cfg, state)
+                latest_heartbeat = await get_latest_heartbeat(mac)
+                if latest_heartbeat and latest_heartbeat.get("created_at"):
+                    try:
+                        now_dt = datetime.now()
+                        delta_seconds = (
+                            now_dt - datetime.fromisoformat(latest_heartbeat["created_at"])
+                        ).total_seconds()
+                        threshold_seconds = reconnect_threshold_seconds(refresh_minutes)
+                        last_regen_raw = state.get("last_reconnect_regen_at", "") if state else ""
+                        regen_cooldown_ok = True
+                        if isinstance(last_regen_raw, str) and last_regen_raw:
+                            since_last_regen = (
+                                now_dt - datetime.fromisoformat(last_regen_raw)
+                            ).total_seconds()
+                            regen_cooldown_ok = since_last_regen > threshold_seconds
+                        if delta_seconds > threshold_seconds and regen_cooldown_ok:
+                            # Reconnect detected → synchronously pre-warm cache BEFORE
+                            # returning a response. This ensures the device gets a
+                            # cache hit on this very request (no regeneration delay).
+                            await update_device_state(
+                                mac, last_reconnect_regen_at=now_dt.isoformat()
+                            )
+                            await content_cache.force_regenerate_all(
+                                mac, cfg, params.v, params.w, params.h,
+                                colors=params.colors,
+                            )
+                            # Do NOT set skip_cache=True here: after force_regenerate_all
+                            # the cache is warm, so build_image should hit it immediately.
+                    except (TypeError, ValueError, OSError):
+                        logger.warning("[RECONNECT] Failed to evaluate reconnect policy for %s", mac, exc_info=True)
+
+        img, resolved_persona, cache_hit, content_fallback, quota_exhausted, api_key_invalid, llm_mode_requires_quota, _usage_source = await build_image(
+            params.v,
+            mac,
+            params.persona,
+            screen_w=params.w,
+            screen_h=params.h,
+            force_next=force_next,
+            skip_cache=skip_cache_for_this_render,
+            colors=params.colors,
+        )
+
+        # ── 结构化响应（fmt=structured，JSON v1；不支持的模式回落 BMP）──
+        if params.fmt == "structured":
+            from fastapi.responses import JSONResponse
+            from core.mode_registry import get_registry
+            from core.structured_payload import build_screen_payload
+            from core.stats_store import get_content_history
+
+            jm = get_registry().get_json_mode(resolved_persona, mac)
+            mode_def = jm.definition if jm and isinstance(jm.definition, dict) else None
+            content = None
+            if mac:
+                try:
+                    hist = await get_content_history(mac, limit=1, mode=resolved_persona)
+                    if hist:
+                        content = hist[0].get("content") or {}
+                except (OSError, ValueError, TypeError):
+                    content = None
+            if not content:
+                content = ((mode_def or {}).get("content") or {}).get("fallback") or {}
+            payload = build_screen_payload(resolved_persona, content, params.w, params.h, mode_def=mode_def)
+            if payload is not None:
+                s_headers: dict[str, str] = {
+                    "X-Render-Time-Ms": str(int((time.time() - start_time) * 1000)),
+                    "X-Cache-Hit": "1" if cache_hit else "0",
+                    "X-Mode-Id": resolved_persona,
+                    "X-Structured": "1",
+                }
+                if configured_refresh_minutes is not None:
+                    s_headers["X-Refresh-Minutes"] = str(configured_refresh_minutes)
+                if content_fallback:
+                    s_headers["X-Content-Fallback"] = "1"
+
+                # ── delta 交付（模块级刷新隔离）：只下发变化的模块；无变化返回 noop ──
+                if params.delta == 1 and mac and payload["screen"].get("modules"):
+                    import hashlib as _hl
+                    from core.screen_state_store import get_module_ids, set_module_ids
+
+                    def _mid(m: dict) -> str:
+                        return _hl.md5(
+                            json.dumps(m.get("widgets", []), ensure_ascii=False,
+                                       sort_keys=True, default=str).encode("utf-8")
+                        ).hexdigest()[:12]
+
+                    modules = payload["screen"]["modules"]
+                    new_ids = {m.get("id"): _mid(m) for m in modules if m.get("id")}
+                    prev_ids = await get_module_ids(mac, resolved_persona)
+                    if prev_ids:
+                        changed = [m for m in modules if new_ids.get(m.get("id")) != prev_ids.get(m.get("id"))]
+                        if not changed:
+                            return JSONResponse(
+                                {"schema_ver": 1, "payload_type": "noop"},
+                                media_type="application/json", headers=s_headers,
+                            )
+                        if len(changed) < len(modules):
+                            payload["screen"]["layout_mode"] = "delta"
+                            payload["screen"]["modules"] = changed
+                    await set_module_ids(mac, resolved_persona, new_ids)
+
+                return JSONResponse(payload, media_type="application/json", headers=s_headers)
+            logger.info("[RENDER] structured not supported for %s, falling back to BMP", resolved_persona)
+
+        if img.size != (params.w, params.h):
+            logger.warning(
+                "[RENDER] Image size mismatch for %s:%s: got %sx%s, expected %sx%s. Resizing.",
+                mac,
+                resolved_persona,
+                img.size[0],
+                img.size[1],
+                params.w,
+                params.h,
+            )
+            img = img.resize((params.w, params.h), Image.NEAREST)
+
+        if params.colors >= 3:
+            out_bytes = image_to_raw_2bpp(img)
+            out_media = "application/octet-stream"
+        else:
+            out_bytes = image_to_bmp_bytes(img)
+            out_media = "image/bmp"
+        elapsed_ms = int((time.time() - start_time) * 1000)
+        if mac:
+            await log_render_stats(
+                mac,
+                resolved_persona,
+                cache_hit,
+                elapsed_ms,
+                voltage=params.v,
+                rssi=params.rssi,
+                is_fallback=content_fallback,
+            )
+            if params.refresh_min is not None:
+                await update_device_state(mac, expected_refresh_min=params.refresh_min)
+
+        headers: dict[str, str] = {
+            "X-Render-Time-Ms": str(elapsed_ms),
+            "X-Cache-Hit": "1" if cache_hit else "0",
+            "X-Mode-Id": resolved_persona,
+        }
+        if configured_refresh_minutes is not None:
+            headers["X-Refresh-Minutes"] = str(configured_refresh_minutes)
+        if mac and await consume_pending_refresh(mac):
+            headers["X-Pending-Refresh"] = "1"
+        if content_fallback:
+            headers["X-Content-Fallback"] = "1"
+
+        return Response(content=out_bytes, media_type=out_media, headers=headers)
+    except (OSError, RuntimeError, TypeError, UnidentifiedImageError, ValueError) as exc:
+        elapsed_ms = int((time.time() - start_time) * 1000)
+        logger.error("[RENDER] Failed: %s", exc, exc_info=True)
+        if mac:
+            await log_render_stats(
+                mac,
+                params.persona or "unknown",
+                False,
+                elapsed_ms,
+                voltage=params.v,
+                rssi=params.rssi,
+                status="error",
+            )
+        err_img = render_error(mac=mac or "unknown", screen_w=params.w, screen_h=params.h)
+        return Response(
+            content=image_to_bmp_bytes(err_img),
+            media_type="image/bmp",
+            status_code=500,
+        )
+
+
+@router.get("/widget/{mac}")
+async def get_widget(
+    mac: str,
+    mode: str = "",
+    w: int = 400,
+    h: int = 300,
+    size: str = "",
+    x_device_token: Optional[str] = Header(default=None),
+):
+    await require_device_token(mac, x_device_token)
+    if size == "small":
+        w, h = 200, 150
+    elif size == "medium":
+        w, h = 400, 300
+    elif size == "large":
+        w, h = 800, 480
+
+    config = await get_active_config(mac) or {}
+    persona = mode.upper() if mode else config.get("modes", ["STOIC"])[0] if config.get("modes") else "STOIC"
+    location_args = extract_location_settings(config)
+    date_ctx = await get_date_context()
+    weather = await get_weather(**location_args)
+    img, _ = await generate_and_render(
+        persona,
+        config,
+        date_ctx,
+        weather,
+        100.0,
+        screen_w=w,
+        screen_h=h,
+    )
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=300", "X-InkSight-Mode": persona},
+    )
+
+
+@router.get("/preview")
+@limiter.limit("20/minute")
+async def preview(
+    request: Request,
+    v: Optional[float] = Query(default=None),
+    mac: Optional[str] = Query(default=None),
+    persona: Optional[str] = Query(default=None),
+    city_override: Optional[str] = Query(default=None),
+    mode_override: Optional[str] = Query(default=None),
+    memo_text: Optional[str] = Query(default=None),
+    memo_title_1: Optional[str] = Query(default=None),
+    memo_text_1: Optional[str] = Query(default=None),
+    memo_title_2: Optional[str] = Query(default=None),
+    memo_text_2: Optional[str] = Query(default=None),
+    memo_title_3: Optional[str] = Query(default=None),
+    memo_text_3: Optional[str] = Query(default=None),
+    w: int = Query(default=SCREEN_WIDTH, ge=100, le=1600),
+    h: int = Query(default=SCREEN_HEIGHT, ge=100, le=1200),
+    no_cache: Optional[int] = Query(default=None),
+    intent: Optional[int] = Query(default=None),
+    colors: int = Query(default=2, ge=2, le=4),
+    ui_language: Optional[str] = Query(default=None, description="Preview only: zh|en, overrides device mode_language"),
+    x_device_token: Optional[str] = Header(default=None),
+    x_inksight_llm_api_key: Optional[str] = Header(default=None),
+    ink_session: Optional[str] = Cookie(default=None),
+):
+    if mac:
+        mac = validate_mac_param(mac)
+        await ensure_web_or_device_access(request, mac, x_device_token, ink_session)
+    
+    # 获取当前登录用户 ID：
+    # - 用于 Web 预览时关联 user_llm_config（个人信息里的 API Key）
+    # - 计费归属仍按 BILLING.md：设备端按 owner 计费，Web 端按登录用户计费
+    current_user_id = None
+    try:
+        from core.auth import get_current_user_optional
+
+        current_user = await get_current_user_optional(request, ink_session)
+        if current_user:
+            current_user_id = current_user.get("user_id")
+            logger.debug("[PREVIEW] Current user_id=%s for preview (mac=%s)", current_user_id, mac)
+    except Exception:
+        logger.warning("[PREVIEW] Failed to resolve current user for preview", exc_info=True)
+    
+    try:
+        effective_v = await resolve_preview_voltage(v, mac)
+        parsed_mode_override = None
+        if mode_override:
+            try:
+                candidate = json.loads(mode_override)
+                if isinstance(candidate, dict):
+                    parsed_mode_override = candidate
+            except JSONDecodeError:
+                logger.warning("[PREVIEW] Failed to parse mode_override JSON", exc_info=True)
+        _ui_lang = (ui_language or "").strip().lower()
+        _preview_ui_lang = _ui_lang if _ui_lang in ("zh", "en") else None
+        img, resolved_persona, cache_hit, _content_fallback, quota_exhausted, api_key_invalid, llm_mode_requires_quota, usage_source = await build_image(
+            effective_v,
+            mac,
+            persona,
+            screen_w=w,
+            screen_h=h,
+            skip_cache=(no_cache == 1),
+            preview_city_override=(city_override.strip() if city_override else None),
+            preview_mode_override=parsed_mode_override,
+            preview_memo_text=(memo_text if isinstance(memo_text, str) else None),
+            preview_memo_settings={k: v for k, v in {
+                "memo_title_1": memo_title_1, "memo_text_1": memo_text_1,
+                "memo_title_2": memo_title_2, "memo_text_2": memo_text_2,
+                "memo_title_3": memo_title_3, "memo_text_3": memo_text_3,
+            }.items() if v is not None} or None,
+            preview_ui_language=_preview_ui_lang,
+            current_user_id=current_user_id,
+            user_api_key=x_inksight_llm_api_key,
+            intent_only=(intent == 1),
+            colors=colors,
+        )
+        if intent == 1:
+            from fastapi.responses import JSONResponse
+            if current_user_id:
+                await log_user_activity(
+                    current_user_id,
+                    "preview.intent",
+                    request=request,
+                    metadata={"mac": mac or "", "persona": resolved_persona, "cache_hit": bool(cache_hit)},
+                )
+
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "cache_hit": cache_hit,
+                    "usage_source": usage_source,
+                    "persona": resolved_persona,
+                    "requires_invite_code": quota_exhausted,
+                    "llm_mode_requires_quota": llm_mode_requires_quota,
+                },
+            )
+        # 如果 API key 无效，返回 JSON 响应，提醒用户
+        if api_key_invalid:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=400,  # Bad Request
+                content={
+                    "error": "api_key_invalid",
+                    "message": "您提供的 API key 无效或已过期，请检查个人信息或服务器中的 API key 配置",
+                },
+            )
+        # 如果额度耗尽，返回 JSON 响应，让前端显示邀请码输入弹窗
+        if quota_exhausted:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=402,  # Payment Required
+                content={
+                    "error": "quota_exhausted",
+                    "message": "您的免费额度已用完，请输入邀请码获取更多额度",
+                    "requires_invite_code": True,
+                },
+            )
+        # 如果 img 为 None（不应该发生，但为了安全起见）
+        if img is None:
+            logger.error("[PREVIEW] img is None but quota_exhausted is False")
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=500,
+                content={"error": "image_generation_failed", "message": "图片生成失败"},
+            )
+        png_bytes = image_to_png_bytes(img)
+        logger.info("[PREVIEW] Generated PNG persona=%s size=%sx%s", resolved_persona, w, h)
+        if current_user_id:
+            await log_user_activity(
+                current_user_id,
+                "preview.render",
+                request=request,
+                metadata={"mac": mac or "", "persona": resolved_persona, "cache_hit": bool(cache_hit), "size": f"{w}x{h}"},
+            )
+        
+        # 确定生成状态（使用英文避免编码问题）
+        status_msg = "no_llm_required" if not llm_mode_requires_quota else ("model_generated" if not _content_fallback else "fallback_used")
+        
+        return Response(
+            content=png_bytes,
+            media_type="image/png",
+            headers={
+                "X-Cache-Hit": "1" if cache_hit else "0",
+                "X-Preview-Bypass": "1" if no_cache == 1 else "0",
+                "X-Preview-Status": status_msg,
+                "X-Llm-Required": "1" if llm_mode_requires_quota else "0",
+            },
+        )
+    except (OSError, RuntimeError, TypeError, ValueError, UnidentifiedImageError):
+        logger.exception("Exception occurred during preview")
+        err_img = render_error(mac=mac or "unknown", screen_w=w, screen_h=h)
+        return Response(
+            content=image_to_png_bytes(err_img),
+            media_type="image/png",
+            status_code=500,
+        )
+
+
+@router.get("/preview/stream")
+@limiter.limit("20/minute")
+async def preview_stream(
+    request: Request,
+    v: Optional[float] = Query(default=None),
+    mac: Optional[str] = Query(default=None),
+    persona: Optional[str] = Query(default=None),
+    city_override: Optional[str] = Query(default=None),
+    mode_override: Optional[str] = Query(default=None),
+    memo_text: Optional[str] = Query(default=None),
+    memo_title_1: Optional[str] = Query(default=None),
+    memo_text_1: Optional[str] = Query(default=None),
+    memo_title_2: Optional[str] = Query(default=None),
+    memo_text_2: Optional[str] = Query(default=None),
+    memo_title_3: Optional[str] = Query(default=None),
+    memo_text_3: Optional[str] = Query(default=None),
+    w: int = Query(default=SCREEN_WIDTH, ge=100, le=1600),
+    h: int = Query(default=SCREEN_HEIGHT, ge=100, le=1200),
+    no_cache: Optional[int] = Query(default=None),
+    colors: int = Query(default=2, ge=2, le=4),
+    ui_language: Optional[str] = Query(default=None, description="Preview only: zh|en, overrides device mode_language"),
+    x_device_token: Optional[str] = Header(default=None),
+    x_inksight_llm_api_key: Optional[str] = Header(default=None),
+    ink_session: Optional[str] = Cookie(default=None),
+):
+    if mac:
+        mac = validate_mac_param(mac)
+        await ensure_web_or_device_access(request, mac, x_device_token, ink_session)
+    
+    # 获取当前登录用户 ID：同上，用于合入 user_llm_config，而计费仍按 owner / 登录用户归属
+    current_user_id = None
+    try:
+        from core.auth import get_current_user_optional
+
+        current_user = await get_current_user_optional(request, ink_session)
+        if current_user:
+            current_user_id = current_user.get("user_id")
+            logger.debug("[PREVIEW_STREAM] Current user_id=%s for preview (mac=%s)", current_user_id, mac)
+    except Exception:
+        logger.warning("[PREVIEW_STREAM] Failed to resolve current user for preview", exc_info=True)
+
+    async def stream():
+        try:
+            yield _sse_event("status", {"stage": "generating", "message": "正在生成..."})
+            effective_v = await resolve_preview_voltage(v, mac)
+            parsed_mode_override = None
+            if mode_override:
+                try:
+                    candidate = json.loads(mode_override)
+                    if isinstance(candidate, dict):
+                        parsed_mode_override = candidate
+                except JSONDecodeError:
+                    logger.warning("[PREVIEW_STREAM] Failed to parse mode_override JSON", exc_info=True)
+
+            _ui_lang = (ui_language or "").strip().lower()
+            _preview_ui_lang = _ui_lang if _ui_lang in ("zh", "en") else None
+            img, resolved_persona, cache_hit, _content_fallback, quota_exhausted, api_key_invalid, llm_mode_requires_quota, usage_source = await build_image(
+                effective_v,
+                mac,
+                persona,
+                screen_w=w,
+                screen_h=h,
+                skip_cache=(no_cache == 1),
+                preview_city_override=(city_override.strip() if city_override else None),
+                preview_mode_override=parsed_mode_override,
+                preview_memo_text=(memo_text if isinstance(memo_text, str) else None),
+                preview_memo_settings={k: v for k, v in {
+                    "memo_title_1": memo_title_1, "memo_text_1": memo_text_1,
+                    "memo_title_2": memo_title_2, "memo_text_2": memo_text_2,
+                    "memo_title_3": memo_title_3, "memo_text_3": memo_text_3,
+                }.items() if v is not None} or None,
+                preview_ui_language=_preview_ui_lang,
+                current_user_id=current_user_id,
+                user_api_key=x_inksight_llm_api_key,
+                colors=colors,
+            )
+            # 如果 API key 无效，返回错误事件
+            if api_key_invalid:
+                yield _sse_event("error", {
+                    "error": "api_key_invalid",
+                    "message": "您提供的 API key 无效或已过期，请检查个人信息或服务器中的 API key 配置",
+                })
+                return
+            # 如果额度耗尽，返回错误事件
+            if quota_exhausted:
+                yield _sse_event("error", {
+                    "error": "quota_exhausted",
+                    "message": "您的免费额度已用完，请输入邀请码获取更多额度",
+                    "requires_invite_code": True,
+                    "usage_source": usage_source,
+                })
+                return
+            yield _sse_event("status", {"stage": "rendering", "message": "正在渲染..."})
+            png_bytes = image_to_png_bytes(img)
+            data_url = f"data:image/png;base64,{base64.b64encode(png_bytes).decode('ascii')}"
+            # Keep SSE result payload aligned with /preview headers for UI.
+            status_msg = (
+                "no_llm_required"
+                if not llm_mode_requires_quota
+                else ("model_generated" if not _content_fallback else "fallback_used")
+            )
+            yield _sse_event(
+                "result",
+                {
+                    "stage": "done",
+                    "message": "完成",
+                    "persona": resolved_persona,
+                    "cache_hit": cache_hit,
+                    "usage_source": usage_source,
+                    "image_url": data_url,
+                    "preview_status": status_msg,
+                    "llm_required": bool(llm_mode_requires_quota),
+                },
+            )
+        except (OSError, RuntimeError, TypeError, ValueError, UnidentifiedImageError) as exc:
+            logger.exception("[PREVIEW_STREAM] Streaming preview failed")
+            yield _sse_event("error", {"message": str(exc)})
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/dev/cache/clear")
+async def clear_cache_dev():
+    """Clear all caches (in-memory + persistent) - dev/testing endpoint."""
+    await content_cache.clear()
+    return {"status": "ok", "message": "Cache cleared"}
+
+
+@router.get("/admin/structured")
+async def admin_structured(
+    persona: str = "AI_USAGE",
+    w: int = Query(default=800, ge=100, le=1600),
+    h: int = Query(default=480, ge=100, le=1200),
+    authorization: Optional[str] = Header(default=None),
+    accept_language: Optional[str] = Header(default=None, alias="Accept-Language"),
+):
+    """发布端"活数据"结构化内容（云端模式）。
+
+    与 /render?fmt=structured 不同：不要求绑定设备/mac，直接跑动态 provider
+    （DeepSeek 余额实时查 + Codex 走全局最新推送），供发布端生成上传坚果云的 payload。
+    鉴权：Authorization: Bearer <ADMIN_TOKEN>（backend/.env）。
+    """
+    from fastapi.responses import JSONResponse
+    from core.json_content import generate_json_mode_content
+    from core.mode_registry import get_registry
+    from core.structured_payload import build_screen_payload
+
+    if not is_admin_authorized(authorization):
+        raise HTTPException(status_code=403, detail="admin required")
+    persona = (persona or "").upper().strip() or "AI_USAGE"
+    lang = (accept_language or "").split(",")[0].strip() or "zh"
+    jm = get_registry().get_json_mode(persona, "")
+    if not (jm and isinstance(jm.definition, dict)):
+        raise HTTPException(status_code=404, detail=f"mode {persona} 不是 JSON 模式")
+    try:
+        content = await generate_json_mode_content(
+            jm.definition, config={}, mac="", language="zh",
+            date_ctx=await get_date_context(),
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"内容生成失败: {exc}") from exc
+    payload = build_screen_payload(persona, content, w, h, mode_def=jm.definition)
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"mode {persona} 不支持结构化")
+    return JSONResponse(payload, media_type="application/json")
+
+
+@router.get("/admin/quota-history")
+async def admin_quota_history(
+    days: int = Query(default=30, ge=1, le=365),
+    authorization: Optional[str] = Header(default=None),
+):
+    """额度历史（DeepSeek 余额 / Codex 用量快照），供看板/趋势。Authorization: Bearer ADMIN_TOKEN。"""
+    from core.quota_history_store import get_history
+
+    if not is_admin_authorized(authorization):
+        raise HTTPException(status_code=403, detail="admin required")
+    rows = await get_history(days)
+    return {"days": days, "count": len(rows), "rows": rows}

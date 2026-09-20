@@ -1,0 +1,123 @@
+{
+  "mode_id": "ZEN",
+  "display_name": "禅意",
+  "icon": "zen",
+  "cacheable": true,
+  "description": "极简汉字与意境注释",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "你是一位禅宗大师。选择一个最适合当下环境的汉字，并说明为什么选这个字。\n用 JSON 输出：{{\"word\": \"一个汉字\", \"source\": \"出处或意境说明（10字以内）\"}}\n如：{{\"word\": \"渡\", \"source\": \"苦海无边，回头是岸\"}}\n只输出一个字和一句意境说明，不要其他内容。\n环境：{context}",
+    "output_schema": {
+      "word": {
+        "type": "string",
+        "default": "静"
+      },
+      "source": {
+        "type": "string",
+        "default": "万物归寂"
+      }
+    },
+    "post_process": {
+      "word": "first_char"
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "word": "静"
+    },
+    "fallback_pool": [
+      {
+        "word": "静"
+      },
+      {
+        "word": "空"
+      },
+      {
+        "word": "悟"
+      },
+      {
+        "word": "定"
+      },
+      {
+        "word": "舍"
+      }
+    ]
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": true
+    },
+    "layout_engine": "component_tree",
+    "body_preset": "zen_focus_card",
+    "preset_props": {
+      "padding_x": 18,
+      "justify": "center",
+      "gap": 18,
+      "word_inset_x": 60,
+      "word_field": "word",
+      "word_font": "noto_serif_regular",
+      "word_font_size": 96,
+      "source_field": "source",
+      "source_font": "noto_serif_light",
+      "source_font_size": 9
+    },
+    "decorations": [
+      {
+        "icon": "zen_img",
+        "anchor": "top_left",
+        "size": 80,
+        "margin": 10,
+        "image_mode": "circle"
+      }
+    ],
+    "footer": {
+      "label": "??",
+      "attribution_template": "— ...",
+      "dashed": true
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "word_inset_x": 44,
+        "word_font_size": 56,
+        "source_field": null,
+        "content_bias_px": 8
+      },
+      "footer": {
+        "label": "??",
+        "attribution_template": "— ...",
+        "dashed": true,
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 22,
+        "gap": 12,
+        "word_inset_x": 82,
+        "word_font_size": 112,
+        "source_font_size": 11
+      },
+      "decorations": [
+        {
+          "icon": "zen_img",
+          "anchor": "top_left",
+          "size": 64,
+          "margin": 10,
+          "image_mode": "circle"
+        }
+      ]
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "gap": 14,
+        "word_inset_x": 120,
+        "word_font_size": 140,
+        "source_font_size": 14
+      }
+    }
+  }
+}

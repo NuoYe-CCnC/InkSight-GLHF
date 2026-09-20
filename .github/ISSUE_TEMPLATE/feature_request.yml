@@ -1,0 +1,34 @@
+name: Feature request / 功能建议
+description: Suggest a scoped change without assuming unsupported hardware or service rights.
+title: "[Feature] "
+labels: []
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: User need / 用户需求
+      description: Describe the problem to solve, not only the proposed implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior / 建议行为
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and trade-offs / 范围与取舍
+      description: Mention hardware/OS, network or paid APIs, power impact, privacy, content licensing, and backward compatibility.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation / 确认
+      options:
+        - label: This request contains no credentials, databases, real MAC addresses, or sensitive security details.
+          required: true
+        - label: I am not treating an unverified board, panel, content source, or third-party service as already supported or licensed.
+          required: true

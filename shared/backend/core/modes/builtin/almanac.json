@@ -1,0 +1,456 @@
+{
+  "mode_id": "ALMANAC",
+  "display_name": "老黄历",
+  "icon": "calendar",
+  "cacheable": false,
+  "description": "农历日期、宜忌、节气、养生提示",
+  "content": {
+    "type": "composite",
+    "steps": [
+      {
+        "type": "computed",
+        "provider": "daily_meta",
+        "fallback": {
+          "year": 2026,
+          "day": 1,
+          "month_cn": "一月",
+          "weekday_cn": "周一",
+          "lunar_date": "农历正月初一",
+          "day_of_year": 1,
+          "days_in_year": 365
+        }
+      },
+      {
+        "type": "computed",
+        "provider": "almanac_api",
+        "fallback": {
+          "solar_term": "",
+          "lunar_date_display": "二月二十二",
+          "yi": "读书、远行、会友",
+          "ji": "动土、诉讼",
+          "shenwei": "喜神：东南 福神：西南 财神：正南",
+          "xingsu": "南方星日马",
+          "suisha": "岁煞北",
+          "chongsha": "狗日冲龙",
+          "health_tip": "起居有常，饮食清淡"
+        }
+      }
+    ],
+    "fallback": {}
+  },
+  "layout": {
+    "layout_engine": "component_tree",
+    "status_bar": {
+      "line_width": 2,
+      "dashed": false
+    },
+    "component_theme": {
+      "body_font": "noto_serif_regular",
+      "body_font_size": 12,
+      "body_line_gap": 4,
+      "section_title_font": "noto_serif_bold",
+      "section_title_font_size": 14,
+      "section_title_gap": 2,
+      "section_content_indent": 30,
+      "section_content_gap": 3
+    },
+    "body": {
+      "type": "column",
+      "padding_x": 10,
+      "padding_y": 12,
+      "gap": 6,
+      "children": [
+        {
+          "type": "row",
+          "gap": 12,
+          "align": "center",
+          "children": [
+            {
+              "type": "box",
+              "width": 112,
+              "children": [
+                {
+                  "type": "column",
+                  "gap": 5,
+                  "children": [
+                    {
+                      "type": "big_number",
+                      "field": "day",
+                      "font_size": 48,
+                      "align": "center"
+                    },
+                    {
+                      "type": "text",
+                      "field": "month_cn",
+                      "font_size": 14,
+                      "align": "center",
+                      "max_lines": 1
+                    },
+                    {
+                      "type": "text",
+                      "field": "weekday_cn",
+                      "font_size": 12,
+                      "align": "center",
+                      "max_lines": 1
+                    },
+                    {
+                      "type": "text",
+                      "field": "solar_term",
+                      "font": "noto_serif_bold",
+                      "font_size": 16,
+                      "align": "center",
+                      "max_lines": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "grow": 1,
+              "padding_x": 8,
+              "children": [
+                {
+                  "type": "column",
+                  "gap": 5,
+                  "children": [
+                    {
+                      "type": "text",
+                      "template": "农历 {lunar_date_display}",
+                      "font_size": 12,
+                      "font": "noto_serif_bold",
+                      "max_lines": 1
+                    },
+                    {
+                      "type": "section_box",
+                      "title": "宜",
+                      "children": [
+                        {
+                          "type": "text",
+                          "field": "yi",
+                          "font_size": 13,
+                          "max_lines": 2
+                        }
+                      ]
+                    },
+                    {
+                      "type": "section_box",
+                      "title": "忌",
+                      "children": [
+                        {
+                          "type": "text",
+                          "field": "ji",
+                          "font_size": 13,
+                          "max_lines": 2
+                        }
+                      ]
+                    },
+                    {
+                      "type": "separator",
+                      "style": "dashed"
+                    },
+                    {
+                      "type": "section_box",
+                      "title": "神位",
+                      "children": [
+                        {
+                          "type": "text",
+                          "field": "shenwei",
+                          "font_size": 12,
+                          "max_lines": 2
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "template": "星宿 {xingsu}",
+                      "font_size": 11,
+                      "max_lines": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "spacer",
+          "height": 4
+        },
+        {
+          "type": "text",
+          "field": "health_tip",
+          "font": "noto_serif_light",
+          "align": "center",
+          "font_size": 15,
+          "max_lines": 2
+        }
+      ]
+    },
+    "footer": {
+      "label": "老黄历",
+      "attribution_template": "{solar_term}",
+      "line_width": 2
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "status_bar": {
+        "line_width": 1,
+        "dashed": false
+      },
+      "component_theme": {
+        "body_font": "noto_serif_regular",
+        "body_font_size": 10,
+        "body_line_gap": 3,
+        "section_title_font": "noto_serif_bold",
+        "section_title_font_size": 10,
+        "section_title_gap": 2,
+        "section_content_indent": 20,
+        "section_content_gap": 2
+      },
+      "body": {
+        "type": "column",
+        "padding_x": 6,
+        "padding_y": 4,
+        "gap": 0,
+        "children": [
+          {
+            "type": "row",
+            "gap": 6,
+            "align": "center",
+            "children": [
+              {
+                "type": "box",
+                "width": 76,
+                "children": [
+                  {
+                    "type": "column",
+                    "gap": 2,
+                    "children": [
+                      {
+                        "type": "big_number",
+                        "field": "day",
+                        "font_size": 34,
+                        "align": "center"
+                      },
+                      {
+                        "type": "text",
+                        "field": "month_cn",
+                        "font_size": 10,
+                        "align": "center",
+                        "max_lines": 1
+                      },
+                      {
+                        "type": "text",
+                        "field": "weekday_cn",
+                        "font_size": 10,
+                        "align": "center",
+                        "max_lines": 1
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "box",
+                "grow": 1,
+                "padding_x": 2,
+                "children": [
+                  {
+                    "type": "column",
+                    "gap": 3,
+                    "children": [
+                      {
+                        "type": "text",
+                        "template": "农历 {lunar_date_display}",
+                        "font_size": 10,
+                        "font": "noto_serif_bold",
+                        "max_lines": 1
+                      },
+                      {
+                        "type": "section_box",
+                        "title": "宜",
+                        "children": [
+                          {
+                            "type": "text",
+                            "field": "yi",
+                            "font_size": 10,
+                            "max_lines": 2
+                          }
+                        ]
+                      },
+                      {
+                        "type": "section_box",
+                        "title": "忌",
+                        "children": [
+                          {
+                            "type": "text",
+                            "field": "ji",
+                            "font_size": 10,
+                            "max_lines": 2
+                          }
+                        ]
+                      },
+                      {
+                        "type": "spacer",
+                        "height": 7
+                      },
+                      {
+                        "type": "text",
+                        "field": "health_tip",
+                        "font": "noto_serif_light",
+                        "font_size": 9,
+                        "max_lines": 2
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "footer": {
+        "label": "老黄历",
+        "attribution_template": "{solar_term}",
+        "height": 20,
+        "line_width": 1
+      }
+    },
+    "648x480": {
+      "component_theme": {
+        "body_font": "noto_serif_regular",
+        "body_font_size": 16,
+        "body_line_gap": 6,
+        "section_title_font": "noto_serif_bold",
+        "section_title_font_size": 18,
+        "section_title_gap": 4,
+        "section_content_indent": 40,
+        "section_content_gap": 5
+      },
+      "body": {
+        "type": "row",
+        "padding_x": 16,
+        "padding_y": 18,
+        "gap": 16,
+        "align": "center",
+        "children": [
+          {
+            "type": "box",
+            "width": 180,
+            "children": [
+              {
+                "type": "column",
+                "gap": 8,
+                "children": [
+                  {
+                    "type": "big_number",
+                    "field": "day",
+                    "font_size": 76,
+                    "align": "center"
+                  },
+                  {
+                    "type": "text",
+                    "field": "month_cn",
+                    "font_size": 20,
+                    "align": "center",
+                    "max_lines": 1
+                  },
+                  {
+                    "type": "text",
+                    "field": "weekday_cn",
+                    "font_size": 16,
+                    "align": "center",
+                    "max_lines": 1
+                  },
+                  {
+                    "type": "text",
+                    "field": "solar_term",
+                    "font": "noto_serif_bold",
+                    "font_size": 22,
+                    "align": "center",
+                    "max_lines": 1
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "box",
+            "grow": 1,
+            "padding_x": 12,
+            "children": [
+              {
+                "type": "column",
+              "gap": 8,
+                "children": [
+                {
+                  "type": "text",
+                  "template": "农历 {lunar_date_display}",
+                  "font_size": 16,
+                  "font": "noto_serif_bold",
+                  "max_lines": 1
+                },
+                  {
+                    "type": "section_box",
+                    "title": "宜",
+                    "children": [
+                      {
+                        "type": "text",
+                        "field": "yi",
+                        "font_size": 16,
+                        "max_lines": 2
+                      }
+                    ]
+                  },
+                  {
+                    "type": "section_box",
+                    "title": "忌",
+                    "children": [
+                      {
+                        "type": "text",
+                        "field": "ji",
+                        "font_size": 16,
+                        "max_lines": 2
+                      }
+                    ]
+                  },
+                  {
+                    "type": "separator",
+                    "style": "dashed"
+                  },
+                  {
+                    "type": "section_box",
+                    "title": "神位",
+                    "children": [
+                      {
+                        "type": "text",
+                        "field": "shenwei",
+                        "font_size": 15,
+                        "max_lines": 2
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "template": "星宿 {xingsu}",
+                    "font_size": 14,
+                    "max_lines": 1
+                  },
+                  {
+                    "type": "text",
+                    "field": "health_tip",
+                    "font": "noto_serif_light",
+                    "font_size": 17,
+                    "max_lines": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

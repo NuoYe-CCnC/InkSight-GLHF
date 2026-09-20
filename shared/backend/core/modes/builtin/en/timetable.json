@@ -1,0 +1,58 @@
+{
+  "mode_id": "TIMETABLE",
+  "display_name": "Timetable",
+  "icon": "school",
+  "cacheable": false,
+  "description": "Today's class schedule with current class highlighted",
+  "content": {
+    "type": "composite",
+    "steps": [
+      {
+        "type": "computed",
+        "provider": "daily_meta",
+        "fallback": {"year": 2026, "day": 23, "month_cn": "March", "weekday_cn": "Mon", "day_of_year": 82, "days_in_year": 365}
+      },
+      {
+        "type": "computed",
+        "provider": "timetable",
+        "fallback": {
+          "style": "daily",
+          "timetable_title": "Mon · Today's Classes",
+          "slots": [
+            {"time": "08:00", "name": "Calculus", "location": "A201", "current": false},
+            {"time": "10:00", "name": "English", "location": "B305", "current": true},
+            {"time": "14:00", "name": "Data Structures", "location": "C102", "current": false},
+            {"time": "16:00", "name": "P.E.", "location": "Gym", "current": false}
+          ],
+          "slot_count": 4,
+          "current_day": 0,
+          "current_period": 1
+        }
+      }
+    ],
+    "fallback": {},
+    "fallback_pool": [
+      {
+        "style": "daily",
+        "timetable_title": "Mon · Today's Classes",
+        "slots": [
+          {"time": "08:00", "name": "Calculus", "location": "A201", "current": false},
+          {"time": "10:00", "name": "English", "location": "B305", "current": true},
+          {"time": "14:00", "name": "Data Structures", "location": "C102", "current": false},
+          {"time": "16:00", "name": "P.E.", "location": "Gym", "current": false}
+        ],
+        "slot_count": 4,
+        "current_day": 0,
+        "current_period": 1
+      }
+    ]
+  },
+  "layout": {
+    "status_bar": {"line_width": 1, "dashed": false},
+    "body_align": "top",
+    "body": [
+      {"type": "timetable_grid", "field": "slots", "font_size": 12, "margin_x": 6, "row_height": 30}
+    ],
+    "footer": {"label": "TIMETABLE", "attribution_template": "— InkSight"}
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "mode_id": "CALENDAR",
+  "display_name": "Calendar",
+  "icon": "calendar",
+  "cacheable": true,
+  "description": "Monthly calendar with today highlighted and a daily tip",
+  "content": {
+    "type": "composite",
+    "steps": [
+      {
+        "type": "computed",
+        "provider": "daily_meta",
+        "fallback": {
+          "year": 2026,
+          "day": 19,
+          "month_cn": "March",
+          "weekday_cn": "Thu",
+          "day_of_year": 78,
+          "days_in_year": 365
+        }
+      },
+      {
+        "type": "computed",
+        "provider": "calendar_grid",
+        "fallback": {
+          "calendar_title": "March 2026",
+          "weekday_headers": ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+          "calendar_rows": [
+            ["", "", "", "", "", "", "1"],
+            ["2", "3", "4", "5", "6", "7", "8"],
+            ["9", "10", "11", "12", "13", "14", "15"],
+            ["16", "17", "18", "19", "20", "21", "22"],
+            ["23", "24", "25", "26", "27", "28", "29"],
+            ["30", "31", "", "", "", "", ""]
+          ],
+          "today_day": "19",
+          "lunar_date": "",
+          "festival": ""
+        }
+      },
+      {
+        "type": "llm",
+        "prompt_template": "Today is {context}. {reminder_hint}Give a one-line daily tip or fun fact (under 30 chars). If there are reminders, focus on those. Output only the text.",
+        "output_format": "text",
+        "fallback": { "text": "Make today count." }
+      }
+    ],
+    "fallback": {},
+    "fallback_pool": [
+      {
+        "calendar_title": "March 2026",
+        "weekday_headers": ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+        "calendar_rows": [
+          ["", "", "", "", "", "", "1"],
+          ["2", "3", "4", "5", "6", "7", "8"],
+          ["9", "10", "11", "12", "13", "14", "15"],
+          ["16", "17", "18", "19", "20", "21", "22"],
+          ["23", "24", "25", "26", "27", "28", "29"],
+          ["30", "31", "", "", "", "", ""]
+        ],
+        "today_day": "19",
+        "lunar_date": "",
+        "festival": "",
+        "text": "Make today count."
+      }
+    ]
+  },
+  "layout": {
+    "status_bar": { "line_width": 1, "dashed": false },
+    "body_align": "top",
+    "body": [
+      { "type": "calendar_grid", "font_size": 16, "header_font_size": 11, "sub_font_size": 7, "reminder_font": "noto_serif_light", "reminder_font_size": 9, "header_gap": 5, "date_line_gap": 2, "margin_x": 10, "cell_height": 34 },
+      { "type": "spacer", "height": 16 },
+      { "type": "separator", "style": "dashed", "margin_x": 5 },
+      { "type": "text", "field": "text", "font_size": 13, "align": "center", "max_lines": 1 }
+    ],
+    "footer": { "label": "CALENDAR", "attribution_template": "— InkSight" }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "body": [
+        {
+          "type": "calendar_grid",
+          "font_size": 16,
+          "header_font_size": 11,
+          "sub_font_size": 7,
+          "reminder_font": "noto_serif_light",
+          "reminder_font_size": 9,
+          "header_gap": 5,
+          "date_line_gap": 2,
+          "margin_x": 10,
+          "cell_height": 34,
+          "max_rows": 2
+        },
+        { "type": "spacer", "height": 16 },
+        { "type": "separator", "style": "dashed", "margin_x": 5 },
+        { "type": "text", "field": "text", "font_size": 13, "align": "center", "max_lines": 1 }
+      ],
+      "footer": { "label": "CALENDAR", "height": 20 }
+    },
+    "648x480": {
+      "body": [
+        {
+          "type": "calendar_grid",
+          "font_size": 19,
+          "header_font_size": 12,
+          "sub_font_size": 8,
+          "reminder_font": "noto_serif_light",
+          "reminder_font_size": 9,
+          "header_gap": 6,
+          "date_line_gap": 2,
+          "margin_x": 18,
+          "cell_height": 39,
+          "today_padding": 2
+        },
+        { "type": "spacer", "height": 12 },
+        { "type": "separator", "style": "dashed", "margin_x": 16 },
+        { "type": "text", "field": "text", "font_size": 12, "align": "center", "max_lines": 1 }
+      ]
+    }
+  }
+}

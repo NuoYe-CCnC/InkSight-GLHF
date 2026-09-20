@@ -1,0 +1,136 @@
+{
+  "mode_id": "WORD_OF_THE_DAY",
+  "display_name": "Word of the Day",
+  "icon": "word",
+  "cacheable": true,
+  "description": "An interesting English word with definition and example",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "You are a language expert. Pick an interesting, uncommon but useful English word and provide its definition and usage.\nOutput JSON: {{\"word\": \"The word\", \"phonetic\": \"Phonetic transcription (optional)\", \"definition\": \"Brief definition (under 30 chars)\", \"example\": \"Short example sentence (under 40 chars)\"}}\nPick words that are elegant, useful in daily life, or have interesting etymologies.\nContext: {context}",
+    "output_schema": {
+      "word": {
+        "type": "string",
+        "default": "Serendipity"
+      },
+      "phonetic": {
+        "type": "string",
+        "default": "/ˌsɛrənˈdɪpɪti/"
+      },
+      "definition": {
+        "type": "string",
+        "default": "A happy accident or pleasant surprise"
+      },
+      "example": {
+        "type": "string",
+        "default": "Finding that book was pure serendipity."
+      }
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "word": "Serendipity",
+      "phonetic": "/ˌsɛrənˈdɪpɪti/",
+      "definition": "A happy accident or pleasant surprise",
+      "example": "Finding that book was pure serendipity."
+    },
+    "fallback_pool": [
+      {
+        "word": "Serendipity",
+        "phonetic": "/ˌsɛrənˈdɪpɪti/",
+        "definition": "A happy accident or pleasant surprise",
+        "example": "Finding that book was pure serendipity."
+      },
+      {
+        "word": "Ephemeral",
+        "phonetic": "/ɪˈfɛm(ə)rəl/",
+        "definition": "Lasting for a very short time",
+        "example": "The beauty of cherry blossoms is ephemeral."
+      },
+      {
+        "word": "Petrichor",
+        "phonetic": "/ˈpɛtrɪkɔːr/",
+        "definition": "The smell of earth after rain",
+        "example": "She loved the petrichor on spring mornings."
+      }
+    ]
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": false
+    },
+    "layout_engine": "component_tree",
+    "body_preset": "word_card",
+    "preset_props": {
+      "padding_x": 18,
+      "justify": "center",
+      "gap": 8,
+      "word_inset_x": 20,
+      "word_field": "word",
+      "word_font": "noto_serif_bold",
+      "word_font_size": 52,
+      "phonetic_field": "phonetic",
+      "phonetic_font": "noto_serif_light",
+      "phonetic_font_name": "GentiumPlus-Regular.ttf",
+      "phonetic_font_size": 13,
+      "separator_width": 40,
+      "definition_field": "definition",
+      "definition_font": "noto_serif_regular",
+      "definition_font_size": 16,
+      "definition_max_lines": 2,
+      "example_field": "example",
+      "example_font": "noto_serif_light",
+      "example_font_size": 12,
+      "example_max_lines": 2
+    },
+    "footer": {
+      "label": "Word of the Day",
+      "attribution_template": "— Expand Your Lexicon"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "gap": 4,
+        "word_inset_x": 8,
+        "word_font_size": 22,
+        "phonetic_font_name": "GentiumPlus-Regular.ttf",
+        "phonetic_font_size": 16,
+        "separator_width": 30,
+        "definition_font_size": 10,
+        "definition_max_lines": 1,
+        "example_field": null,
+        "justify": "start",
+        "padding_top": 4,
+        "padding_bottom": 12
+      },
+      "footer": {
+        "label": "Word of the Day",
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 24,
+        "gap": 11,
+        "word_inset_x": 36,
+        "word_font_size": 64,
+        "phonetic_font_size": 15,
+        "separator_width": 44,
+        "definition_font_size": 20,
+        "example_font_size": 15
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "gap": 12,
+        "word_inset_x": 40,
+        "word_font_size": 72,
+        "phonetic_font_size": 16,
+        "definition_font_size": 22,
+        "example_font_size": 16
+      }
+    }
+  }
+}

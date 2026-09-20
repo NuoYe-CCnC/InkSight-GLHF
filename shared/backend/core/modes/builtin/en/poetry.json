@@ -1,0 +1,167 @@
+{
+  "mode_id": "POETRY",
+  "display_name": "Classical Poetry",
+  "icon": "star",
+  "cacheable": true,
+  "description": "A classic poem matched to the current season and mood",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "You are a classical literature expert. Based on the environment info, recommend a short poem or excerpt (4-8 lines) from English or Western poetry that resonates with the current season, weather, or mood.\nOutput JSON: {{\"title\": \"Poem title\", \"author\": \"Poet name\", \"lines\": [\"line 1\", \"line 2\", ...], \"note\": \"One-line appreciation (under 40 chars)\"}}\nRequirements:\n1. Choose from classic poets: Shakespeare, Frost, Dickinson, Keats, Shelley, Wordsworth, Whitman, Yeats, Rilke, Neruda, etc.\n2. Different poem each time\n3. Each line as a separate array element\n4. All text must be in English\n5. Output JSON only\nContext: {context}",
+    "output_schema": {
+      "title": {
+        "type": "string",
+        "default": "The Road Not Taken"
+      },
+      "author": {
+        "type": "string",
+        "default": "Robert Frost"
+      },
+      "lines": {
+        "type": "array",
+        "default": [
+          "Two roads diverged in a yellow wood,",
+          "And sorry I could not travel both",
+          "And be one traveler, long I stood",
+          "And looked down one as far as I could"
+        ]
+      },
+      "note": {
+        "type": "string",
+        "default": "Every choice shapes who we become."
+      }
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "title": "The Road Not Taken",
+      "author": "Robert Frost",
+      "lines": [
+        "Two roads diverged in a yellow wood,",
+        "And sorry I could not travel both",
+        "And be one traveler, long I stood",
+        "And looked down one as far as I could"
+      ],
+      "note": "Every choice shapes who we become."
+    },
+    "fallback_pool": [
+      {
+        "title": "The Road Not Taken",
+        "author": "Robert Frost",
+        "lines": [
+          "Two roads diverged in a yellow wood,",
+          "And sorry I could not travel both",
+          "And be one traveler, long I stood",
+          "And looked down one as far as I could"
+        ],
+        "note": "Every choice shapes who we become."
+      },
+      {
+        "title": "Sonnet 18",
+        "author": "William Shakespeare",
+        "lines": [
+          "Shall I compare thee to a summer's day?",
+          "Thou art more lovely and more temperate.",
+          "Rough winds do shake the darling buds of May,",
+          "And summer's lease hath all too short a date."
+        ],
+        "note": "Beauty preserved through words."
+      },
+      {
+        "title": "Hope is the thing with feathers",
+        "author": "Emily Dickinson",
+        "lines": [
+          "Hope is the thing with feathers",
+          "That perches in the soul,",
+          "And sings the tune without the words,",
+          "And never stops at all."
+        ],
+        "note": "Hope endures beyond reason."
+      }
+    ]
+  },
+  "layout": {
+    "layout_engine": "component_tree",
+    "status_bar": {
+      "line_width": 1,
+      "dashed": true
+    },
+    "body_preset": "poetry_card",
+    "preset_props": {
+      "top_gap": 14,
+      "title_field": "title",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 14,
+      "author_field": "author",
+      "author_font": "noto_serif_regular",
+      "author_font_size": 11,
+      "separator_width": 60,
+      "lines_field": "lines",
+      "lines_limit": 8,
+      "lines_inset_x": 30,
+      "lines_font": "noto_serif_regular",
+      "lines_font_size": 13,
+      "lines_gap": 7,
+      "note_field": "note",
+      "note_font": "noto_serif_light",
+      "note_font_size": 10,
+      "note_max_lines": 2
+    },
+    "footer": {
+      "label": "Poetry",
+      "attribution_template": "— {author}",
+      "dashed": true
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "top_gap": 0,
+        "justify": "start",
+        "content_bias_px": 10,
+        "gap": 4,
+        "title_font_size": 11,
+        "author_field": null,
+        "separator_width": 40,
+        "lines_limit": 8,
+        "lines_inset_x": 4,
+        "lines_font_size": 10,
+        "lines_gap": 3,
+        "line_max_lines": 2,
+        "lines_pair_step": 2,
+        "lines_pair_separator": ", ",
+        "note_field": null
+      },
+      "footer": {
+        "label": "Poetry",
+        "attribution_template": "— {author}",
+        "dashed": true,
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "top_gap": 16,
+        "gap": 8,
+        "title_font_size": 18,
+        "author_font_size": 13,
+        "separator_width": 72,
+        "lines_inset_x": 32,
+        "lines_font_size": 16,
+        "lines_gap": 8,
+        "note_font_size": 11
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "top_gap": 22,
+        "gap": 10,
+        "title_font_size": 22,
+        "author_font_size": 16,
+        "separator_width": 90,
+        "lines_inset_x": 50,
+        "lines_font_size": 18,
+        "lines_gap": 10,
+        "note_font_size": 14
+      }
+    }
+  }
+}

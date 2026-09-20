@@ -1,0 +1,153 @@
+{
+  "mode_id": "DAILY",
+  "display_name": "每日推荐",
+  "icon": "sunny",
+  "cacheable": true,
+  "description": "语录、书籍推荐和小知识",
+  "content": {
+    "type": "composite",
+    "steps": [
+      {
+        "type": "computed",
+        "provider": "daily_meta",
+        "fallback": {
+          "year": 2026,
+          "day": 1,
+          "month_cn": "一月",
+          "weekday_cn": "周一",
+          "day_of_year": 1,
+          "days_in_year": 365
+        }
+      },
+      {
+        "type": "llm_json",
+        "prompt_template": "你是一位博学的每日推荐助手。根据以下环境信息，生成一份每日推荐内容，用 JSON 格式输出，包含：\n1. quote: 一句语录（中文，20字以内），偏人生感悟\n2. author: 语录作者\n3. book_title: 推荐一本书（书名号）\n4. book_author: 书的作者 + \" 著\"\n5. book_desc: 一句话描述这本书的主题或阅读收获（25字以内），不要重复语录或 tip\n6. tip: 一条具体、可执行的冷知识或生活小贴士（24字以内），不要写成鸡汤感悟，也不要重复 season_text\n7. season_text: 当前节气或季节的一句话描述（12字以内），只写时令感受，不要给建议\n要求三段内容各自表达不同信息，避免语义重复。只输出 JSON。\n环境：{context}",
+        "output_schema": {
+          "quote": { "type": "string", "default": "阻碍行动的障碍，本身就是行动的路。" },
+          "author": { "type": "string", "default": "马可·奥勒留" },
+          "book_title": { "type": "string", "default": "《沉思录》" },
+          "book_author": { "type": "string", "default": "马可·奥勒留 著" },
+          "book_desc": { "type": "string", "default": "罗马帝王的自省笔记。" },
+          "tip": { "type": "string", "default": "冬季干燥，记得多喝水。" },
+          "season_text": { "type": "string", "default": "立春已过，万物生长。" }
+        },
+        "fallback": {
+          "quote": "阻碍行动的障碍，本身就是行动的路。",
+          "author": "马可·奥勒留",
+          "book_title": "《沉思录》",
+          "book_author": "马可·奥勒留 著",
+          "book_desc": "罗马帝王的自省笔记。",
+          "tip": "冬季干燥，记得多喝水。",
+          "season_text": "立春已过，万物生长。"
+        }
+      }
+    ],
+    "fallback": {},
+    "fallback_pool": [
+      {"quote": "阻碍行动的障碍，本身就是行动的路。", "author": "马可·奥勒留", "book_title": "《沉思录》", "book_author": "马可·奥勒留 著", "book_desc": "罗马帝王的自省笔记。", "tip": "冬季干燥，记得多喝水。", "season_text": "立春已过，万物生长。"},
+      {"quote": "知止而后有定，定而后能静。", "author": "《大学》", "book_title": "《人间值得》", "book_author": "中村恒子 著", "book_desc": "九十岁心理医生的生活智慧。", "tip": "午睡20分钟最佳，过长易头痛。", "season_text": "春寒料峭，宜早睡早起。"},
+      {"quote": "活在当下，珍惜眼前人。", "author": "佚名", "book_title": "《小王子》", "book_author": "圣埃克苏佩里 著", "book_desc": "献给所有的大人和小孩。", "tip": "蓝光影响睡眠，睡前少看手机。", "season_text": "万物复苏，适合户外走走。"}
+    ]
+  },
+  "layout": {
+    "status_bar": { "line_width": 1, "dashed": false },
+    "layout_engine": "component_tree",
+    "component_theme": {
+      "body_font": "noto_serif_regular",
+      "body_font_size": 12
+    },
+    "body_preset": "daily_card",
+    "preset_props": {
+      "padding_x": 18,
+      "justify": "center",
+      "row_gap": 10,
+      "panel_width": 116,
+      "panel_padding_x": 8,
+      "panel_gap": 4,
+      "year_font_size": 12,
+      "day_font_size": 52,
+      "month_font_size": 14,
+      "weekday_font_size": 12,
+      "progress_width": 80,
+      "season_font_size": 10,
+      "content_padding_x": 6,
+      "content_justify": "space_between",
+      "quote_font_size": 14,
+      "author_template": "— {author}",
+      "author_font_size": 11,
+      "book_title_font_size": 13,
+      "book_author_template": "{book_author}",
+      "book_author_font_size": 11,
+      "book_desc_font_size": 11,
+      "tip_font_size": 11,
+      "divider_margin_x": 6
+    },
+    "footer": {
+      "label": "DAILY",
+      "attribution_template": "— Carpe Diem"
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "variant": "narrow_columns",
+        "padding_x": 6,
+        "col_gap": 6,
+        "left_col_width": 74,
+        "left_gap": 2,
+        "left_justify": "center",
+        "year_align": "center",
+        "year_font_size": 10,
+        "year_suffix": "年",
+        "day_align": "center",
+        "day_font_size": 30,
+        "month_align": "center",
+        "month_font_size": 10,
+        "weekday_align": "center",
+        "weekday_font_size": 10,
+        "between_month_weekday_gap": 6,
+        "quote_font": "noto_serif_regular",
+        "quote_font_size": 11,
+        "quote_max_lines": 3,
+        "author_template": "— {author}",
+        "author_font_size": 9,
+        "tip_font_size": 9,
+        "tip_max_lines": 2,
+        "right_gap": 2,
+        "quote_gap": 2,
+        "content_padding_x": 0
+      },
+      "footer": { "label": "DAILY", "height": 30 }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 18,
+        "justify": "center",
+        "min_height": 230,
+        "row_gap": 12,
+        "panel_width": 145,
+        "panel_padding_x": 8,
+        "panel_gap": 5,
+        "year_font_size": 12,
+        "day_font_size": 64,
+        "month_font_size": 12,
+        "weekday_font_size": 11,
+        "progress_width": 92,
+        "season_font_size": 10,
+        "content_padding_x": 6,
+        "quote_font_size": 16,
+        "quote_max_lines": 3,
+        "author_template": "— {author}",
+        "author_font_size": 12,
+        "book_title_font_size": 12,
+        "book_title_max_lines": 2,
+        "book_author_template": "{book_author}",
+        "book_author_font_size": 11,
+        "book_desc_font_size": 12,
+        "tip_font_size": 12,
+        "tip_max_lines": 2,
+        "divider_margin_x": 6
+      }
+    }
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "mode_id": "LETTER",
+  "display_name": "Slow Letter",
+  "icon": "book",
+  "cacheable": true,
+  "description": "A fictional letter from an imaginary sender",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "Write a short fictional letter. The sender can be: someone from the future, an ordinary person from a historical era, a stranger traveling through a city, or a fictional character.\nOutput JSON:\n{{\"sender\": \"Sender identity (e.g. A tailor from 1920s Paris)\", \"greeting\": \"Salutation (e.g. Dear friend at the desk)\", \"body\": \"Letter body (50-80 words, vivid, warm but not sentimental)\", \"closing\": \"Sign-off (e.g. Yours warmly)\", \"postscript\": \"P.S. (under 30 chars, witty or poignant)\"}}\nRequirements: Literary quality, unique character voice each time. Subtle connection to current weather/season. No platitudes. Output JSON only.\nContext: {context}",
+    "output_schema": {
+      "sender": {
+        "type": "string",
+        "default": "A lighthouse keeper, 1847"
+      },
+      "greeting": {
+        "type": "string",
+        "default": "Dear stranger on the shore"
+      },
+      "body": {
+        "type": "string",
+        "default": "The fog rolled in again last night. I kept the light burning, as I always do, though I wonder sometimes who still sails these waters. The gulls know my schedule better than I do. I saved a piece of bread for the one with the crooked wing — she reminds me that broken things can still fly."
+      },
+      "closing": {
+        "type": "string",
+        "default": "With steady light"
+      },
+      "postscript": {
+        "type": "string",
+        "default": "The crooked-wing gull says hello."
+      }
+    },
+    "max_tokens": 512,
+    "temperature": 0.92,
+    "fallback": {
+      "sender": "A lighthouse keeper, 1847",
+      "greeting": "Dear stranger on the shore",
+      "body": "The fog rolled in again last night. I kept the light burning, as I always do, though I wonder sometimes who still sails these waters.",
+      "closing": "With steady light",
+      "postscript": "The crooked-wing gull says hello."
+    }
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": true
+    },
+    "layout_engine": "component_tree",
+    "body_preset": "letter_card",
+    "preset_props": {
+      "padding_x": 32,
+      "padding_y": 10,
+      "justify": "center",
+      "gap": 8,
+      "greeting_font": "noto_serif_regular",
+      "greeting_font_size": 12,
+      "body_font": "noto_serif_regular",
+      "body_font_size": 13,
+      "body_max_lines": 6,
+      "closing_font": "noto_serif_light",
+      "closing_font_size": 12,
+      "postscript_font": "noto_serif_light",
+      "postscript_font_size": 10,
+      "postscript_max_lines": 1
+    },
+    "footer": {
+      "label": "Letter",
+      "attribution_template": "— {sender}",
+      "dashed": true
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "padding_y": 4,
+        "gap": 6,
+        "greeting_font_size": 10,
+        "body_font_size": 10,
+        "body_max_lines": 3,
+        "closing_font_size": 10,
+        "postscript_field": null
+      },
+      "footer": {
+        "label": "Letter",
+        "attribution_template": "— {sender}",
+        "dashed": true,
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 36,
+        "padding_y": 12,
+        "gap": 10,
+        "greeting_font_size": 17,
+        "body_font_size": 18,
+        "body_max_lines": 7,
+        "closing_font_size": 16,
+        "separator_width": 48,
+        "postscript_font_size": 12,
+        "postscript_max_lines": 2
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 56,
+        "padding_y": 18,
+        "gap": 14,
+        "greeting_font_size": 18,
+        "body_font_size": 19,
+        "body_max_lines": 8,
+        "closing_font_size": 18,
+        "separator_width": 60,
+        "postscript_font_size": 14,
+        "postscript_max_lines": 2
+      }
+    }
+  }
+}

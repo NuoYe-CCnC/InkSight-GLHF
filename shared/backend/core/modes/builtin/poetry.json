@@ -1,0 +1,178 @@
+{
+  "mode_id": "POETRY",
+  "display_name": "每日古诗词",
+  "icon": "star",
+  "cacheable": true,
+  "description": "与季节天气相关的中国古诗词",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "你是一位古典文学专家。根据以下环境信息，推荐一首与当前季节、天气或节日相关的中国古诗词。\n用 JSON 格式输出：{{\"title\": \"诗名\", \"author\": \"朝代·作者\", \"lines\": [\"诗句1\", \"诗句2\", ...], \"note\": \"一句话赏析（20字以内）\"}}\n要求：\n1. 选择经典诗词，涵盖唐诗、宋词、元曲等\n2. 每次推荐不同的诗词，避免重复\n3. 诗句完整呈现，每句单独一个数组元素；每句字数不拘，可为五言、七言、长短句等\n4. 只输出 JSON，不要其他内容\n环境：{context}",
+    "output_schema": {
+      "title": {
+        "type": "string",
+        "default": "静夜思"
+      },
+      "author": {
+        "type": "string",
+        "default": "唐·李白"
+      },
+      "lines": {
+        "type": "array",
+        "default": [
+          "床前明月光",
+          "疑是地上霜",
+          "举头望明月",
+          "低头思故乡"
+        ]
+      },
+      "note": {
+        "type": "string",
+        "default": "千古思乡名篇"
+      }
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "title": "静夜思",
+      "author": "唐·李白",
+      "lines": [
+        "床前明月光",
+        "疑是地上霜",
+        "举头望明月",
+        "低头思故乡"
+      ],
+      "note": "千古思乡名篇"
+    },
+    "fallback_pool": [
+      {
+        "title": "静夜思",
+        "author": "唐·李白",
+        "lines": [
+          "床前明月光",
+          "疑是地上霜",
+          "举头望明月",
+          "低头思故乡"
+        ],
+        "note": "千古思乡名篇"
+      },
+      {
+        "title": "登鹳雀楼",
+        "author": "唐·王之涣",
+        "lines": [
+          "白日依山尽",
+          "黄河入海流",
+          "欲穷千里目",
+          "更上一层楼"
+        ],
+        "note": "胸怀壮志，登高望远"
+      },
+      {
+        "title": "江雪",
+        "author": "唐·柳宗元",
+        "lines": [
+          "千山鸟飞绝",
+          "万径人踪灭",
+          "孤舟蓑笠翁",
+          "独钓寒江雪"
+        ],
+        "note": "孤高清冷的冬日画卷"
+      },
+      {
+        "title": "春晓",
+        "author": "唐·孟浩然",
+        "lines": [
+          "春眠不觉晓",
+          "处处闻啼鸟",
+          "夜来风雨声",
+          "花落知多少"
+        ],
+        "note": "春意盎然，生机勃勃"
+      }
+    ]
+  },
+  "layout": {
+    "layout_engine": "component_tree",
+    "status_bar": {
+      "line_width": 1,
+      "dashed": true
+    },
+    "body_preset": "poetry_card",
+    "preset_props": {
+      "top_gap": 14,
+      "title_field": "title",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 14,
+      "author_field": "author",
+      "author_font": "noto_serif_light",
+      "author_font_size": 11,
+      "separator_width": 60,
+      "lines_field": "lines",
+      "lines_limit": 8,
+      "lines_inset_x": 30,
+      "lines_font": "noto_serif_regular",
+      "lines_font_size": 16,
+      "lines_gap": 8,
+      "note_field": "note",
+      "note_font": "noto_serif_light",
+      "note_font_size": 10,
+      "note_max_lines": 2
+    },
+    "footer": {
+      "label": "POETRY",
+      "attribution_template": "— {author}",
+      "dashed": true
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "top_gap": 0,
+        "justify": "start",
+        "content_bias_px": 10,
+        "gap": 4,
+        "title_font_size": 11,
+        "author_field": null,
+        "separator_width": 40,
+        "lines_limit": 8,
+        "lines_inset_x": 4,
+        "lines_font_size": 10,
+        "lines_gap": 3,
+        "line_max_lines": 2,
+        "lines_pair_step": 2,
+        "lines_pair_separator": "，",
+        "note_field": null
+      },
+      "footer": {
+        "label": "POETRY",
+        "attribution_template": "— {author}",
+        "dashed": true,
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "top_gap": 16,
+        "gap": 8,
+        "title_font_size": 18,
+        "author_font_size": 13,
+        "separator_width": 72,
+        "lines_inset_x": 32,
+        "lines_font_size": 18,
+        "lines_gap": 8,
+        "note_font_size": 11
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "top_gap": 22,
+        "gap": 10,
+        "title_font_size": 22,
+        "author_font_size": 16,
+        "separator_width": 90,
+        "lines_inset_x": 50,
+        "lines_font_size": 24,
+        "lines_gap": 12,
+        "note_font_size": 14
+      }
+    }
+  }
+}

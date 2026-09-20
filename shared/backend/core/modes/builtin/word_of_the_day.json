@@ -1,0 +1,85 @@
+{
+  "mode_id": "WORD_OF_THE_DAY",
+  "display_name": "每日一词",
+  "icon": "word",
+  "cacheable": true,
+  "description": "每日精选一个英语单词，展示其拼写与释义",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "你是一位英语语言专家。根据当前情境，精选一个值得学习的英语单词，并提供其简明释义。\n用 JSON 输出：{{\"word\": \"单词拼写\", \"phonetic\": \"音标（可选）\", \"definition\": \"简明中文释义（15字以内）\", \"example\": \"简短英文例句（可选，20词以内）\"}}\n确保单词适合日常学习。\n环境：{context}",
+    "output_schema": {
+      "word": { "type": "string", "default": "Serendipity" },
+      "phonetic": { "type": "string", "default": "/ˌser.ənˈdɪp.ə.ti/" },
+      "definition": { "type": "string", "default": "意外发现美好事物的能力" },
+      "example": { "type": "string", "default": "Traveling is full of serendipity." }
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "word": "Serendipity",
+      "phonetic": "/ˌser.ənˈdɪp.ə.ti/",
+      "definition": "意外发现美好事物的能力",
+      "example": "Traveling is full of serendipity."
+    }
+  },
+  "layout": {
+    "status_bar": { "line_width": 1 },
+    "layout_engine": "component_tree",
+    "body_preset": "word_card",
+    "preset_props": {
+      "padding_x": 18,
+      "justify": "center",
+      "gap": 8,
+      "word_inset_x": 20,
+      "word_field": "word",
+      "word_font": "noto_serif_bold",
+      "word_font_size": 52,
+      "phonetic_field": "phonetic",
+      "phonetic_font": "noto_serif_light",
+      "phonetic_font_name": "GentiumPlus-Regular.ttf",
+      "phonetic_font_size": 13,
+      "separator_width": 40,
+      "definition_field": "definition",
+      "definition_font": "noto_serif_regular",
+      "definition_font_size": 16,
+      "definition_max_lines": 2,
+      "example_field": "example",
+      "example_font": "noto_serif_light",
+      "example_font_size": 12,
+      "example_max_lines": 2
+    },
+    "footer": { "label": "WORD", "attribution_template": "— Daily Learning" }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "gap": 4,
+        "word_inset_x": 8,
+        "word_font_size": 22,
+        "phonetic_font_name": "GentiumPlus-Regular.ttf",
+        "phonetic_font_size": 16,
+        "separator_width": 30,
+        "definition_font_size": 10,
+        "definition_max_lines": 1,
+        "example_field": null,
+        "justify": "start",
+        "padding_top": 4,
+        "padding_bottom": 12
+      },
+      "footer": { "label": "WORD", "height": 18 }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 22,
+        "gap": 10,
+        "word_inset_x": 32,
+        "word_font_size": 64,
+        "phonetic_font_size": 14,
+        "separator_width": 44,
+        "definition_font_size": 20,
+        "example_font_size": 14
+      }
+    }
+  }
+}
+

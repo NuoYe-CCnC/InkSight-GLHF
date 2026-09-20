@@ -1,0 +1,114 @@
+{
+  "mode_id": "QUESTION",
+  "display_name": "Daily Question",
+  "icon": "question",
+  "cacheable": true,
+  "description": "An open-ended question to spark deep thinking",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "You are a thoughtful philosopher and counselor. Generate an open-ended question that invites deep reflection, suitable for a 3-minute thinking break.\nOutput JSON:\n{{\"question\": \"The question (under 60 chars, concise and powerful)\", \"context_note\": \"Why this question matters (under 50 chars)\", \"category\": \"Category (Self / Relationships / Work / Life / Creativity)\"}}\nRequirements:\n1. Deep but not heavy; thought-provoking but not anxiety-inducing\n2. Open-ended, not yes/no\n3. Subtly connected to current season/weather/time\n4. All text must be in English\nOutput JSON only.\nContext: {context}",
+    "output_schema": {
+      "question": {
+        "type": "string",
+        "default": "What would you do today if no one was watching?"
+      },
+      "context_note": {
+        "type": "string",
+        "default": "Authenticity begins with honest self-reflection"
+      },
+      "category": {
+        "type": "string",
+        "default": "Self"
+      }
+    },
+    "temperature": 0.9,
+    "fallback": {
+      "question": "What would you do today if no one was watching?",
+      "context_note": "Authenticity begins with honest self-reflection",
+      "category": "Self"
+    }
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": true
+    },
+    "layout_engine": "component_tree",
+    "body_preset": "prompt_card",
+    "preset_props": {
+      "padding_x": 18,
+      "padding_y": 10,
+      "justify": "center",
+      "gap": 8,
+      "meta_template": "{category}",
+      "meta_font_size": 10,
+      "separator_width": 60,
+      "hero_inset_x": 44,
+      "hero_field": "question",
+      "hero_font": "noto_serif_bold",
+      "hero_font_size": 20,
+      "hero_max_lines": 3,
+      "note_field": "context_note",
+      "note_font": "noto_serif_light",
+      "note_font_size": 10,
+      "note_max_lines": 2,
+      "note_divider_margin_x": 50
+    },
+    "footer": {
+      "label": "Daily Question",
+      "attribution_template": "— Take a Moment",
+      "dashed": true
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "padding_y": 4,
+        "gap": 6,
+        "meta_template": null,
+        "hero_inset_x": 8,
+        "hero_font_size": 14,
+        "hero_max_lines": 3,
+        "note_field": null,
+        "show_note_divider": false
+      },
+      "footer": {
+        "label": "Daily Question",
+        "attribution_template": "— Take a Moment",
+        "dashed": true,
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 20,
+        "padding_y": 12,
+        "gap": 9,
+        "meta_font_size": 11,
+        "separator_width": 68,
+        "hero_inset_x": 56,
+        "hero_font_size": 20,
+        "hero_max_lines": 3,
+        "note_font_size": 11,
+        "note_max_lines": 2,
+        "note_divider_margin_x": 54
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "padding_y": 16,
+        "gap": 12,
+        "meta_font_size": 14,
+        "separator_width": 90,
+        "hero_inset_x": 112,
+        "hero_font_size": 28,
+        "hero_max_lines": 3,
+        "note_font_size": 14,
+        "note_max_lines": 2,
+        "note_divider_margin_x": 80
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+# Python version: 3.9+
+# Tested on: Python 3.9
+
+fastapi~=0.104.0
+pydantic~=2.5.0
+uvicorn~=0.24.0
+Pillow~=10.1.0
+httpx~=0.25.0
+openai~=1.6.0
+tenacity~=8.2.0
+python-dotenv~=1.0.0
+aiosqlite~=0.19.0
+apscheduler~=3.10.0
+slowapi~=0.1.9
+PyJWT~=2.8.0
+zhdate~=0.1
+lunar-python==1.4.8
+qrcode~=7.4
+dashscope>=1.20.0
+cryptography~=41.0.0
+websockets>=10.0,<13
+opuslib>=3.0.1
+phonenumbers~=9.0.26
+pyserial~=3.5
+fonttools~=4.60.0
+# Alibaba Cloud Machine Translation (json_content imports); PyPI: alibabacloud-*
+alibabacloud-alimt20181012>=1.5.2
+alibabacloud-tea-openapi>=0.4.4
+
+# Dev / Test
+# Keep test toolchain stable across Python 3.9/3.10 in CI.
+pytest>=8.4,<9
+pytest-asyncio>=1.2,<2

@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "candidate": "InkSight-Source",
+  "source_manifest_count": 329,
+  "packaged_file_count": 333,
+  "candidate_tree_sha256": "466596b13f529be58f0bbc4257f100ebe33a0e782f8fb20d757ca8ecea83dda5",
+  "archive_sha256": "571f7c7494fb951a81b32c84ddeed260454691e2cfa0046855e4decb8078e26f",
+  "archive_verification": {
+    "entry_count": 333,
+    "bad_paths": 0,
+    "duplicate_paths": 0,
+    "symlinks": 0,
+    "nested_archives": 0,
+    "privacy_findings": 0,
+    "fresh_extract_matches": true
+  },
+  "publication_ready": true,
+  "blockers": [],
+  "qualifications": [
+    "engineering status only; not legal certification",
+    "publication was separately authorized by the repository owner",
+    "remote content sources require separate deployer review before enablement"
+  ]
+}

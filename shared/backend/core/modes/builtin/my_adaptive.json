@@ -1,0 +1,74 @@
+{
+  "mode_id": "MY_ADAPTIVE",
+  "display_name": "相框",
+  "description": "上传本地照片（至多6张），循环播放",
+  "icon": "my_adaptive",
+  "cacheable": false,
+  "content": {
+    "type": "static",
+    "static_data": {
+      "image_url": ""
+    },
+    "fallback": {
+      "image_url": ""
+    }
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 0
+    },
+    "body": [
+      {
+        "type": "image",
+        "field": "image_url",
+        "width": 400,
+        "height": 234,
+        "x": 0,
+        "y": 36,
+        "fit": "cover",
+        "photo_enhance": true,
+        "align_x": "center",
+        "align_y": "center",
+        "margin_bottom": 0
+      }
+    ],
+    "footer": {
+      "line_width": 0
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "body_align": "top",
+      "body": [
+        {
+          "type": "image",
+          "field": "image_url",
+          "width": 322,
+          "height": 99,
+          "fit": "contain",
+          "photo_enhance": true,
+          "align_x": "center",
+          "align_y": "center",
+          "margin_bottom": 0
+        }
+      ]
+    },
+    "648x480": {
+      "body": [
+        {
+          "type": "image",
+          "field": "image_url",
+          "width": 400,
+          "height": 231,
+          "x": 0,
+          "y": 57,
+          "fit": "cover",
+          "photo_enhance": true,
+          "align_x": "center",
+          "align_y": "center",
+          "margin_bottom": 0
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "status": "publisher-approved-for-release-overlay",
+  "license": "GPL-3.0-only",
+  "purpose": "Approved release overlay; the production data file remains unchanged",
+  "provenance": {
+    "statement_kind": "publisher-statement",
+    "statement": "主要由本项目的 Codex／DeepSeek 任务生成，我未另外引入第三方内容",
+    "limits": "This statement records the publisher's account of origin; it is not independent proof of originality, non-infringement, or ownership of all rights."
+  },
+  "messages": [
+    {"id": "draft-one-task", "text": "先选出今天最值得完成的一件事，再为它留出不被打断的一小段时间。结束时记下结果和下一步，明天就能从清楚的位置继续。"},
+    {"id": "draft-check-facts", "text": "把已经确认的事实、仍待核对的信息和自己的推测分开记录。决定会更稳，出现新证据时也更容易调整。"},
+    {"id": "draft-small-loop", "text": "先做一个能够验证的小版本，观察真实反馈，再决定下一处改动。每次只缩小一个不确定范围，进度就会逐渐可靠。"},
+    {"id": "draft-rest", "text": "精力不足时，短暂休息也是任务的一部分。回来后从最轻的一步重新进入，让判断力先恢复，再处理复杂问题。"}
+  ]
+}

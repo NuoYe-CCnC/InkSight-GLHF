@@ -1,0 +1,121 @@
+{
+  "mode_id": "ZEN",
+  "display_name": "Daily Zen",
+  "icon": "zen",
+  "cacheable": true,
+  "description": "One word to contemplate, with a brief meaning",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "You are a Zen master. Choose ONE English word that best captures the essence of this moment. Provide a brief meaning or origin note.\nOutput JSON: {{\"word\": \"one word\", \"source\": \"brief meaning or origin (under 30 chars)\"}}\nExample: {{\"word\": \"Stillness\", \"source\": \"the art of doing nothing\"}}\nAll text must be in English. Output only the JSON.\nContext: {context}",
+    "output_schema": {
+      "word": {
+        "type": "string",
+        "default": "Stillness"
+      },
+      "source": {
+        "type": "string",
+        "default": "the art of doing nothing"
+      }
+    },
+    "temperature": 0.8,
+    "fallback": {
+      "word": "Stillness",
+      "source": "the art of doing nothing"
+    },
+    "fallback_pool": [
+      {
+        "word": "Stillness"
+      },
+      {
+        "word": "Wander"
+      },
+      {
+        "word": "Bloom"
+      },
+      {
+        "word": "Breathe"
+      },
+      {
+        "word": "Drift"
+      }
+    ]
+  },
+  "layout": {
+    "status_bar": {
+      "line_width": 1,
+      "dashed": true
+    },
+    "layout_engine": "component_tree",
+    "body_preset": "zen_focus_card",
+    "preset_props": {
+      "padding_x": 18,
+      "justify": "center",
+      "gap": 18,
+      "word_inset_x": 60,
+      "word_field": "word",
+      "word_font": "noto_serif_regular",
+      "word_font_size": 48,
+      "source_field": "source",
+      "source_font": "noto_serif_light",
+      "source_font_size": 9
+    },
+    "decorations": [
+      {
+        "icon": "zen_img",
+        "anchor": "top_left",
+        "size": 80,
+        "margin": 10,
+        "image_mode": "circle"
+      }
+    ],
+    "footer": {
+      "label": "Zen",
+      "attribution_template": "— ...",
+      "dashed": true
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "word_inset_x": 44,
+        "word_font_size": 32,
+        "source_field": null,
+        "content_bias_px": 8
+      },
+      "footer": {
+        "label": "Zen",
+        "attribution_template": "— ...",
+        "dashed": true,
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 22,
+        "gap": 12,
+        "word_inset_x": 82,
+        "word_font_size": 112,
+        "source_font_size": 11
+      },
+      "decorations": [
+        {
+          "icon": "zen_img",
+          "anchor": "top_left",
+          "size": 64,
+          "margin": 10,
+          "image_mode": "circle"
+        }
+      ]
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "gap": 14,
+        "word_inset_x": 120,
+        "word_font_size": 72,
+        "source_font_size": 14
+      }
+    }
+  }
+}

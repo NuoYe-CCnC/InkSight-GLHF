@@ -1,0 +1,142 @@
+{
+  "mode_id": "STORY",
+  "display_name": "Flash Fiction",
+  "icon": "book",
+  "cacheable": true,
+  "description": "A 30-second three-act micro story",
+  "content": {
+    "type": "llm_json",
+    "prompt_template": "You are a flash fiction master. Write a three-act micro story that can be read in 30 seconds.\nOutput JSON:\n{{\"title\": \"Title (under 6 words)\", \"opening\": \"Setup (under 50 chars, set scene and character)\", \"twist\": \"Twist (under 60 chars, unexpected turn)\", \"ending\": \"Ending (under 50 chars, lingering resonance)\", \"genre\": \"Genre (Suspense / Heartfelt / Sci-fi / Absurd)\"}}\nRequirements:\n1. Ending must have a twist or lingering feeling\n2. Subtle connection to current weather/time\n3. No happy endings — aim for literary quality\n4. Flash fiction style, not fable or moral story\nOutput JSON only.\nContext: {context}",
+    "output_schema": {
+      "title": {
+        "type": "string",
+        "default": "The Last Lighthouse"
+      },
+      "opening": {
+        "type": "string",
+        "default": "She climbed the spiral stairs every evening at six."
+      },
+      "twist": {
+        "type": "string",
+        "default": "The ships stopped coming years ago. She kept the light on anyway."
+      },
+      "ending": {
+        "type": "string",
+        "default": "One night, a small boat appeared on the horizon."
+      },
+      "genre": {
+        "type": "string",
+        "default": "Heartfelt"
+      }
+    },
+    "temperature": 0.92,
+    "fallback": {
+      "title": "The Last Lighthouse",
+      "opening": "She climbed the spiral stairs every evening at six.",
+      "twist": "The ships stopped coming years ago. She kept the light on anyway.",
+      "ending": "One night, a small boat appeared on the horizon.",
+      "genre": "Heartfelt"
+    }
+  },
+  "layout": {
+    "layout_engine": "component_tree",
+    "status_bar": {
+      "line_width": 1,
+      "dashed": true
+    },
+    "component_theme": {
+      "body_font": "noto_serif_regular",
+      "body_font_size": 13,
+      "body_line_gap": 5
+    },
+    "body_preset": "story_card",
+    "preset_props": {
+      "padding_x": 18,
+      "padding_y": 6,
+      "justify": "center",
+      "gap": 6,
+      "meta_field": "genre",
+      "meta_font_size": 9,
+      "title_field": "title",
+      "title_font": "noto_serif_bold",
+      "title_font_size": 16,
+      "title_max_lines": 2,
+      "separator_width": 50,
+      "sections": [
+        { "field": "opening", "font": "noto_serif_regular", "font_size": 13, "inset_x": 28, "max_lines": 3 },
+        { "field": "twist", "font": "noto_serif_regular", "font_size": 13, "inset_x": 28, "max_lines": 3 },
+        { "field": "ending", "font": "noto_serif_regular", "font_size": 13, "inset_x": 28, "max_lines": 3 }
+      ]
+    },
+    "footer": {
+      "label": "Story",
+      "attribution_template": "— Micro Fiction",
+      "dashed": true
+    }
+  },
+  "layout_overrides": {
+    "296x128": {
+      "preset_props": {
+        "padding_x": 8,
+        "padding_y": 4,
+        "justify": "center",
+        "gap": 4,
+        "meta_field": null,
+        "title_field": "title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 12,
+        "title_max_lines": 2,
+        "separator_width": 30,
+        "sections": [
+          { "field": "opening", "font_size": 10, "inset_x": 8, "max_lines": 2 },
+          { "field": "twist", "font_size": 10, "inset_x": 8, "max_lines": 2 }
+        ]
+      },
+      "footer": {
+        "label": "Story",
+        "dashed": true,
+        "height": 18
+      }
+    },
+    "648x480": {
+      "preset_props": {
+        "padding_x": 22,
+        "padding_y": 8,
+        "justify": "center",
+        "gap": 8,
+        "meta_field": "genre",
+        "meta_font_size": 10,
+        "title_field": "title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 18,
+        "title_max_lines": 2,
+        "separator_width": 58,
+        "sections": [
+          { "field": "opening", "font_size": 14, "inset_x": 30, "max_lines": 3 },
+          { "field": "twist", "font_size": 14, "inset_x": 30, "max_lines": 3 },
+          { "field": "ending", "font": "noto_serif_light", "font_size": 14, "inset_x": 30, "max_lines": 3 }
+        ]
+      }
+    },
+    "800x480": {
+      "preset_props": {
+        "padding_x": 28,
+        "padding_y": 10,
+        "justify": "center",
+        "gap": 10,
+        "meta_field": "genre",
+        "meta_font_size": 13,
+        "title_field": "title",
+        "title_font": "noto_serif_bold",
+        "title_font_size": 24,
+        "title_max_lines": 2,
+        "separator_width": 70,
+        "sections": [
+          { "field": "opening", "font": "noto_serif_regular", "font_size": 19, "inset_x": 48, "max_lines": 4 },
+          { "field": "twist", "font": "noto_serif_regular", "font_size": 19, "inset_x": 48, "max_lines": 4 },
+          { "field": "ending", "font": "noto_serif_regular", "font_size": 19, "inset_x": 48, "max_lines": 4 }
+        ]
+      }
+    }
+  }
+}
