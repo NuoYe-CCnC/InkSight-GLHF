@@ -473,6 +473,10 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
         data=json.dumps(body).encode("utf-8"),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                  "User-Agent": "inksight-news-digest/1.0"})
+    # Persist attribution at the actual send boundary.  If the transport later
+    # times out, the bounded uncertain reservation can still match a delayed
+    # provider charge after a restart.
+    brief.reserve_usage_activity(brief.estimate_max_cost_cny())
     try:
         with urllib.request.urlopen(req, timeout=90) as r:
             data = json.loads(r.read().decode("utf-8"))

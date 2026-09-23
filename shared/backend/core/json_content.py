@@ -1958,6 +1958,13 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
             "freshness_policy": _fresh_policy,
         }
         try:
+            from .deepseek_activity import effective_balances as _activity_balances
+            result["feed_ai"]["deepseek_activity"] = _activity_balances(_dsv)
+        except Exception:  # noqa: BLE001
+            # Safe compatibility fallback: if attribution state is unavailable,
+            # changes remain visible as activity rather than being hidden.
+            result["feed_ai"]["deepseek_activity"] = dict(_dsv)
+        try:
             # Read the same effective configuration used by structured_payload:
             # built-in defaults -> legacy compatibility -> public config.
             # This avoids a split-brain state where a value entered in the new

@@ -46,6 +46,7 @@ EXACT_FILES = (
     "docs/GITHUB_RELEASE_CHECKLIST.zh-CN.md",
     "docs/releases/v0.1.0-test.1.zh-CN.md", "docs/releases/v0.1.0-test.1.en.md",
     "shared/backend/tests/test_phase18_github_public_release.py",
+    "shared/backend/tests/test_deepseek_activity_attribution.py",
 )
 PREFIXES = (
     "LICENSES", "shared/backend/api", "shared/backend/core", "shared/backend/migrations",
@@ -58,6 +59,7 @@ PREFIXES = (
     "docs/phase16-approved-daily-message-release-2026-09-14",
     "docs/phase17-github-test-release-prep-2026-09-20",
     "docs/phase18-github-public-test-release-2026-09-20",
+    "docs/phase19-news-activity-attribution-2026-09-23",
 )
 DAILY_MESSAGE_TARGET = Path("shared/backend/data/daily_messages.json")
 DAILY_MESSAGE_RELEASE_SOURCE = Path(

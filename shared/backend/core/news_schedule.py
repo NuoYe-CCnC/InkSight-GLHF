@@ -521,7 +521,14 @@ def _run_one(state: dict, cands: list[dict] | None, period: str, planned: dateti
     call_limit = _max_model_calls(cfg)
     if not _take_model_call(state, call_key, period, call_limit):
         return "skip:max-model-calls"
-    result, why = _generate(candidates, period, None, cfg)
+    call_number = int((state.get("model_calls") or {}).get(call_key, 0))
+    activity_context = {
+        "automatic": not call_key.startswith("manual|"),
+        "issue_key": call_key,
+        "call_id": f"{call_key}#{call_number}",
+    }
+    with brief.usage_activity_context(activity_context):
+        result, why = _generate(candidates, period, None, cfg)
     if result is None:
         _log(state, int(time.time()), f"generation unavailable: {why or 'unknown'}", period)
         return str(why)
@@ -538,7 +545,14 @@ def _run_one(state: dict, cands: list[dict] | None, period: str, planned: dateti
                 _log(state, int(time.time()),
                      f"generation attempts exhausted: {reason}; previous issue retained", period)
                 return "skip:keep-old"
-            revised, why2 = _generate(candidates, period, reason, cfg)
+            call_number = int((state.get("model_calls") or {}).get(call_key, 0))
+            activity_context = {
+                "automatic": not call_key.startswith("manual|"),
+                "issue_key": call_key,
+                "call_id": f"{call_key}#{call_number}",
+            }
+            with brief.usage_activity_context(activity_context):
+                revised, why2 = _generate(candidates, period, reason, cfg)
             if revised is not None and revised.get("ok"):
                 return publish(revised)
             if revised is None:

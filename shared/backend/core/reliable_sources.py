@@ -169,6 +169,12 @@ def cache_deepseek_result(data: dict) -> dict:
             observe_balance(out["CNY"])
         except Exception:  # noqa: BLE001
             logger.debug("deepseek token balance observation skipped")
+    if out.get("CNY") is not None and out.get("USD") is not None:
+        try:
+            from .deepseek_activity import observe_balances
+            observe_balances(out)
+        except Exception:  # noqa: BLE001
+            logger.debug("deepseek activity balance observation skipped")
     return out
 
 
@@ -209,6 +215,12 @@ def refresh_deepseek() -> dict:
         return {"ok": False, "balances": _ds_values(), "statuses": _ds_statuses()}
     for cur in ("CNY", "USD"):
         _store_ds_group(cur, fetched.get(cur))
+    if fetched.get("CNY") is not None and fetched.get("USD") is not None:
+        try:
+            from .deepseek_activity import observe_balances
+            observe_balances(fetched)
+        except Exception:  # noqa: BLE001
+            logger.debug("deepseek activity balance observation skipped")
     return {"ok": True, "balances": _ds_values(), "statuses": _ds_statuses()}
 
 

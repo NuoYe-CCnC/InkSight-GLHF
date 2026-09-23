@@ -57,7 +57,10 @@ def activity_snapshot(ai: dict | None) -> dict | None:
     """Return the normalized comparable AI snapshot, or ``None`` if unknown."""
     if not isinstance(ai, dict):
         return None
-    deepseek = ai.get("deepseek")
+    # ``deepseek_activity`` is an internal projection that excludes only
+    # charges attributable to automatic news generation.  The public/raw
+    # ``deepseek`` object remains the source for every displayed balance.
+    deepseek = ai.get("deepseek_activity", ai.get("deepseek"))
     member = ai.get("member")
     if not isinstance(deepseek, dict) or not isinstance(member, dict):
         return None

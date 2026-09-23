@@ -68,6 +68,8 @@ Before building firmware, download MiSans from Xiaomi's official source and impo
 
 Page switching is controlled by `device_policy.page_switch`. Data can be cached, estimated, or manually supplied; unknown values remain `--` rather than being presented as zero. Remote news is generated only after the deployer reviews each source's terms, explicitly enables it, and configures the required key.
 
+When a scheduled job generates a news issue, its DeepSeek charge still updates the real balance and today's token count, but that background charge alone does not switch the display from News/Gold to AI Usage. Manual publication, other API use, top-ups, and Codex usage changes still follow the normal page-switch policy. Attribution is bounded by both time and amount; an unconfirmed network request is suppressed only briefly and then becomes ordinary activity if it cannot be settled.
+
 ## Runtime and sleep limitations
 
 `shared/backend/run-backend.sh` is the foreground entry point included in the public candidate. Local processes cannot run on schedule while the Mac host is asleep. Wake recovery can idempotently catch up only the currently eligible task; it does not guarantee replay of every missed publication time. ESP32 timed wake/deep sleep is a separate path: a device wake does not imply that the host backend is awake. Keep the host awake for reliable scheduled publication, or deploy to an independently reviewed always-on environment.

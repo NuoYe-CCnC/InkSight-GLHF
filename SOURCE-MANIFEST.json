@@ -83,13 +83,13 @@
     },
     {
       "path": "README.en.md",
-      "size": 7270,
-      "sha256": "a7a3b6ab0c029fed58e91d74a580bb6c573f223f9fcde11320ae359bb70043d0"
+      "size": 7759,
+      "sha256": "f118642beb27637f17106ff25970accd63350d41bd733a0245a8c1a9c4bd20fc"
     },
     {
       "path": "README.md",
-      "size": 6550,
-      "sha256": "cca1be01f6e652f2336c44064c9925e32d93eb19a7a319e762a670592d5f8092"
+      "size": 6952,
+      "sha256": "bc5ea98a337fdeeebd2055e4b9e1a8011a392c975111cfb55a13a43d9698ebf3"
     },
     {
       "path": "SBOM.json",
@@ -367,6 +367,16 @@
       "sha256": "a891c94acf6370aa31610acfc996aa3d99665dc0893c9724f7c5b7ac190aa805"
     },
     {
+      "path": "docs/phase18-github-public-test-release-2026-09-20/04-publication-receipt.md",
+      "size": 1435,
+      "sha256": "4c747d5faa0576047393810ae36285de4f565d4d1a7f9a646f461d04c986e4e0"
+    },
+    {
+      "path": "docs/phase19-news-activity-attribution-2026-09-23/README.md",
+      "size": 1867,
+      "sha256": "180064a835e716f634efa4e35009b24ff2916cef52490b2ee63d064a082f7e10"
+    },
+    {
       "path": "docs/releases/v0.1.0-test.1.en.md",
       "size": 3508,
       "sha256": "a79f8f0ec1aaffbc3e9abe03aef1984e0674918ba3abbfdc0a576d3c8cdcf480"
@@ -518,8 +528,8 @@
     },
     {
       "path": "shared/backend/core/activity_signals.py",
-      "size": 9390,
-      "sha256": "fdd4e0883cfdf41bea6479b5b50845c962e90d33b81132bec6f5a28f5af252f2"
+      "size": 9639,
+      "sha256": "a934b6cc477119b32c560a075415880f6c19125104f9c4519498daf77bd62d43"
     },
     {
       "path": "shared/backend/core/activity_store.py",
@@ -597,6 +607,11 @@
       "sha256": "e0c8008d2537e42a2cf46b09c28be00f287770679c57f9abbd9e6e3822bfa86f"
     },
     {
+      "path": "shared/backend/core/deepseek_activity.py",
+      "size": 9754,
+      "sha256": "14eb7cfb6d27eec028ff055f909e70c4929dac3ec0bcbe7d9d44a6f93ed62e40"
+    },
+    {
       "path": "shared/backend/core/deepseek_token_tracker.py",
       "size": 6334,
       "sha256": "14d876609a7f8eb8dfaa073751b9949fde0329c74a209d7ff6d2c0f0cd1e9880"
@@ -658,8 +673,8 @@
     },
     {
       "path": "shared/backend/core/json_content.py",
-      "size": 98169,
-      "sha256": "07fda881812a12bbb8f7e45b883f7f9c2569334d3fe96a8e633d82d14d1a9607"
+      "size": 98605,
+      "sha256": "2810112fc94213add30af4072e8ee9d3f942e39e3a94060065dbb07ec24e1074"
     },
     {
       "path": "shared/backend/core/json_renderer.py",
@@ -1048,8 +1063,8 @@
     },
     {
       "path": "shared/backend/core/news_brief.py",
-      "size": 26362,
-      "sha256": "e627b2aa128efe294b0d0f034e6ccf260768dbbd8b8233315d8633c132d3152d"
+      "size": 27805,
+      "sha256": "8a78fc7df96e0204891d1648e0c3e7edcc56e843a66eced4d2e7d9be3820a390"
     },
     {
       "path": "shared/backend/core/news_budget.py",
@@ -1068,8 +1083,8 @@
     },
     {
       "path": "shared/backend/core/news_digest.py",
-      "size": 29480,
-      "sha256": "6101b11ffd6ccfdc7e7cb44b30206de55dfc83f09435cb52f8a9831264ffe225"
+      "size": 29739,
+      "sha256": "5713b3a66f3c3aefd3bd145e96505d06caf39d5bc2ea3de65840294b1a5f87eb"
     },
     {
       "path": "shared/backend/core/news_due_request.py",
@@ -1088,8 +1103,8 @@
     },
     {
       "path": "shared/backend/core/news_schedule.py",
-      "size": 37560,
-      "sha256": "ac80d037ef69b5d0082561746beabd054e60373c04ebdb5588da3fcc8898755e"
+      "size": 38218,
+      "sha256": "207ce716b03ea567c7665dd75912d363934960fdbf142ac15ac32e6ebe34a566"
     },
     {
       "path": "shared/backend/core/news_semantics.py",
@@ -1138,8 +1153,8 @@
     },
     {
       "path": "shared/backend/core/reliable_sources.py",
-      "size": 8883,
-      "sha256": "4f97375665b68a0217e7410c1213a3534ead66f0e0ad45325e92b91dd7f03d9f"
+      "size": 9473,
+      "sha256": "88e6de7e5bf4592d692b194d18c6b1c8ed2721e5f82aedc46c117aa5eac87344"
     },
     {
       "path": "shared/backend/core/renderer.py",
@@ -1285,6 +1300,11 @@
       "path": "shared/backend/tests/conftest.py",
       "size": 3274,
       "sha256": "c2a177ed158d1db38e24dc50930029d2ee4fe2327a9671758eb294712217d990"
+    },
+    {
+      "path": "shared/backend/tests/test_deepseek_activity_attribution.py",
+      "size": 5056,
+      "sha256": "11d4820fee79e96ec01c9467c10a34cc51a53d0904d70582893c59c06f79bc26"
     },
     {
       "path": "shared/backend/tests/test_phase11_release_prep.py",
@@ -1638,8 +1658,8 @@
     },
     {
       "path": "shared/tools/release/build_candidate.py",
-      "size": 16712,
-      "sha256": "093f8b5009a9130f5e3b40a483915eae850ba526115bd47c2fb8947c19baef39"
+      "size": 16835,
+      "sha256": "1582ba9fa8f1953d1838e35bdb9368c9837792b6dd29d843260377567271ba99"
     },
     {
       "path": "shared/tools/release/generate_release_metadata.py",

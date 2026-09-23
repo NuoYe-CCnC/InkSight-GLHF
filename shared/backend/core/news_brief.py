@@ -15,6 +15,8 @@ import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -361,6 +363,8 @@ _PRICE_PEAK_IN = 3.0
 _PRICE_PEAK_OUT = 9.0
 _PRICE_OFF_IN = 1.5
 _PRICE_OFF_OUT = 4.5
+_USAGE_ACTIVITY_CONTEXT: ContextVar[dict | None] = ContextVar(
+    "news_usage_activity_context", default=None)
 
 
 def _is_peak_now() -> bool:
@@ -380,6 +384,32 @@ def estimate_max_cost_cny() -> float:
     return (MAX_INPUT_TOKEN * pin + MAX_OUTPUT_TOKEN * pout) / 1_000_000 + 0.002
 
 
+@contextmanager
+def usage_activity_context(value: dict | None):
+    """Attach scheduler identity to a call without relying on it for storage."""
+    token = _USAGE_ACTIVITY_CONTEXT.set(dict(value) if isinstance(value, dict) else None)
+    try:
+        yield
+    finally:
+        _USAGE_ACTIVITY_CONTEXT.reset(token)
+
+
+def reserve_usage_activity(max_cost_cny: float) -> bool:
+    context = _USAGE_ACTIVITY_CONTEXT.get()
+    if not context or context.get("automatic") is not True:
+        return False
+    try:
+        from .deepseek_activity import reserve_automatic_call
+        return reserve_automatic_call(
+            str(context.get("issue_key") or ""),
+            str(context.get("call_id") or ""),
+            max_cost_cny,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("DeepSeek automatic-call activity reservation failed")
+        return False
+
+
 def settle_usage(usage: dict) -> dict:
     """按实际 token 用量结算（当前时段单价）；返回花费(元)。"""
     pin = _PRICE_PEAK_IN if _is_peak_now() else _PRICE_OFF_IN
@@ -393,6 +423,13 @@ def settle_usage(usage: dict) -> dict:
         record_usage(usage, source="news")
     except Exception:  # noqa: BLE001
         logger.debug("DeepSeek token accounting skipped")
+    context = _USAGE_ACTIVITY_CONTEXT.get()
+    if context and context.get("automatic") is True:
+        try:
+            from .deepseek_activity import settle_automatic_call
+            settle_automatic_call(str(context.get("call_id") or ""), cost)
+        except Exception:  # noqa: BLE001
+            logger.exception("DeepSeek automatic-call activity settlement failed")
     return {"cost_cny": round(cost, 6), "in_tokens": itok, "out_tokens": otok,
             "peak": _is_peak_now(), "unit_in": pin, "unit_out": pout}
 
