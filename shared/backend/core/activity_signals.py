@@ -41,6 +41,19 @@ def _epoch(value: Any) -> int | None:
     return out if out > 0 else None
 
 
+def stable_minute_epoch(value: Any) -> int | None:
+    """Normalize a displayed minute while ignoring provider second jitter.
+
+    Both panels render reset times only to the minute. Some Codex samples have
+    been observed alternating by one second for the same window, so including
+    the raw second in semantic/visual keys creates a false new event.
+    """
+    parsed = _epoch(value)
+    if parsed is None:
+        return None
+    return ((parsed + 30) // 60) * 60
+
+
 def _expiry_list(value: Any) -> list[int] | None:
     if not isinstance(value, list):
         return None
@@ -67,7 +80,7 @@ def activity_snapshot(ai: dict | None) -> dict | None:
     used = _number(ai.get("codex_7d_used"), 2)
     if used is None or not (0.0 <= float(used) <= 100.0):
         return None
-    resets_at = _epoch(ai.get("codex_resets_at"))
+    resets_at = stable_minute_epoch(ai.get("codex_resets_at"))
     credits = ai.get("reset_credits_available")
     if isinstance(credits, bool) or not isinstance(credits, (int, float)):
         return None
@@ -137,7 +150,7 @@ def ai_visual_key(ai: dict | None) -> str:
     lower_balances = explicit_zero and reset_confirmed and not show_codex and not show_api
     visible = {
         "used": _number(ai.get("codex_7d_used"), 2),
-        "resets_at": _epoch(ai.get("codex_resets_at")),
+        "resets_at": stable_minute_epoch(ai.get("codex_resets_at")),
         "credits": ai.get("reset_credits_available"),
         "reset_credits_confirmed": reset_confirmed,
         "expiry": _expiry_list(ai.get("reset_expiry_list")),
@@ -177,7 +190,7 @@ def news_gold_visual_key(ai: dict | None, news_gold: dict | None) -> str:
     visible = {
         "ai": {
             "used": _number(ai.get("codex_7d_used"), 2),
-            "resets_at": _epoch(ai.get("codex_resets_at")),
+            "resets_at": stable_minute_epoch(ai.get("codex_resets_at")),
             "cny": _number(ds.get("CNY"), 2),
             "usd": _number(ds.get("USD"), 2),
             "today_tokens": ai.get("deepseek_today_tokens"),

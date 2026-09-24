@@ -918,7 +918,9 @@ bool renderNewsGoldPanel(const JsonDocument &doc) {
     snprintf(line, sizeof(line), "%s CNY", mc);
     panelDrawText(F_LABEL(), line, 210, 414);
     char todayTxt[32];
-    fmtCompactTodayTokens(ai, todayTxt, sizeof(todayTxt));
+    // News/Gold has a full-width summary row: preserve the measured integer.
+    // AI Usage intentionally keeps the compact k/M/B formatter above.
+    fmtTodayTokens(ai, todayTxt, sizeof(todayTxt));
     snprintf(line, sizeof(line), "今日 Token · %s", todayTxt);
     int amountRight = 210 + panelTextInkWidth(F_LABEL(), mc) + panelTextInkWidth(F_LABEL(), " CNY");
     if (R - panelTextInkWidth(F_SMALL(), line) - amountRight >= 16)

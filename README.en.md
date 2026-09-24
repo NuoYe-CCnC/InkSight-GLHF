@@ -68,6 +68,8 @@ Before building firmware, download MiSans from Xiaomi's official source and impo
 
 Page switching is controlled by `device_policy.page_switch`. Data can be cached, estimated, or manually supplied; unknown values remain `--` rather than being presented as zero. Remote news is generated only after the deployer reviews each source's terms, explicitly enables it, and configures the required key.
 
+The `main` branch now ignores second-level jitter in the Codex reset timestamp when deciding whether to switch pages. The panel displays this time only to the minute, so the activity fingerprint now uses the same precision; real percentage, balance, credit, and reset-window changes still trigger updates. Today's token count is compacted with k/M/B on `AI Usage` and kept as a full integer on `Today`. The latter requires a new firmware build and flash on a physical device and is not part of the existing `v0.1.0-test.1` binary.
+
 When a scheduled job generates a news issue, its DeepSeek charge still updates the real balance and today's token count, but that background charge alone does not switch the display from News/Gold to AI Usage. Manual publication, other API use, top-ups, and Codex usage changes still follow the normal page-switch policy. Attribution is bounded by both time and amount; an unconfirmed network request is suppressed only briefly and then becomes ordinary activity if it cannot be settled.
 
 ## Runtime and sleep limitations
@@ -86,6 +88,7 @@ When a scheduled job generates a news issue, its DeepSeek charge still updates t
 - [Install, configure, import fonts, build, flash, upgrade, and recover](docs/INSTALLATION.en.md)
 - [中文安装指南](docs/INSTALLATION.zh-CN.md)
 - [v0.1.0-test.1 test release notes](docs/releases/v0.1.0-test.1.en.md)
+- [2026-09-24 token display and false page-switch fix](docs/phase20-token-and-activity-2026-09-24/README.md)
 - [Support matrix and known limitations](docs/SUPPORT_MATRIX.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

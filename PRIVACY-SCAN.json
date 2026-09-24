@@ -2,7 +2,7 @@
   "schema": 2,
   "scope": "allowlisted candidate tree before archive, followed by independent fresh-extract scan",
   "matched_values_included": false,
-  "source_files": 333,
+  "source_files": 336,
   "findings": [],
   "coverage": [
     "filenames and paths",

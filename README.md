@@ -68,6 +68,8 @@ shared/backend/run-backend.sh
 
 页面切换由 `device_policy.page_switch` 控制。页面数据可能来自缓存、估算或手动资料；未知值保持 `--`，不伪装成 `0`。远程新闻只有在部署者逐源审查条款、主动启用来源并配置所需密钥后才会生成。
 
+`main` 分支已修复 Codex 重置时间秒级抖动导致的误切页：面板只显示到分钟，因此活动判断也按显示分钟归一化，真实的百分比、余额、点数和重置窗口变化仍会触发更新。`AI 用量`页的今日 Token 使用 k/M/B 紧凑格式，`今日关注`页保留完整整数；后一项需要重新构建并刷写固件后才会出现在实体屏上，不属于既有 `v0.1.0-test.1` 二进制。
+
 计划任务自动生成新闻时，产生的 DeepSeek 扣费仍会更新真实余额与当日 Token，但不会仅因这笔后台扣费从“今日关注”切到“AI 用量”。手动发刊、其他 API 使用、充值以及 Codex 用量变化仍按页面切换规则处理。该归因有时间和金额上限；无法确认的网络请求只会短暂抑制，超时后会按普通活动处理。
 
 ## 运行与休眠边界
@@ -86,6 +88,7 @@ shared/backend/run-backend.sh
 - [安装、配置、字体、构建、刷写、升级与恢复](docs/INSTALLATION.zh-CN.md)
 - [English installation guide](docs/INSTALLATION.en.md)
 - [v0.1.0-test.1 测试版说明](docs/releases/v0.1.0-test.1.zh-CN.md)
+- [2026-09-24 Token 显示与误切页修复记录](docs/phase20-token-and-activity-2026-09-24/README.md)
 - [支持矩阵与已知限制](docs/SUPPORT_MATRIX.md)
 - [贡献指南](CONTRIBUTING.md)
 - [安全政策](SECURITY.md)

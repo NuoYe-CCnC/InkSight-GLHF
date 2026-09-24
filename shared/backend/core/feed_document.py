@@ -19,6 +19,7 @@ from . import data_cache as dc
 from . import gold_feed
 from . import news_feed
 from . import reliable_sources as rs
+from .activity_signals import stable_minute_epoch
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,10 @@ def refresh_ai_key_version() -> str:
     # Codex 7D/重置 尽量从 content 层已落库组读（若还没有，来自真实 probe 则写入）
     seed = {
         "codex_7d_used": codex.get("used_percent"),
-        "codex_resets_at": codex.get("resets_at"),
+        # The panels display only HH:MM. Ignore provider samples that alternate
+        # by one second for the same reset window so transport versions remain
+        # stable as well as the device activity fingerprint.
+        "codex_resets_at": stable_minute_epoch(codex.get("resets_at")),
         "codex_reset_credits": codex.get("reset_credits_available"),
         "codex_reset_expiry_list": codex.get("reset_expiry_list"),  # 变化必须更新 AI 版本
         "ds": rs.ds_values_cached(),

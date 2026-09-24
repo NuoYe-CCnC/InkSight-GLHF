@@ -37,6 +37,7 @@ EXACT_FILES = (
     "shared/firmware/data/portal_html.h", "shared/firmware/merge_firmware.py",
     "shared/firmware/platformio.ini", "shared/tools/admin_recovery.py",
     "shared/tools/font_gen_ttf.py", "shared/tools/import_misans.py",
+    "shared/tools/misans_panel_render.py",
     "shared/tools/inksight_config.py", "shared/tools/misans_raster.py",
     "shared/tools/release/build_candidate.py", "shared/tools/release/generate_release_metadata.py",
     ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/feature_request.yml",
@@ -47,6 +48,7 @@ EXACT_FILES = (
     "docs/releases/v0.1.0-test.1.zh-CN.md", "docs/releases/v0.1.0-test.1.en.md",
     "shared/backend/tests/test_phase18_github_public_release.py",
     "shared/backend/tests/test_deepseek_activity_attribution.py",
+    "shared/backend/tests/test_phase20_token_activity.py",
 )
 PREFIXES = (
     "LICENSES", "shared/backend/api", "shared/backend/core", "shared/backend/migrations",
@@ -60,6 +62,7 @@ PREFIXES = (
     "docs/phase17-github-test-release-prep-2026-09-20",
     "docs/phase18-github-public-test-release-2026-09-20",
     "docs/phase19-news-activity-attribution-2026-09-23",
+    "docs/phase20-token-and-activity-2026-09-24",
 )
 DAILY_MESSAGE_TARGET = Path("shared/backend/data/daily_messages.json")
 DAILY_MESSAGE_RELEASE_SOURCE = Path(
