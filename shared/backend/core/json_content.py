@@ -1850,6 +1850,8 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
                     "reset_credits_available": codex.get("reset_credits_available"),
                     "reset_expiry_list": codex.get("reset_expiry_list"),
                     "reset_expiry_source": codex.get("reset_expiry_source"),
+                    "reset_expiry_status": codex.get("reset_expiry_status"),
+                    "reset_expiry_verified_at": codex.get("reset_expiry_verified_at"),
                     "reset_expiry_note": codex.get("reset_expiry_note"),
                     "credit_balance": codex.get("credit_balance"),
                     "credit_has_credits": codex.get("credit_has_credits"),
@@ -1858,10 +1860,17 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
                     "source": codex.get("source"),
                 }, meta={"currency": None, "unit": "percent"},
                     now=float(codex.get("ts") or time.time()))
+                if codex.get("reset_expiry_source") == "api":
+                    _dc_ok("ai.codex_expiry", codex.get("reset_expiry_list"),
+                           now=float(codex.get("reset_expiry_verified_at") or time.time()))
+                else:
+                    _dc_fail("ai.codex_expiry", note=str(codex.get("reset_expiry_status") or "missing"))
             elif seven is not None:
                 _dc_fail("ai.codex", note="cached Codex sample exceeded expected collection cycles")
+                _dc_fail("ai.codex_expiry", note="Codex sample stale")
             else:
                 _dc_fail("ai.codex", note="no 7D window in codex payload")
+                _dc_fail("ai.codex_expiry", note="no 7D window")
         except Exception:  # noqa: BLE001
             logger.debug("[AI_USAGE] codex persistent cache write skipped")
     else:
@@ -1911,6 +1920,9 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
         # AI 页权威数据段（第二阶段双面板；CNY/USD 独立、重置次数实际值、到期日由账户资料提供）
         _codex_group = _dc.get_group("ai.codex") or {}
         _c = _codex_group.get("value")
+        if isinstance(_c, dict):
+            from .codex_expiry import effective as _effective_expiry
+            _c = _effective_expiry(_c)
         _mem = {}
         try:
             from .reliable_sources import member_config, ds_values_cached
@@ -1949,6 +1961,7 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
             # 两者皆无 → None → 设备显示“到期时间暂不可用”（不冒充，不置空数组）。
             "reset_expiry_list": None,
             "reset_expiry_source": None,
+            "reset_expiry_status": (_c or {}).get("reset_expiry_status"),
             "reset_expiry_note": (_c or {}).get("reset_expiry_note"),
             "plan": (_mem or {}).get("plan"),
             "valid_until_date": (_mem or {}).get("valid_until_date"),
@@ -2006,9 +2019,9 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
         })
         # 到期列表：API 缓存优先；其次 manual 配置（明确来源）；未接通保持 None
         _api_list = (_c or {}).get("reset_expiry_list")
-        if isinstance(_api_list, list) and (_c or {}).get("reset_expiry_source") == "api":
+        if isinstance(_api_list, list) and (_c or {}).get("reset_expiry_source") in {"api", "api_cache"}:
             result["feed_ai"]["reset_expiry_list"] = list(_api_list)
-            result["feed_ai"]["reset_expiry_source"] = "api"
+            result["feed_ai"]["reset_expiry_source"] = (_c or {}).get("reset_expiry_source")
         else:
             try:
                 from .manual_reset_config import load_manual_reset

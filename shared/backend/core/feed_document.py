@@ -49,7 +49,10 @@ def _atomic_write(path: Path, payload: dict) -> None:
 def _codex_current() -> dict:
     g = dc.get_group("ai.codex") or {}
     v = g.get("value")
-    return v if isinstance(v, dict) else {}
+    if not isinstance(v, dict):
+        return {}
+    from .codex_expiry import effective
+    return effective(v)
 
 
 def _ensure_codex_cached() -> None:
@@ -92,7 +95,7 @@ def refresh_gold_version() -> Optional[str]:
 def _expiry_list(codex: dict):
     """到期列表：缓存 api 列表优先；None 时回退手动配置（manual）；都无 → None。"""
     v = codex.get("reset_expiry_list")
-    if isinstance(v, list) and codex.get("reset_expiry_source") == "api":
+    if isinstance(v, list) and codex.get("reset_expiry_source") in {"api", "api_cache"}:
         return list(v)
     try:
         from .manual_reset_config import load_manual_reset

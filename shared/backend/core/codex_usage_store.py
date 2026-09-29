@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 from typing import Optional
 
+import aiosqlite
+
+from . import db as db_module
+from .codex_expiry import effective, reconcile
 from .db import get_main_db
 
 logger = logging.getLogger(__name__)
@@ -38,17 +43,44 @@ async def set_codex_usage(mac: str, source: str, payload: dict) -> None:
     db = await get_main_db()
     await _ensure_schema(db)
     now = time.time()
-    ts = float(payload.get("ts") or now)
-    await db.execute(
-        """INSERT INTO codex_usage (device_mac, source, payload_json, ts, updated_at)
-           VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(device_mac, source) DO UPDATE SET
-               payload_json = excluded.payload_json,
-               ts = excluded.ts,
-               updated_at = excluded.updated_at""",
-        (mac.upper(), source, json.dumps(payload, ensure_ascii=False), ts, now),
-    )
-    await db.commit()
+    raw_ts = payload.get("ts")
+    ts = float(raw_ts) if type(raw_ts) in (int, float) else now
+    if not math.isfinite(ts) or ts <= 0 or ts > now + 60:
+        raise ValueError("invalid Codex sample timestamp")
+    # The shared read connection is unsuitable for a read-modify-write
+    # transaction: other backend tasks may commit it between these statements.
+    async with aiosqlite.connect(db_module._MAIN_DB_PATH) as writer:
+        await writer.execute("PRAGMA busy_timeout=5000")
+        await writer.execute("BEGIN IMMEDIATE")
+        try:
+            cur = await writer.execute(
+                "SELECT payload_json, ts FROM codex_usage WHERE device_mac=? AND source=?",
+                (mac.upper(), source),
+            )
+            row = await cur.fetchone()
+            if row is not None and ts <= float(row[1]):
+                await writer.rollback()  # A delayed collector cannot overwrite newer data.
+                return
+            previous = None
+            if row:
+                try:
+                    previous = json.loads(row[0])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            merged = reconcile(previous if isinstance(previous, dict) else None,
+                               payload, now=int(now))
+            await writer.execute(
+                """INSERT INTO codex_usage (device_mac, source, payload_json, ts, updated_at)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(device_mac, source) DO UPDATE SET
+                       payload_json=excluded.payload_json, ts=excluded.ts,
+                       updated_at=excluded.updated_at""",
+                (mac.upper(), source, json.dumps(merged, ensure_ascii=False), ts, now),
+            )
+            await writer.commit()
+        except Exception:
+            await writer.rollback()
+            raise
 
 
 async def get_codex_usage(mac: str, stale_seconds: int = 7200) -> Optional[dict]:
@@ -75,7 +107,8 @@ async def get_codex_usage(mac: str, stale_seconds: int = 7200) -> Optional[dict]
             continue
         if not isinstance(payload, dict):
             continue
-        fresh = (now - float(ts or updated_at)) < stale_seconds
+        fresh = 0 <= now - float(ts or updated_at) < stale_seconds
+        payload = effective(payload, now=int(now))
         if source == "mac" and fresh and mac_fresh is None:
             mac_fresh = payload
         elif fresh and fallback_fresh is None:
@@ -93,6 +126,7 @@ async def get_codex_usage(mac: str, stale_seconds: int = 7200) -> Optional[dict]
     if isinstance(selected, dict):
         selected = dict(selected)
         selected["stale"] = True
+        selected = effective(selected, now=int(now))
     return selected
 
 
@@ -127,7 +161,8 @@ async def get_codex_usage_any(stale_seconds: int = 7200) -> Optional[dict]:
         payload.setdefault("source", source)
         if latest is None:
             latest = payload
-        fresh = (now - float(ts or updated_at)) < stale_seconds
+        fresh = 0 <= now - float(ts or updated_at) < stale_seconds
+        payload = effective(payload, now=int(now))
         if source == "mac" and fresh and mac_fresh is None:
             mac_fresh = payload
         elif fresh and fallback_fresh is None:
@@ -139,4 +174,4 @@ async def get_codex_usage_any(stale_seconds: int = 7200) -> Optional[dict]:
     if selected is not mac_fresh and selected is not fallback_fresh:
         selected = dict(selected)
         selected["stale"] = True
-    return selected
+    return effective(selected, now=int(now))

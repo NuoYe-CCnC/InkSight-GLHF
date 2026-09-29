@@ -56,6 +56,8 @@ EXACT_FILES = (
     "shared/backend/tests/test_phase3_scheduling.py",
     "shared/backend/tests/test_codex_quota_probe_discovery.py",
     "shared/backend/tests/test_codex_collector_health.py",
+    "shared/backend/tests/test_codex_expiry_quality.py",
+    "shared/backend/tests/test_firmware_rollback.py",
     "shared/backend/tests/test_host_runtime.py",
     "shared/backend/tests/test_gold_refresh_reliability.py",
     "shared/backend/tests/test_app_data.py",
@@ -74,6 +76,7 @@ EXACT_FILES = (
     "docs/APP_DESKTOP.zh-CN.md",
     "docs/FIRST_USE.zh-CN.md", "docs/CONFIGURATION.zh-CN.md",
     "docs/UPGRADE.zh-CN.md", "docs/TROUBLESHOOTING.zh-CN.md",
+    "docs/FIRMWARE_UPDATE_ROLLBACK.zh-CN.md",
     "docs/RELEASE_TEMPLATE.zh-CN.md", "docs/archive/README.md",
 )
 PREFIXES = (

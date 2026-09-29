@@ -356,6 +356,13 @@ async def firmware_flash_plan(body: dict, _user_id: int = Depends(require_local_
             str(body.get("build_id") or ""), str(body.get("device_id") or ""),
             str(body.get("install_mode") or "update"),
         )
+        if plan.get("install_mode") == "update":
+            try:
+                private = firmware_tasks.get_flash_plan_identity(str(plan["id"]))
+                heartbeat = await stats_store.get_latest_heartbeat(private["mac"])
+                firmware_tasks.bind_previous_build(str(plan["id"]), heartbeat)
+            except Exception:  # Prior heartbeat is optional; never block a safe plan.
+                pass
         local_console_audit.record(
             "firmware.flash.prepared", _user_id, plan_id=plan["id"],
             device_fingerprint=plan["device_fingerprint"], target=plan["target"],
@@ -389,6 +396,48 @@ async def firmware_flash_status(task_id: str, _user_id: int = Depends(require_lo
             private = firmware_tasks.get_flash_identity(task_id)
             heartbeat = await stats_store.get_latest_heartbeat(private["mac"])
             task = firmware_tasks.confirm_heartbeat(task_id, heartbeat)
+        return {"ok": True, "task": task}
+    except KeyError:
+        return JSONResponse({"ok": False, "error": "task_not_found"}, status_code=404)
+
+
+@router.post("/firmware/rollback-plans")
+async def firmware_rollback_plan(body: dict, _user_id: int = Depends(require_local_root_csrf)):
+    try:
+        plan = firmware_tasks.prepare_rollback(
+            str(body.get("flash_id") or ""), str(body.get("device_id") or "")
+        )
+        local_console_audit.record(
+            "firmware.rollback.prepared", _user_id, plan_id=plan["id"],
+            device_fingerprint=plan["device_fingerprint"], target=plan["target"],
+        )
+        return {"ok": True, "plan": plan}
+    except (RuntimeError, KeyError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+
+
+@router.post("/firmware/rollbacks")
+async def firmware_rollback_create(body: dict, _user_id: int = Depends(require_local_root_csrf)):
+    try:
+        task = firmware_tasks.create_rollback(
+            str(body.get("plan_id") or ""), str(body.get("confirmation_token") or "")
+        )
+        task = firmware_tasks.start_rollback(str(task["id"]))
+        local_console_audit.record("firmware.rollback.started", _user_id,
+                                   task_id=task["id"], target=task["target"])
+        return JSONResponse({"ok": True, "task": task}, status_code=202)
+    except (RuntimeError, KeyError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+
+
+@router.get("/firmware/rollbacks/{task_id}")
+async def firmware_rollback_status(task_id: str, _user_id: int = Depends(require_local_root)):
+    try:
+        task = firmware_tasks.get_rollback(task_id)
+        if task.get("status") == "written_unconfirmed":
+            private = firmware_tasks.get_rollback_identity(task_id)
+            heartbeat = await stats_store.get_latest_heartbeat(private["mac"])
+            task = firmware_tasks.confirm_rollback_heartbeat(task_id, heartbeat)
         return {"ok": True, "task": task}
     except KeyError:
         return JSONResponse({"ok": False, "error": "task_not_found"}, status_code=404)
