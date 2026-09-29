@@ -1,104 +1,35 @@
 # InkSight-GLHF
 
-[中文](README.md)
+[中文](README.md) · [Documentation index](docs/README.md)
 
-> A local two-page information panel for an ESP32-S3 and a 4.26-inch e-paper display, with AI usage, news/gold views, browser-based configuration, and reproducible firmware builds.
+A two-page information panel for an ESP32-S3 and a 4.26-inch monochrome e-paper display. `AI Usage` shows available Codex windows, DeepSeek balance and this project's token use; `Today` shows local messages or user-enabled news and converted XAUS international spot-gold data. The project includes a local backend, web console and firmware source. It is not an official product of OpenAI, DeepSeek, Xiaomi or a hardware vendor.
 
-InkSight-GLHF is an open-source project in public testing. It combines a local backend, a browser-based management console, and ESP32 firmware. It is intended for developers and hardware hobbyists who are comfortable wiring, configuring, and maintaining their own service. This project is not an official product of, or partnership with, OpenAI, DeepSeek, Xiaomi, or any hardware vendor.
+> This is a public test release with **source only: no one-click installer and no ready-to-flash firmware binary**. The ZIP still requires dependency installation and configuration. Physical display use additionally requires wiring, a locally obtained licensed MiSans font and a firmware build/flash. No privacy-approved real-screen photograph is available for public display yet.
 
-Repository: [`NuoYe-CCnC/InkSight-GLHF`](https://github.com/NuoYe-CCnC/InkSight-GLHF) · Current test release: [`v0.1.0-test.2`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.2)
+## Start here
 
-## What it does
+1. [Download the current test release `v0.1.0-test.2`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.2) and read the [download and checksum guide](docs/DOWNLOAD.zh-CN.md). Neither GitHub's generated `Source code` archive nor `InkSight-Source.zip` is an installer.
+2. [First use](docs/FIRST_USE.zh-CN.md): start the local backend on a qualified Mac before deciding whether to publish to a device.
+3. [Upgrade an existing setup](docs/UPGRADE.zh-CN.md): distinguish a backend-only update from a firmware flash and back up private state first.
 
-- `AI Usage`: shows available Codex window information, DeepSeek balance/project token usage, and optional OpenAI organization monthly costs.
-- `Today`: shows either local messages or an enabled news digest, plus converted XAUS international spot-gold data.
-- Local web console: create the first root administrator, edit a draft, validate it, explicitly apply it, and preview both panels.
-- Firmware build and controlled flashing: an engineering path for one verified hardware target, with separate fresh-board and update flows.
-- No paid API is required to start: with remote sources and keys absent, the news area uses four approved local messages.
+For ongoing operation, use the [documentation index](docs/README.md). Contributors should start with [CONTRIBUTING.md](CONTRIBUTING.md); the detailed English source-install path remains in [INSTALLATION.en.md](docs/INSTALLATION.en.md).
 
-Not every value is a real-time provider account total. In particular, `API monthly spend` means costs returned by the OpenAI Organization Costs API for the selected organization and the current UTC calendar month. It is not an API balance and not the user's total personal Codex spend.
+## Qualified scope and defaults
 
-## Current support
-
-| Area | Current status |
+| Area | Test-release boundary |
 |---|---|
-| Controller | Verified: ESP32-S3-DevKitC-1-N32R16V / ESP32-S3-WROOM-2-N32R16V, 32 MB Octal flash, 16 MB Octal PSRAM |
-| Display | Verified: Waveshare 4.26-inch monochrome e-paper, SSD1677, 800×480 |
-| Firmware environment | `epd_426_ssd1677_s3_n32r16` |
-| Host | Verified baseline: macOS ARM64 with Python 3.9 |
-| Windows / Linux / Intel Mac | Source may run, but no equivalent end-to-end qualification has been completed for the first test release |
-| Other boards or panels | Historical/experimental environments exist in the tree but are not supported targets for this test release |
-| Battery life | Not measured to a release-quality protocol; no one-week claim is made for a 2000 mAh battery |
+| Host | macOS ARM64, Python 3.9. Windows, Linux and Intel Mac have not received equivalent end-to-end qualification. |
+| Controller | ESP32-S3-DevKitC-1-N32R16V / ESP32-S3-WROOM-2-N32R16V, 32 MB Octal flash and 16 MB Octal PSRAM. |
+| Display | Waveshare 4.26-inch monochrome SSD1677, 800×480: [product](https://www.waveshare.com/product/displays/e-paper/4.26inch-e-paper-hat.htm), [original manual](https://www.waveshare.com/wiki/4.26inch_e-Paper_HAT_Manual), [Espressif board guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.0.html). |
+| Firmware target | `epd_426_ssd1677_s3_n32r16` only. Other historical build environments are not qualified hardware. |
+| Battery | A one-week runtime claim for `2000 mAh` has not been measured to a release-quality protocol. |
 
-Hardware references: [Waveshare 4.26-inch product](https://www.waveshare.com/product/displays/e-paper/4.26inch-e-paper-hat.htm) · [Waveshare documentation](https://www.waveshare.com/wiki/4.26inch_e-Paper_HAT_Manual) · [Espressif ESP32-S3-DevKitC-1 guide](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.0.html)
+**All remote news sources are disabled** in a fresh install. Without an explicitly enabled source and key, the panel uses four local messages and does not call a paid model automatically. Optional OpenAI `API monthly spend` is the selected organization's cost for a **UTC calendar month**, not an API balance or all personal Codex spending. DeepSeek's daily token figure is not an official whole-account ledger. Unknown values remain `--`, not zero. See [configuration and data semantics](docs/CONFIGURATION.zh-CN.md) and the [support matrix](docs/SUPPORT_MATRIX.md).
 
-## Quick start
+The first local web-console visit creates a root account; **there is no default username or password**. Private configuration, API keys, real device identifiers and runtime data are not distributed. A sleeping Mac cannot run the backend scheduler, and an ESP32 wake does not wake the host. See [first use](docs/FIRST_USE.zh-CN.md) and [host publication](docs/HOST_RUNTIME.zh-CN.md).
 
-Clone the repository or download the Release source archive. Run these commands from the source root; the verified baseline uses Python 3.9:
+## License and status
 
-```bash
-git clone https://github.com/NuoYe-CCnC/InkSight-GLHF.git
-cd InkSight-GLHF
-```
+Project-owned code and the four releasable local messages are licensed under [`GPL-3.0-only`](LICENSE). Third-party code, fonts, news content and services keep their own terms. MiSans is not distributed in this repository or the release archive. See [license scope](LICENSE-SCOPE.md), [third-party notices](THIRD_PARTY_NOTICES.md) and [SBOM](SBOM.json).
 
-```bash
-python3.9 -m venv shared/backend/.venv
-shared/backend/.venv/bin/python -m pip install --require-hashes \
-  -r requirements-py39-macos-arm64.lock
-shared/backend/.venv/bin/python shared/tools/inksight_config.py init
-shared/backend/run-backend.sh
-```
-
-Open `http://127.0.0.1:8080/`. An empty database prompts for the first root account. There is no default username or password; the password must contain at least 12 characters.
-
-Fresh-install defaults are deliberately conservative:
-
-- All remote news sources are disabled; news is not fetched automatically out of the box.
-- Without a configured news key and explicitly enabled source, the panel rotates only the four bundled local messages. Long-term non-repetition is not promised.
-- `Credit balance` and `API monthly spend` switches default to off.
-- Wi-Fi credentials, cloud accounts, API keys, real MAC addresses, membership dates, and production databases are not included.
-- Configuration initialization does not overwrite an existing setup; inspect legacy migration with `migrate --dry-run` first.
-
-Before building firmware, download MiSans from Xiaomi's official source and import it locally. The repository and release archive do not distribute MiSans, derived glyph headers, previews, or firmware binaries. See the [installation, build, and recovery guide](docs/INSTALLATION.en.md).
-
-## The two panels
-
-1. `AI Usage`: Codex windows/credits, DeepSeek balance and project token usage, and optional OpenAI organization monthly costs.
-2. `Today`: news or local messages, plus converted international spot-gold data.
-
-Page switching is controlled by `device_policy.page_switch`. Data can be cached, estimated, or manually supplied; unknown values remain `--` rather than being presented as zero. Remote news is generated only after the deployer reviews each source's terms, explicitly enables it, and configures the required key.
-
-The `main` branch now ignores second-level jitter in the Codex reset timestamp when deciding whether to switch pages. The panel displays this time only to the minute, so the activity fingerprint now uses the same precision; real percentage, balance, credit, and reset-window changes still trigger updates. Today's token count is compacted with k/M/B on `AI Usage` and kept as a full integer on `Today`. The latter requires a new firmware build and flash on a physical device and is not part of the existing `v0.1.0-test.1` binary.
-
-When a scheduled job generates a news issue, its DeepSeek charge still updates the real balance and today's token count, but that background charge alone does not switch the display from News/Gold to AI Usage. Manual publication, other API use, top-ups, and Codex usage changes still follow the normal page-switch policy. Attribution is bounded by both time and amount; an unconfirmed network request is suppressed only briefly and then becomes ordinary activity if it cannot be settled.
-
-## Runtime and sleep limitations
-
-`shared/backend/run-backend.sh` is the foreground entry point included in the public candidate. Local processes cannot run on schedule while the Mac host is asleep. Wake recovery can idempotently catch up only the currently eligible task; it does not guarantee replay of every missed publication time. ESP32 timed wake/deep sleep is a separate path: a device wake does not imply that the host backend is awake. Keep the host awake for reliable scheduled publication, or deploy to an independently reviewed always-on environment.
-
-The optional generic host publisher and Codex quota collector are documented in the [host runtime guide (Chinese)](docs/HOST_RUNTIME.zh-CN.md). They read the existing private configuration; no developer-specific LaunchAgent or credentials are included.
-
-## Optional external services
-
-- DeepSeek: balance lookup, news generation, and project token accounting; pricing and availability are controlled by the provider.
-- OpenAI Organization Costs API: read only after the user opts in and supplies an Admin API Key. The key stays in private local backend configuration and is never placed in firmware or a public device payload.
-- News sources: all default to disabled. Open-source software does not grant rights to republish, translate, or cache news content.
-- Nutstore/WebDAV: an optional device-delivery route that users configure and review themselves.
-
-## Documentation
-
-- [Install, configure, import fonts, build, flash, upgrade, and recover](docs/INSTALLATION.en.md)
-- [中文安装指南](docs/INSTALLATION.zh-CN.md)
-- [v0.1.0-test.2 test release notes](docs/releases/v0.1.0-test.2.en.md)
-- [v0.1.0-test.1 first public test release](docs/releases/v0.1.0-test.1.en.md)
-- [2026-09-24 token display and false page-switch fix](docs/phase20-token-and-activity-2026-09-24/README.md)
-- [Support matrix and known limitations](docs/SUPPORT_MATRIX.md)
-- [Contributing](CONTRIBUTING.md)
-- [Security policy](SECURITY.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md) · [License scope](LICENSE-SCOPE.md) · [SBOM](SBOM.json)
-
-## License
-
-Project-owned code and the four release messages that the distributor is entitled to license are offered under `GPL-3.0-only`; see [LICENSE](LICENSE). Third-party code, fonts, services, and content remain under their own terms. GPL does not relicense third-party material and does not prove ownership of external rights. MiSans is not distributed.
-
-`v0.1.0-test.2` remains a public test release, not a stable release; it updates the gold backend without a new firmware binary. See the [release notes](docs/releases/v0.1.0-test.2.en.md) and [support matrix](docs/SUPPORT_MATRIX.md) for verified, user-confirmed, and unverified scope.
+The [`v0.1.0-test.2` notes](docs/releases/v0.1.0-test.2.en.md) document a gold-backend update and its then-current verification; no new firmware binary is included. [Report security issues privately](SECURITY.md), never in a public Issue with credentials or device identifiers.

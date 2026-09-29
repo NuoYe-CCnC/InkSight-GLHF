@@ -1,6 +1,6 @@
 # InkSight-GLHF installation, configuration, build, and recovery
 
-[中文](INSTALLATION.zh-CN.md) · [Back to README](../README.en.md)
+[中文](INSTALLATION.zh-CN.md) · [Documentation index](README.md) · [Back to README](../README.en.md)
 
 This guide covers only the first test release's verified path: macOS ARM64, Python 3.9, ESP32-S3 N32R16V, and a 4.26-inch SSD1677 800×480 display. Other PlatformIO environments in the tree are not supported-hardware claims.
 
@@ -17,6 +17,8 @@ The archive contains no production databases, state, caches, Wi-Fi credentials, 
 ## 2. Backend
 
 From the extracted release root:
+
+First confirm `uname -m` is `arm64` and `python3.9 --version` reports 3.9.x. If `python3.9` is absent but `python3 --version` is 3.9.x, replace only the first virtual-environment command below with `python3 -m venv ...`. Do not treat another Python version as the qualified baseline.
 
 ```bash
 python3.9 -m venv shared/backend/.venv
@@ -106,6 +108,8 @@ export INKSIGHT_BUILD_ID="local-test"
 ```
 
 A clean computer downloads the pinned platform and libraries on first use; no private cache is assumed. Prefer the web console's private configuration for real Wi-Fi/cloud credentials so secrets do not end up in documentation, issues, or shell history.
+
+If only `python3` is available and verified as 3.9.x, use it for the `.pio-venv` creation line too. The default environment in `platformio.ini` is historical; always select `-e epd_426_ssd1677_s3_n32r16` for this qualified target.
 
 ## 7. Flash and upgrade
 

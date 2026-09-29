@@ -1,6 +1,6 @@
 # InkSight-GLHF 安装、配置、构建与恢复
 
-[English](INSTALLATION.en.md) · [返回 README](../README.md)
+[English](INSTALLATION.en.md) · [文档目录](README.md) · [首次使用简版](FIRST_USE.zh-CN.md)
 
 本文只描述首个测试版已验证的 macOS ARM64 + Python 3.9 + ESP32-S3 N32R16V + 4.26 英寸 SSD1677 800×480 路径。仓库中的其他 PlatformIO 环境不代表已支持硬件。
 
@@ -17,6 +17,8 @@
 ## 2. 安装并启动后端
 
 从解压后的发行目录根执行：
+
+先确认 `uname -m` 为 `arm64`、`python3.9 --version` 为 3.9.x。若没有 `python3.9` 命令，但 `python3 --version` 确认为 3.9.x，可仅将下列创建虚拟环境的首行改为 `python3 -m venv ...`；不要把其他 Python 版本当作已验证基线。
 
 ```bash
 python3.9 -m venv shared/backend/.venv
@@ -122,6 +124,8 @@ export INKSIGHT_BUILD_ID="local-test"
 .pio-venv/bin/python -m platformio run -d shared/firmware \
   -e epd_426_ssd1677_s3_n32r16
 ```
+
+若已按上文确认只有 `python3` 3.9.x，创建 `.pio-venv` 的第一行也相应改用 `python3`。`platformio.ini` 的默认环境是历史目标；构建和上传必须显式指定 `-e epd_426_ssd1677_s3_n32r16`。
 
 首次运行会从上游下载 PlatformIO 平台和依赖，不应假设新电脑已有本机缓存。将 Wi-Fi 或云端密钥作为真实构建输入前，优先在网页管理端的私密配置中填写，避免把秘密写进文档、Issue 或 shell 历史。
 

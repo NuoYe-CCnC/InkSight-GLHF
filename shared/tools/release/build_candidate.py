@@ -62,6 +62,10 @@ EXACT_FILES = (
     "shared/backend/tests/test_phase5_hotfix.py",
     "docs/releases/v0.1.0-test.2.zh-CN.md",
     "docs/releases/v0.1.0-test.2.en.md",
+    "docs/README.md", "docs/DOWNLOAD.zh-CN.md",
+    "docs/FIRST_USE.zh-CN.md", "docs/CONFIGURATION.zh-CN.md",
+    "docs/UPGRADE.zh-CN.md", "docs/TROUBLESHOOTING.zh-CN.md",
+    "docs/RELEASE_TEMPLATE.zh-CN.md", "docs/archive/README.md",
 )
 PREFIXES = (
     "LICENSES", "shared/backend/api", "shared/backend/core", "shared/backend/migrations",

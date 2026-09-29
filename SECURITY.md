@@ -2,9 +2,9 @@
 
 ## 当前状态 / Current status
 
-当前安全修复以最新公开测试版 `v0.1.0-test.1` 为基线。后端 API `1.1.0` 不是项目发布版本号。
+当前安全修复以最新公开测试版 `v0.1.0-test.2` 为基线。后端 API `1.1.0` 不是项目发布版本号。
 
-Security fixes currently target the latest public test release, `v0.1.0-test.1`. Backend API `1.1.0` is not the project release version.
+Security fixes currently target the latest public test release, `v0.1.0-test.2`. Backend API `1.1.0` is not the project release version.
 
 ## 报告敏感问题 / Reporting sensitive issues
 
