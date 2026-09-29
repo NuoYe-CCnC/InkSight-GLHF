@@ -156,6 +156,9 @@ DEFAULT_CONFIG = {
         "mode_enabled": {"active": True, "light": True, "night": True},
         "wake_enabled": True,
         "minimum_request_interval_seconds": 30,
+        "response_max_age_seconds": 300,
+        "quote_max_age_seconds": 7200,
+        "cache_max_age_seconds": 2700,
         "midnight_tolerance_seconds": 120,
         "intraday_recovery_cooldown_seconds": 21600,
         "intraday_recovery_max_attempts_per_day": 2,
@@ -333,6 +336,9 @@ _CONFIG_ALLOWED = {
     "gold_refresh": {"scheduled_enabled": None,
                      "mode_enabled": {"active": None, "light": None, "night": None},
                      "wake_enabled": None, "minimum_request_interval_seconds": None,
+                     "response_max_age_seconds": None,
+                     "quote_max_age_seconds": None,
+                     "cache_max_age_seconds": None,
                      "midnight_tolerance_seconds": None,
                      "intraday_recovery_cooldown_seconds": None,
                      "intraday_recovery_max_attempts_per_day": None},
@@ -848,6 +854,10 @@ def validate_config(config: dict) -> list[str]:
         _finite_number(gold_active.get("minimum_request_interval_seconds"),
                        "gold_refresh.minimum_request_interval_seconds", errors,
                        minimum=30, maximum=3600, integer=True)
+        for field in ("response_max_age_seconds", "quote_max_age_seconds",
+                      "cache_max_age_seconds"):
+            _finite_number(gold_active.get(field), f"gold_refresh.{field}", errors,
+                           minimum=60, maximum=86400, integer=True)
         _finite_number(gold_active.get("midnight_tolerance_seconds"),
                        "gold_refresh.midnight_tolerance_seconds", errors,
                        minimum=0, maximum=600, integer=True)

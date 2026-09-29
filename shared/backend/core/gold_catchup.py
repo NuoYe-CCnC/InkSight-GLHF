@@ -1,9 +1,8 @@
-"""Cold-start-only, stale-only XAUS recovery coordinator.
+"""Bounded XAUS recovery for an explicit authenticated device wake.
 
-The device may request recovery only after a true power-on when its published
-quote is missing or older than 24 hours. This host independently re-checks the
-authoritative cache and applies a durable one-hour cooldown, so a faulty or old
-device cannot turn frequent deep-sleep wakes into provider traffic.
+Current firmware requests only after true power-on with a missing/>24h quote.
+The host still applies a one-hour event cooldown and daily budget, but does
+not mistake its own newer cache for completion of the device's explicit event.
 """
 from __future__ import annotations
 
@@ -61,6 +60,8 @@ def _save(state: dict) -> None:
 def can_attempt(now: Optional[float] = None) -> tuple[bool, str]:
     current = float(time.time() if now is None else now)
     state = _state()
+    if state.get("_state_error") not in (None, "missing"):
+        return False, "state unavailable"
     recovery = state.get("catchup") or {}
     last_attempt = float(recovery.get("last_attempt_at") or 0)
     if 0 <= current - last_attempt < COOLDOWN_S:
@@ -84,8 +85,8 @@ def _record_attempt(current: float, ok: bool, note: str) -> None:
         recovery["day"] = day
         recovery["count"] = 0
     recovery["last_attempt_at"] = current
+    recovery["count"] = int(recovery.get("count") or 0) + 1
     if ok:
-        recovery["count"] = int(recovery.get("count") or 0) + 1
         recovery["last_success_at"] = current
     recovery["last_result"] = {"ok": ok, "note": note, "at": current}
     _save(state)
@@ -95,25 +96,29 @@ def catchup(now: Optional[float] = None, request_id: str | None = None,
             reason: str = "device_wake") -> dict:
     rid = _safe_request_id(request_id) if request_id else None
     current = float(time.time() if now is None else now)
-    if not needs_catchup(current):
+    if not rid and not needs_catchup(current):
         return {"ok": True, "action": "noop", "reason": "quote fresh (<=24h)",
                 "item": gf.cached(now=current)}
-    allowed, why = can_attempt(current)
-    if not allowed:
-        return {"ok": False, "action": "blocked", "reason": why,
-                "item": gf.cached(now=current)}
+    prior = gf.request_state(rid) if rid else "new"
+    if prior == "new":
+        allowed, why = can_attempt(current)
+        if not allowed:
+            return {"ok": False, "action": "blocked", "reason": why,
+                    "pending": True, "item": gf.cached(now=current)}
     result = gf.refresh(force=True, reason=reason, request_id=rid, now=current)
-    _record_attempt(current, bool(result.get("ok")),
-                    "catchup ok" if result.get("ok") else str(result.get("note") or result))
+    if result.get("attempted") and prior == "new":
+        _record_attempt(current, bool(result.get("ok")),
+                        "fetched" if result.get("ok") else str(result.get("error_class") or "failed"))
     logger.info("[GOLD] cold-start catchup request=%s result=%s",
                 request_fingerprint(rid) if rid else "admin", _result_word(result))
-    if result.get("ok") and not result.get("deduped"):
+    if (result.get("ok") or result.get("accepted")) and not result.get("deduped"):
         try:
             from .feed_document import build_feed_document
             build_feed_document(write_file=True)
         except Exception:  # noqa: BLE001
             logger.warning("[GOLD] feed rebuild after wake refresh failed")
-    return {**result, "action": ("coalesced" if result.get("coalesced") else
+    return {**result, "action": ("pending" if result.get("pending") else
+                                  "coalesced" if result.get("coalesced") else
                                   "deduped" if result.get("deduped") else
                                   "fetched" if result.get("ok") else "failed")}
 
@@ -129,7 +134,7 @@ def _result_word(result: dict) -> str:
 def status() -> dict:
     value = gf.status()
     recovery = _state().get("catchup") or {}
-    value.update({"wake_refresh": True, "wake_refresh_policy": "cold-start-stale-only",
+    value.update({"wake_refresh": True, "wake_refresh_policy": "explicit-cold-start-bounded",
                   "needs_catchup": needs_catchup(),
                   "request_id_required_for_device": True,
                   "cold_start_cooldown_seconds": COOLDOWN_S,

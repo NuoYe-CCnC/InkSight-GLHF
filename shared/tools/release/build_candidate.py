@@ -57,6 +57,11 @@ EXACT_FILES = (
     "shared/backend/tests/test_codex_quota_probe_discovery.py",
     "shared/backend/tests/test_codex_collector_health.py",
     "shared/backend/tests/test_host_runtime.py",
+    "shared/backend/tests/test_gold_refresh_reliability.py",
+    "shared/backend/tests/test_phase1_reliable.py",
+    "shared/backend/tests/test_phase5_hotfix.py",
+    "docs/releases/v0.1.0-test.2.zh-CN.md",
+    "docs/releases/v0.1.0-test.2.en.md",
 )
 PREFIXES = (
     "LICENSES", "shared/backend/api", "shared/backend/core", "shared/backend/migrations",

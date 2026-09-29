@@ -149,7 +149,7 @@ def build_feed_document(write_file: bool = True) -> dict:
         "freshness": {
             "ai": dc.group_status("ai.codex") or dc.group_status("ai.ds.cny"),
             "news": {c: dc.group_status(f"news.{c}") for c in news_feed.CATEGORIES},
-            "gold": dc.group_status(gold_feed.GROUP),
+            "gold": gold_feed.effective_cache_status(),
         },
         "ai": {
             "codex": {

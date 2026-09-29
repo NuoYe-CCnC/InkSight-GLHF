@@ -70,6 +70,9 @@
     "mode_enabled": {"active": true, "light": true, "night": true},
     "wake_enabled": true,
     "minimum_request_interval_seconds": 30,
+    "response_max_age_seconds": 300,
+    "quote_max_age_seconds": 7200,
+    "cache_max_age_seconds": 2700,
     "midnight_tolerance_seconds": 120,
     "intraday_recovery_cooldown_seconds": 21600,
     "intraday_recovery_max_attempts_per_day": 2

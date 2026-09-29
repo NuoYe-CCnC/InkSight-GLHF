@@ -13,6 +13,7 @@ import math
 import time
 import urllib.error
 import urllib.request
+from email.utils import parsedate_to_datetime
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,10 @@ PENDING_NOTE = None
 STATE_FILE = state_store.state_path("xaus_gold_state.json")
 MIN_REQUEST_INTERVAL_S = 30
 MAX_PROVIDER_CLOCK_SKEW = 300
+DEFAULT_RESPONSE_MAX_AGE_S = 300
+DEFAULT_QUOTE_MAX_AGE_S = 7200
+DEFAULT_CACHE_MAX_AGE_S = 2700
+MAX_RETRY_ATTEMPTS = 3
 _TRANSIENT_HTTP = {408, 425, 429, 500, 502, 503, 504}
 _BJ = timezone(timedelta(hours=8))
 
@@ -52,7 +57,8 @@ def _key() -> str:
 
 def _default_state() -> dict:
     return {"schema": 1, "last_request_at": 0.0, "scheduled_slots": {},
-            "logical_requests": {},
+            "logical_requests": {}, "pending_requests": {},
+            "last_success_at": 0.0, "next_allowed_at": 0.0,
             "stats": {"requests": 0, "retries": 0, "success": 0,
                       "failure": 0, "coalesced": 0, "deduped": 0}}
 
@@ -65,6 +71,7 @@ def _load_state() -> dict:
         base["stats"] = {**_default_state()["stats"], **(value.get("stats") or {})}
         base.setdefault("scheduled_slots", {})
         base.setdefault("logical_requests", {})
+        base.setdefault("pending_requests", {})
         return base
     if error and error != "missing":
         logger.warning("[GOLD] XAUS state unavailable: %s", error)
@@ -77,7 +84,8 @@ def _load_state() -> dict:
 def _save_state(value: dict) -> None:
     clean = dict(value)
     clean.pop("_state_error", None)
-    for key, keep in (("scheduled_slots", 96), ("logical_requests", 256)):
+    for key, keep in (("scheduled_slots", 96), ("logical_requests", 256),
+                      ("pending_requests", 96)):
         rows = clean.get(key) or {}
         if len(rows) > keep:
             ordered = sorted(rows.items(), key=lambda pair: float((pair[1] or {}).get("at", 0)))
@@ -101,6 +109,25 @@ def _iso_epoch(value) -> Optional[int]:
         return int(dt.timestamp()) if dt.tzinfo is not None else None
     except ValueError:
         return None
+
+
+def _freshness_limits() -> tuple[int, int, int]:
+    """Response generation, market quote and host-cache ages are independent."""
+    try:
+        from .operator_config import load_effective
+        config = load_effective().config.get("gold_refresh") or {}
+    except Exception:  # noqa: BLE001
+        config = {}
+    values = []
+    for key, default in (("response_max_age_seconds", DEFAULT_RESPONSE_MAX_AGE_S),
+                         ("quote_max_age_seconds", DEFAULT_QUOTE_MAX_AGE_S),
+                         ("cache_max_age_seconds", DEFAULT_CACHE_MAX_AGE_S)):
+        try:
+            value = int(config.get(key, default))
+        except (TypeError, ValueError):
+            value = default
+        values.append(max(60, min(value, 86400)))
+    return tuple(values)
 
 
 def _parse(data: dict, fetched_at: float) -> dict:
@@ -135,6 +162,19 @@ def _parse(data: dict, fetched_at: float) -> dict:
     state_status = str(state.get("status") or ("stale" if provider_stale else "fresh")).lower()
     if state_status not in {"fresh", "stale", "degraded", "unknown", "error"}:
         state_status = "unknown"
+    response_max_age, quote_max_age, _ = _freshness_limits()
+    if now_i - updated_at > response_max_age:
+        freshness_reason = "response_aged"
+    elif now_i - price_as_of > quote_max_age:
+        freshness_reason = "quote_aged"
+    elif provider_stale or state_status != "fresh":
+        freshness_reason = "provider_stale"
+    else:
+        freshness_reason = None
+    # XAUS spot JSON has no documented market-open state. A stale price does
+    # not prove a normal market closure, even during a weekend.
+    market_state = ("closed" if data.get("market_status") == "closed"
+                    and state.get("source") == "upstream" else "unknown")
     return {
         "provider": PROVIDER, "instrument_id": "XAU",
         "instrument_label": "伦敦金参考价",
@@ -146,12 +186,14 @@ def _parse(data: dict, fetched_at: float) -> dict:
         "quote_time": price_as_of,  # old firmware compatibility; same honest source time
         "data_state": {"status": state_status, "as_of": state_as_of,
                        "source": str(state.get("source") or "unknown")},
-        "stale": bool(data.get("stale")),
+        "stale": freshness_reason is not None,
+        "provider_stale": bool(data.get("stale")),
         "fx_source": str(data.get("fx_source") or "unknown"),
         "fx_stale": bool(data.get("fx_stale")), "fx_as_of": None,
         "updated_at": updated_at, "fetched_at": now_i,
-        "status": "stale" if provider_stale or state_status != "fresh" else "ok",
-        "note": None,
+        "status": "stale" if freshness_reason else "ok",
+        "freshness_reason": freshness_reason, "market_state": market_state,
+        "note": freshness_reason,
     }
 
 
@@ -187,13 +229,16 @@ def _visible_seed(item: dict, cache_status: str) -> dict:
                          item.get("change_cny_g_since_bj_midnight"))),
             "change_status": item.get("change_status"),
             "data_state": (item.get("data_state") or {}).get("status"),
-            "stale": bool(item.get("stale")), "fx_source": item.get("fx_source"),
+            "stale": bool(item.get("stale")),
+            "freshness_reason": item.get("freshness_reason"),
+            "market_state": item.get("market_state"),
+            "fx_source": item.get("fx_source"),
             "fx_stale": bool(item.get("fx_stale")), "cache_status": cache_status}
 
 
 def visual_seed(item: dict, cache_status: str | None = None) -> dict:
     """Public redraw seed shared by scheduled and document build paths."""
-    return _visible_seed(item, cache_status or dc.group_status(GROUP) or "unknown")
+    return _visible_seed(item, cache_status or effective_cache_status() or "unknown")
 
 
 def _rounded_optional(value):
@@ -254,7 +299,7 @@ def _scheduled_slot(now: datetime | None = None) -> str:
     return current.replace(minute=minute, second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M%z")
 
 
-def _mode_enabled() -> bool:
+def _mode_enabled(at: datetime | None = None) -> bool:
     try:
         from .operator_config import load_effective
         from .news_calendar import is_workday
@@ -262,7 +307,7 @@ def _mode_enabled() -> bool:
         gold = config.get("gold_refresh") or {}
         if not gold.get("scheduled_enabled", True):
             return False
-        now = _bj_now()
+        now = at or _bj_now()
         day_type = "workday" if is_workday(now) else "restday"
         minute = now.hour * 60 + now.minute
         mode = "active"
@@ -289,93 +334,214 @@ def _minimum_interval() -> int:
         return MIN_REQUEST_INTERVAL_S
 
 
+def _retry_after(exc: Exception, now: float) -> int | None:
+    if not isinstance(exc, urllib.error.HTTPError) or int(exc.code) != 429:
+        return None
+    raw = (exc.headers or {}).get("Retry-After", "")
+    try:
+        seconds = int(raw)
+    except (TypeError, ValueError):
+        try:
+            seconds = math.ceil(parsedate_to_datetime(raw).timestamp() - now)
+        except (TypeError, ValueError, OverflowError):
+            return None
+    return max(MIN_REQUEST_INTERVAL_S, min(seconds, 86400))
+
+
+def _pending_result(state: dict, key: str, reason: str, slot: str | None,
+                    now: float, next_at: float, attempts: int,
+                    error: str, *, attempted: bool = False,
+                    item: dict | None = None) -> dict:
+    terminal = attempts >= MAX_RETRY_ATTEMPTS
+    state.setdefault("pending_requests", {}).pop(key, None)
+    if terminal:
+        state.setdefault("logical_requests", {})[key] = {
+            "at": now, "ok": False, "result": error, "terminal": True}
+    else:
+        state["pending_requests"][key] = {
+            "at": now, "reason": reason, "slot": slot, "attempts": attempts,
+            "next_at": next_at, "last_error": error}
+    _save_state(state)
+    return {"ok": False, "pending": not terminal, "terminal": terminal,
+            "attempted": attempted, "request_id": key,
+            "retry_after_s": max(1, math.ceil(next_at - now)) if not terminal else None,
+            "error_class": error, "status": effective_cache_status(now=now),
+            "item": item if item is not None else cached(now=now)}
+
+
+def request_state(request_id: str) -> str:
+    state = _load_state()
+    if request_id in (state.get("pending_requests") or {}):
+        return "pending"
+    prior = (state.get("logical_requests") or {}).get(request_id)
+    if isinstance(prior, dict):
+        return "complete" if prior.get("ok") else "terminal"
+    return "new"
+
+
 def refresh(force: bool = False, *, reason: str = "scheduled",
             request_id: str | None = None, now: float | None = None) -> dict:
-    """Refresh with persistent slot/idempotency and 30-second coalescing."""
+    """One bounded XAUS request, shared by cron, host recovery and device wake."""
     t = float(now if now is not None else time.time())
     logical_id = str(request_id or "")[:96]
     with state_store.file_lock(STATE_FILE, operation="xaus-gold-refresh"):
         state = _load_state()
-        if reason in {"scheduled", "service-start", "host-wake"} and not force:
-            if not _mode_enabled():
+        if state.get("_state_error") not in (None, "missing"):
+            return {"ok": False, "error_class": "state_unavailable",
+                    "status": effective_cache_status(now=t), "item": cached(now=t)}
+        if reason == "scheduled" and not force:
+            if not _mode_enabled(datetime.fromtimestamp(t, _BJ)):
                 return {"ok": False, "disabled": True, "status": dc.group_status(GROUP),
                         "item": cached(now=t)}
-            slot = _scheduled_slot()
+            slot = _scheduled_slot(datetime.fromtimestamp(t, _BJ))
             if (state.get("scheduled_slots") or {}).get(slot, {}).get("status") == "done":
                 return {"ok": False, "window_done": True, "window": slot,
                         "status": dc.group_status(GROUP), "item": cached(now=t)}
         else:
             slot = None
+        if not logical_id:
+            logical_id = f"slot:{slot}" if slot else f"event:{reason}:{int(t // 60)}"
+        queued = (state.get("pending_requests") or {}).get(logical_id) or {}
+        if queued.get("slot"):
+            slot = queued["slot"]
         prior = (state.get("logical_requests") or {}).get(logical_id) if logical_id else None
         if isinstance(prior, dict):
             state["stats"]["deduped"] += 1
             _save_state(state)
             return {"ok": bool(prior.get("ok")), "deduped": True,
+                    "terminal": True,
                     "request_id": logical_id, "status": dc.group_status(GROUP),
                     "item": cached(now=t)}
         age = t - float(state.get("last_request_at") or 0)
         minimum_interval = _minimum_interval()
-        if 0 <= age < minimum_interval:
+        allowed_at = max(float(state.get("last_request_at") or 0) + minimum_interval,
+                         float(state.get("next_allowed_at") or 0),
+                         float(queued.get("next_at") or 0))
+        if t < allowed_at:
             state["stats"]["coalesced"] += 1
-            cached_item = cached(now=t)
-            if logical_id:
+            last_success = float(state.get("last_success_at") or 0)
+            # A genuinely successful concurrent fetch may satisfy the event.
+            if (0 <= age < minimum_interval and last_success >=
+                    float(state.get("last_request_at") or 0) and
+                    cached(now=t) and effective_cache_status(now=t) == "fresh"):
                 state["logical_requests"][logical_id] = {
-                    "at": t, "ok": cached_item is not None, "result": "coalesced"}
-            _save_state(state)
-            return {"ok": cached_item is not None, "coalesced": True,
-                    "retry_after_s": max(1, int(minimum_interval - age)),
-                    "request_id": logical_id or None,
-                    "status": dc.group_status(GROUP), "item": cached_item}
+                    "at": t, "ok": True, "result": "coalesced"}
+                if slot:
+                    state["scheduled_slots"][slot] = {"at": t, "status": "done"}
+                state["pending_requests"].pop(logical_id, None)
+                _save_state(state)
+                return {"ok": True, "coalesced": True, "terminal": True,
+                        "request_id": logical_id, "status": "fresh", "item": cached(now=t)}
+            pending = _pending_result(
+                state, logical_id, reason, slot, t, allowed_at,
+                int(queued.get("attempts") or 0),
+                "clock_rollback" if age < 0 else "minimum_interval")
+            return {**pending, "coalesced": True}
+        attempts = int(queued.get("attempts") or 0) + 1
+        state["last_request_at"] = t
+        state["stats"]["requests"] += 1
+        if attempts > 1:
+            state["stats"]["retries"] += 1
+        _save_state(state)
+        try:
+            item = _fetch_once(t)
+            old = cached(now=t)
+            if (old and _fnum(old.get("updated_at")) is not None and
+                    item["updated_at"] < float(old["updated_at"])):
+                raise ValueError("response_older_than_cache")
+            if item["status"] == "ok":
+                try:
+                    gold_baseline.consider_spot(item, now=t)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("[GOLD] baseline update skipped: %s", type(exc).__name__)
+            item = _attach_changes_safely(item, now=t)
+            cache_status = "fresh" if item["status"] == "ok" else "stale"
+            dc.record_success(GROUP, item, status=cache_status,
+                              meta={"provider": PROVIDER}, now=t)
+            dc.bump_version("gold", _visible_seed(item, cache_status))
+            state = _load_state()
+            if cache_status == "fresh":
+                state["stats"]["success"] += 1
+                state["last_success_at"] = t
+                state["next_allowed_at"] = 0.0
+                if slot:
+                    state["scheduled_slots"][slot] = {"at": t, "status": "done"}
+                state["logical_requests"][logical_id] = {
+                    "at": t, "ok": True, "result": "fetched"}
+                state["pending_requests"].pop(logical_id, None)
+                _save_state(state)
+                return {"ok": True, "terminal": True, "attempted": True,
+                        "window": slot, "request_id": logical_id,
+                        "status": cache_status, "item": item}
+            error = str(item.get("freshness_reason") or "stale_quote")
+            state["stats"]["failure"] += 1
+            next_at = t + max(minimum_interval, 60 * (2 ** (attempts - 1)))
+            pending = _pending_result(state, logical_id, reason, slot, t,
+                                      next_at, attempts, error, attempted=True,
+                                      item=item)
+            return {**pending, "accepted": True, "note": error}
+        except Exception as exc:  # noqa: BLE001
+            error, _ = _classify_error(exc)
+            if isinstance(exc, ValueError) and str(exc) == "response_older_than_cache":
+                error = "response_older_than_cache"
+            old = cached(now=t)
+            status_value = dc.record_failure(GROUP, now=t, note=error)
+            if old:
+                dc.bump_version("gold", _visible_seed(old, status_value))
+            state = _load_state()
+            state["stats"]["failure"] += 1
+            retry_after = _retry_after(exc, t)
+            delay = max(minimum_interval, retry_after or 0,
+                        min(300, 60 * (2 ** (attempts - 1))))
+            state["next_allowed_at"] = max(float(state.get("next_allowed_at") or 0), t + delay)
+            pending = _pending_result(state, logical_id, reason, slot, t,
+                                      t + delay, attempts, error,
+                                      attempted=True, item=old)
+            return {**pending, "note": error, "status": status_value}
+
+
+def retry_pending(*, now: float | None = None) -> dict:
+    """Try at most one due request; caller may run this every 30 seconds."""
+    t = float(time.time() if now is None else now)
+    state = _load_state()
+    if state.get("_state_error") not in (None, "missing"):
+        return {"ok": False, "error_class": "state_unavailable"}
+    rows = [(key, row) for key, row in (state.get("pending_requests") or {}).items()
+            if isinstance(row, dict) and float(row.get("next_at") or 0) <= t]
+    if not rows:
+        return {"ok": True, "action": "none", "pending_count": len(state.get("pending_requests") or {})}
+    key, row = min(rows, key=lambda pair: float(pair[1].get("next_at") or 0))
+    return refresh(force=True, reason=str(row.get("reason") or "retry"),
+                   request_id=key, now=t)
+
+
+def recover_baseline_if_due(*, now: float | None = None) -> dict:
+    """Use the same provider lock and 30-second floor for intraday recovery."""
+    t = float(time.time() if now is None else now)
+    with state_store.file_lock(STATE_FILE, operation="xaus-gold-refresh"):
+        state = _load_state()
+        if state.get("_state_error") not in (None, "missing"):
+            return {"attempted": False, "reason": "state_unavailable"}
+        if state.get("pending_requests"):
+            return {"attempted": False, "reason": "spot_pending"}
+        if not gold_baseline.recovery_due(now=t):
+            return {"attempted": False, "reason": "not_due"}
+        allowed_at = max(float(state.get("last_request_at") or 0) + _minimum_interval(),
+                         float(state.get("next_allowed_at") or 0))
+        if t < allowed_at:
+            return {"attempted": False, "reason": "minimum_interval",
+                    "retry_after_s": math.ceil(allowed_at - t)}
         state["last_request_at"] = t
         state["stats"]["requests"] += 1
         _save_state(state)
-
-        last_error = "unknown"
-        for attempt in range(2):
-            try:
-                item = _fetch_once(t)
-                try:
-                    gold_baseline.consider_spot(item, now=t)
-                    if reason in {"scheduled", "service-start", "host-wake"}:
-                        gold_baseline.maybe_recover_usd(now=t)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("[GOLD] baseline update skipped: %s", exc)
-                item = _attach_changes_safely(item, now=t)
-                cache_status = "stale" if item["status"] == "stale" else "fresh"
-                dc.record_success(GROUP, item, status=cache_status,
-                                  meta={"provider": PROVIDER}, now=t)
-                dc.bump_version("gold", _visible_seed(item, cache_status))
-                state = _load_state()
-                state["stats"]["success"] += 1
-                if slot:
-                    state["scheduled_slots"][slot] = {"at": t, "status": "done"}
-                if logical_id:
-                    state["logical_requests"][logical_id] = {
-                        "at": t, "ok": True, "result": "fetched"}
-                _save_state(state)
-                return {"ok": True, "window": slot, "request_id": logical_id or None,
-                        "status": cache_status, "item": item}
-            except Exception as exc:  # noqa: BLE001
-                last_error, transient = _classify_error(exc)
-                if not transient or attempt:
-                    break
-                state = _load_state()
-                state["stats"]["retries"] += 1
-                state["stats"]["requests"] += 1
-                _save_state(state)
-
-        old = cached(now=t)
-        status_value = dc.record_failure(GROUP, now=t, note=last_error)
-        if old:
-            dc.bump_version("gold", _visible_seed(old, status_value))
-        state = _load_state()
-        state["stats"]["failure"] += 1
-        if logical_id:
-            state["logical_requests"][logical_id] = {
-                "at": t, "ok": False, "result": last_error}
-        _save_state(state)
-        return {"ok": False, "error_class": last_error, "note": last_error,
-                "request_id": logical_id or None, "status": status_value, "item": old}
+        result = gold_baseline.maybe_recover_usd(now=t)
+        retry_after = result.get("retry_after_s")
+        if retry_after is not None:
+            state = _load_state()
+            state["next_allowed_at"] = max(float(state.get("next_allowed_at") or 0),
+                                            t + float(retry_after))
+            _save_state(state)
+        return result
 
 
 def cached(*, now: float | None = None) -> Optional[dict]:
@@ -383,13 +549,39 @@ def cached(*, now: float | None = None) -> Optional[dict]:
     value = group.get("value")
     if not isinstance(value, dict) or value.get("provider") != PROVIDER:
         return None
-    return _attach_changes_safely(value, now=now)
+    t = float(time.time() if now is None else now)
+    item = dict(value)
+    _, quote_max_age, cache_max_age = _freshness_limits()
+    quote_at = _fnum(item.get("price_as_of"))
+    fetched_at = _fnum(item.get("fetched_at"))
+    reason = item.get("freshness_reason")
+    if quote_at is None or t < quote_at - MAX_PROVIDER_CLOCK_SKEW:
+        reason = "quote_time_invalid"
+    elif t - quote_at > quote_max_age:
+        reason = "quote_aged"
+    if fetched_at is None or t < fetched_at - MAX_PROVIDER_CLOCK_SKEW:
+        reason = "cache_time_invalid"
+    elif t - fetched_at > cache_max_age and reason is None:
+        reason = "cache_aged"
+    if dc.group_status(GROUP) == "stale" and reason is None:
+        reason = "last_fetch_failed"
+    if reason:
+        item.update({"status": "stale", "stale": True,
+                     "freshness_reason": reason, "note": reason})
+    return _attach_changes_safely(item, now=t)
+
+
+def effective_cache_status(*, now: float | None = None) -> str:
+    item = cached(now=now)
+    if item and item.get("status") == "stale":
+        return "stale"
+    return dc.group_status(GROUP)
 
 
 def status() -> dict:
     state = _load_state()
     return {"provider": PROVIDER, "endpoint": ENDPOINT,
-            "cache_status": dc.group_status(GROUP), "item": cached(),
+            "cache_status": effective_cache_status(), "item": cached(),
             "stats": state.get("stats", {}), "last_request_at": state.get("last_request_at"),
             "minimum_provider_interval_seconds": _minimum_interval(),
             "midnight_baseline": gold_baseline.status()}

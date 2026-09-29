@@ -372,6 +372,27 @@ def start_watcher(interval_seconds: int = WATCHER_INTERVAL_SECONDS):
                        timezone="Asia/Shanghai", misfire_grace_time=120,
                        **_gold_start)
 
+    def _gold_pending_job():
+        try:
+            from .gold_feed import retry_pending, recover_baseline_if_due
+            from .host_recovery import reconcile_pending
+            result = retry_pending()
+            reconcile_pending()
+            if result.get("action") == "none":
+                recovery = recover_baseline_if_due()
+                if recovery.get("attempted") and recovery.get("status") == "recovered":
+                    _rebuild_feed_if(True)
+            if result.get("action") != "none":
+                logger.info("[GOLD] deferred refresh ok=%s pending=%s status=%s",
+                            result.get("ok"), result.get("pending"), result.get("status"))
+                _rebuild_feed_if(result.get("ok") or result.get("accepted"))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[GOLD] deferred refresh failed: %s", type(exc).__name__)
+
+    _scheduler.add_job(_gold_pending_job, "interval", seconds=30,
+                       id="gold_pending", max_instances=1, coalesce=True,
+                       misfire_grace_time=30)
+
     def _news_brief_job():
         try:
             from .news_schedule import tick as _brief_tick

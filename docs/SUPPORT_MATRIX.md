@@ -10,7 +10,7 @@ This is the first-test-candidate support boundary, not a roadmap promise. / 本�
 | Backend / 后端 | Python 3.9 macOS ARM64 dependency lock; offline import; automated regression | First-root and local configuration workflow / 首位管理员与本机配置流程 | Long-running clean-host soak, production HA / 全新主机长期运行与高可用 |
 | Local messages / 本地寄语 | Four exact GPL-3.0-only release messages, glyph/layout/rotation tests | Text and licensing choice / 文案与许可选择 | Large corpus or annual non-repeat / 大语料或全年不重复 |
 | Remote news / 远程新闻 | Disabled by default; source/key gates and offline tests | — | No source is promised as legally or operationally ready by default / 不承诺任何来源默认可用 |
-| Gold / 金价 | XAUS international spot conversion and Beijing-day baseline logic in tests | Current display observed by user / 用户见过当前显示 | It is not domestic gold or prior close; provider uptime is not guaranteed / 非国内金价或前收盘，不保证服务可用性 |
+| Gold / 金价 | XAUS international spot conversion; timestamp/stale checks, bounded host/device wake retries and Beijing-day baseline tests | Current display observed by user / 用户见过当前显示；新补拉规则尚需长期运行观察 | Not domestic gold or prior close; provider uptime and off-market freshness are not guaranteed / 非国内金价或前收盘，不保证服务可用性及休市期间报价新鲜 |
 | OpenAI costs | Organization Costs API integration and UTC-month semantics in tests | One observed `0.00 USD` display | Continuous polling, month rollover, offline carry-forward and backfill on hardware / 持续轮询、跨月、离线沿用和补拉实机验收 |
 | Sleep / 休眠 | Host-wake recovery and device sleep logic covered by code/tests | — | Host cannot publish while asleep; every missed slot is not guaranteed to replay / 主机休眠不能出刊，不保证补全所有错过期次 |
 | Battery / 电池 | No release-quality runtime measurement | — | No claim that 2000 mAh lasts one week / 不宣称 2000mAh 一周续航 |

@@ -131,14 +131,15 @@ def main():
     print(f"[goldreq] 发现 {len(found)} 个设备唤醒刷新请求")
     api = f"{base}/api/admin/gold/catchup"
     handled = 0
-    seen = set()
+    seen = {}
     for mac, item, etag in found:
         rid = str(item["request_id"])
         if rid in seen:
-            _webdav_delete(f"{webdav}/{REQ_DIR}/{mac}.json", hdr, etag)
-            handled += 1
+            if seen[rid]:
+                if _webdav_delete(f"{webdav}/{REQ_DIR}/{mac}.json", hdr, etag):
+                    handled += 1
             continue
-        seen.add(rid)
+        seen[rid] = False
         fingerprint = hashlib.sha256(rid.encode()).hexdigest()[:12]
         body = json.dumps({"request_id": rid, "reason": "publisher_queue"}).encode()
         try:
@@ -153,12 +154,19 @@ def main():
         except Exception as exc:  # noqa: BLE001
             print(f"[goldreq] 后端不可达 {type(exc).__name__}（保留）")
             continue
-        # The backend has durably handled this logical request, including a
-        # bounded provider failure. A later wake creates a new request id.
+        # A 200 response may still mean throttled/pending. Keep the request
+        # until a fresh fetch/coalesced success or bounded terminal failure.
+        if result.get("pending") or result.get("action") == "blocked":
+            print(f"[goldreq] request={fingerprint} action=pending (保留队列)")
+            continue
+        if not result.get("ok") and not result.get("terminal"):
+            print(f"[goldreq] request={fingerprint} action=retry (保留队列)")
+            continue
         deleted = _webdav_delete(f"{webdav}/{REQ_DIR}/{mac}.json", hdr, etag)
         if not deleted:
             print(f"[goldreq] request={fingerprint} queue changed; newer request retained")
-        handled += 1
+        seen[rid] = bool(deleted)
+        handled += int(bool(deleted))
         print(f"[goldreq] request={fingerprint} action={result.get('action')}")
     print(f"[goldreq] 已处理 {handled}/{len(found)} 个请求")
     return 0 if handled == len(found) else 1

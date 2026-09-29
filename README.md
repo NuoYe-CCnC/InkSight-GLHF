@@ -6,7 +6,7 @@
 
 InkSight-GLHF 是一个公开测试阶段的开源项目。它由本机后端、浏览器管理端和 ESP32 固件组成，主要面向愿意自行接线、配置与维护服务的开发者和硬件爱好者。本项目不是 OpenAI、DeepSeek、小米或硬件厂商的官方产品或合作项目。
 
-仓库：[`NuoYe-CCnC/InkSight-GLHF`](https://github.com/NuoYe-CCnC/InkSight-GLHF) · 当前测试版：[`v0.1.0-test.1`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.1)
+仓库：[`NuoYe-CCnC/InkSight-GLHF`](https://github.com/NuoYe-CCnC/InkSight-GLHF) · 当前测试版：[`v0.1.0-test.2`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.2)
 
 ## 能做什么
 
@@ -88,7 +88,8 @@ shared/backend/run-backend.sh
 - [安装、配置、字体、构建、刷写、升级与恢复](docs/INSTALLATION.zh-CN.md)
 - [主机采集与 WebDAV 发布](docs/HOST_RUNTIME.zh-CN.md)
 - [English installation guide](docs/INSTALLATION.en.md)
-- [v0.1.0-test.1 测试版说明](docs/releases/v0.1.0-test.1.zh-CN.md)
+- [v0.1.0-test.2 测试版说明](docs/releases/v0.1.0-test.2.zh-CN.md)
+- [v0.1.0-test.1 首个测试版说明](docs/releases/v0.1.0-test.1.zh-CN.md)
 - [2026-09-24 Token 显示与误切页修复记录](docs/phase20-token-and-activity-2026-09-24/README.md)
 - [支持矩阵与已知限制](docs/SUPPORT_MATRIX.md)
 - [贡献指南](CONTRIBUTING.md)
@@ -99,4 +100,4 @@ shared/backend/run-backend.sh
 
 项目有权许可的自有代码与四条发行寄语按 `GPL-3.0-only` 提供，完整文本见 [LICENSE](LICENSE)。第三方代码、字体、服务和内容继续受各自条款约束；GPL 不会重授第三方材料，也不证明发布者拥有所有外部权利。MiSans 不随发行包提供。
 
-`v0.1.0-test.1` 是首个公开测试版，不是稳定版。已验证、用户确认与尚未验证的范围以[测试版说明](docs/releases/v0.1.0-test.1.zh-CN.md)和[支持矩阵](docs/SUPPORT_MATRIX.md)为准。
+`v0.1.0-test.2` 仍是公开测试版，不是稳定版；它更新金价后端，不包含新固件二进制。已验证、用户确认与尚未验证的范围以[本版说明](docs/releases/v0.1.0-test.2.zh-CN.md)和[支持矩阵](docs/SUPPORT_MATRIX.md)为准。

@@ -6,7 +6,7 @@
 
 InkSight-GLHF is an open-source project in public testing. It combines a local backend, a browser-based management console, and ESP32 firmware. It is intended for developers and hardware hobbyists who are comfortable wiring, configuring, and maintaining their own service. This project is not an official product of, or partnership with, OpenAI, DeepSeek, Xiaomi, or any hardware vendor.
 
-Repository: [`NuoYe-CCnC/InkSight-GLHF`](https://github.com/NuoYe-CCnC/InkSight-GLHF) · Current test release: [`v0.1.0-test.1`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.1)
+Repository: [`NuoYe-CCnC/InkSight-GLHF`](https://github.com/NuoYe-CCnC/InkSight-GLHF) · Current test release: [`v0.1.0-test.2`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.2)
 
 ## What it does
 
@@ -89,7 +89,8 @@ The optional generic host publisher and Codex quota collector are documented in 
 
 - [Install, configure, import fonts, build, flash, upgrade, and recover](docs/INSTALLATION.en.md)
 - [中文安装指南](docs/INSTALLATION.zh-CN.md)
-- [v0.1.0-test.1 test release notes](docs/releases/v0.1.0-test.1.en.md)
+- [v0.1.0-test.2 test release notes](docs/releases/v0.1.0-test.2.en.md)
+- [v0.1.0-test.1 first public test release](docs/releases/v0.1.0-test.1.en.md)
 - [2026-09-24 token display and false page-switch fix](docs/phase20-token-and-activity-2026-09-24/README.md)
 - [Support matrix and known limitations](docs/SUPPORT_MATRIX.md)
 - [Contributing](CONTRIBUTING.md)
@@ -100,4 +101,4 @@ The optional generic host publisher and Codex quota collector are documented in 
 
 Project-owned code and the four release messages that the distributor is entitled to license are offered under `GPL-3.0-only`; see [LICENSE](LICENSE). Third-party code, fonts, services, and content remain under their own terms. GPL does not relicense third-party material and does not prove ownership of external rights. MiSans is not distributed.
 
-`v0.1.0-test.1` is the first public test release, not a stable release. See the [test release notes](docs/releases/v0.1.0-test.1.en.md) and [support matrix](docs/SUPPORT_MATRIX.md) for verified, user-confirmed, and unverified scope.
+`v0.1.0-test.2` remains a public test release, not a stable release; it updates the gold backend without a new firmware binary. See the [release notes](docs/releases/v0.1.0-test.2.en.md) and [support matrix](docs/SUPPORT_MATRIX.md) for verified, user-confirmed, and unverified scope.

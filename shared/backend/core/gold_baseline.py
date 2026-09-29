@@ -14,6 +14,7 @@ import math
 import time
 import urllib.error
 import urllib.request
+from email.utils import parsedate_to_datetime
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Optional
@@ -333,6 +334,37 @@ def _request_intraday(timeout_sec: float = 12) -> tuple[int, Optional[dict]]:
     return status, value if isinstance(value, dict) else None
 
 
+def recovery_due(*, now: float | None = None) -> bool:
+    """Read-only preflight so the shared provider budget is reserved only if needed."""
+    t = float(time.time() if now is None else now)
+    tolerance, cooldown, max_attempts = _config()
+    day_text = _day_text(t)
+    if t < _midnight_epoch(day_text) + tolerance:
+        return False
+    with state_store.file_lock(STATE_FILE, operation="xaus-midnight-baseline"):
+        state = _load_locked()
+        if state.get("last_state_error") or _valid_usd_reference(state["records"].get(day_text), day_text):
+            return False
+        recovery = state["recoveries"].get(day_text) or {}
+        last = float(recovery.get("last_attempt_at") or 0)
+        return (int(recovery.get("attempts") or 0) < max_attempts
+                and not 0 <= t - last < cooldown)
+
+
+def _retry_after(exc: Exception, now: float) -> int | None:
+    if not isinstance(exc, urllib.error.HTTPError) or int(exc.code) != 429:
+        return None
+    raw = (exc.headers or {}).get("Retry-After", "")
+    try:
+        seconds = int(raw)
+    except (TypeError, ValueError):
+        try:
+            seconds = math.ceil(parsedate_to_datetime(raw).timestamp() - now)
+        except (TypeError, ValueError, OverflowError):
+            return None
+    return max(30, min(seconds, 86400))
+
+
 def parse_intraday(data: dict, *, now: float, target_day: str,
                    tolerance_seconds: int) -> dict:
     """Validate one 48-hour XAUS sample set and select the midnight neighbor."""
@@ -433,6 +465,7 @@ def maybe_recover_usd(*, now: float | None = None,
     request_fn = requester or _request_intraday
     status_text = "invalid_response"
     selected = None
+    retry_after = None
     try:
         status, data = request_fn()
         if status != 200 or not isinstance(data, dict):
@@ -443,8 +476,11 @@ def maybe_recover_usd(*, now: float | None = None,
     except LookupError:
         status_text = "no_point_within_tolerance"
     except Exception as exc:  # noqa: BLE001
-        status_text = "network" if isinstance(exc, (TimeoutError, urllib.error.URLError, OSError)) \
-            else "invalid_response"
+        retry_after = _retry_after(exc, t)
+        status_text = ("rate_limited" if isinstance(exc, urllib.error.HTTPError)
+                       and int(exc.code) == 429 else
+                       "network" if isinstance(exc, (TimeoutError, urllib.error.URLError, OSError))
+                       else "invalid_response")
     with state_store.file_lock(STATE_FILE, operation="xaus-midnight-baseline"):
         state = _load_locked()
         if state.get("last_state_error"):
@@ -467,7 +503,8 @@ def maybe_recover_usd(*, now: float | None = None,
         recovery.update({"last_attempt_at": int(t), "status": status_text})
         state["recoveries"][day_text] = recovery
         _save_locked(state)
-    return {"attempted": True, "status": status_text, "baseline": selected}
+    return {"attempted": True, "status": status_text, "baseline": selected,
+            "retry_after_s": retry_after}
 
 
 def _normal_delta(current: float, baseline: float) -> float:

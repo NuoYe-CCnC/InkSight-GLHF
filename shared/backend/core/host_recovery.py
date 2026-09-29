@@ -58,7 +58,7 @@ def _finish(event_id: str, result: dict) -> None:
         for row in reversed(value.get("events") or []):
             if row.get("id") == event_id:
                 row.update(result)
-                row["status"] = "done"
+                row["status"] = "pending" if (result.get("gold") or {}).get("pending") else "done"
                 break
     state_store.update_json(STATE_FILE, update, default=_default())
 
@@ -80,16 +80,17 @@ def recover(reason: str, *, now: float | None = None) -> dict:
     try:
         from .gold_feed import refresh as gold_refresh
         request_id = "host-recovery-" + datetime.fromtimestamp(current, _BJ).strftime("%Y%m%dT%H%M")
-        # Normal refresh deduplication owns the current :00/:30 slot. This
-        # catches a slot missed during sleep without spending an extra provider
-        # request when the latest slot is already present.
-        gold = gold_refresh(force=False, reason=reason, request_id=request_id, now=current)
-        action = ("current" if gold.get("window_done") else
+        # A genuine host start/wake is not a scheduled half-hour slot. It may
+        # coalesce with a *successful* request inside the 30-second floor.
+        gold = gold_refresh(force=True, reason=reason, request_id=request_id, now=current)
+        action = ("pending" if gold.get("pending") else
                   "coalesced" if gold.get("coalesced") else
                   "deduped" if gold.get("deduped") else
                   "fetched" if gold.get("ok") else "failed")
-        gold_summary = {"ok": bool(gold.get("ok") or gold.get("window_done")), "action": action,
-                        "status": gold.get("status")}
+        gold_summary = {"ok": bool(gold.get("ok")), "action": action,
+                        "pending": bool(gold.get("pending")),
+                        "retry_after_s": gold.get("retry_after_s"),
+                        "request_id": request_id, "status": gold.get("status")}
     except Exception as exc:  # noqa: BLE001
         logger.warning("[RECOVERY] gold failed: %s", type(exc).__name__)
 
@@ -135,3 +136,31 @@ def status() -> dict:
             "last_event_at": value.get("last_event_at"),
             "last_reason": value.get("last_reason"),
             "last_event": (value.get("events") or [None])[-1]}
+
+
+def reconcile_pending() -> None:
+    """Reflect a later bounded gold retry in host-recovery diagnostics."""
+    from .gold_feed import request_state
+
+    def update(value: dict) -> None:
+        changed = False
+        for row in value.get("events") or []:
+            if row.get("status") != "pending":
+                continue
+            gold = row.get("gold") or {}
+            rid = gold.get("request_id")
+            outcome = request_state(rid) if isinstance(rid, str) else "terminal"
+            if outcome == "pending":
+                continue
+            gold["pending"] = False
+            gold["action"] = "fetched-after-retry" if outcome == "complete" else "failed-after-retry"
+            gold["ok"] = outcome == "complete"
+            row["gold"] = gold
+            row["status"] = "done"
+            changed = True
+        return changed
+
+    value, error = state_store.read_json(STATE_FILE)
+    if not error and isinstance(value, dict) and any(
+            row.get("status") == "pending" for row in value.get("events") or []):
+        state_store.update_json(STATE_FILE, update)
