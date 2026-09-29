@@ -221,7 +221,13 @@ def _load_adv(style_size: str) -> dict[int, int]:
     from pathlib import Path
     fw = Path(__file__).resolve().parent.parent.parent / "firmware" / "src" / "fonts_gen"
     name = f"font_misans_{style_size}"
-    txt = (fw / _HDR[style_size]).read_text(encoding="utf-8")
+    try:
+        txt = (fw / _HDR[style_size]).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        # Public checkouts intentionally omit MiSans-derived headers. Use a
+        # conservative width until the owner imports the font locally.
+        _adv_cache[style_size] = {}
+        return {}
     def arr(typ, suffix):
         m = _re.search(r"static const " + typ + r" " + name + suffix + r"\[\] PROGMEM = \{(.*?)\};", txt, _re.S)
         return [int(v, 0) for v in _re.split(r"[,\s]+", m.group(1).strip()) if v] if m else []
@@ -236,7 +242,7 @@ def text_width_px(style_size: str, s: str) -> int:
     adv = _load_adv(style_size)
     total = 0
     for ch in s:
-        total += adv.get(ord(ch), 21 * 64)
+        total += adv.get(ord(ch), (30 if style_size == "bold30" else 21) * 64)
     return (total + 63) // 64
 
 

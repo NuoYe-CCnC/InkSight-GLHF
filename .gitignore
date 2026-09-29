@@ -10,6 +10,8 @@ shared/backend/*.db
 shared/backend/state/
 shared/backend/uploads/
 shared/backend/logs/
+shared/backend/core/native/*.so
+shared/tools/.cloud_publish_state.json*
 
 # MiSans 原始字体及本机生成的固件字库
 shared/backend/fonts/misans/

@@ -86,6 +86,7 @@ shared/backend/run-backend.sh
 ## 文档
 
 - [安装、配置、字体、构建、刷写、升级与恢复](docs/INSTALLATION.zh-CN.md)
+- [主机采集与 WebDAV 发布](docs/HOST_RUNTIME.zh-CN.md)
 - [English installation guide](docs/INSTALLATION.en.md)
 - [v0.1.0-test.1 测试版说明](docs/releases/v0.1.0-test.1.zh-CN.md)
 - [2026-09-24 Token 显示与误切页修复记录](docs/phase20-token-and-activity-2026-09-24/README.md)

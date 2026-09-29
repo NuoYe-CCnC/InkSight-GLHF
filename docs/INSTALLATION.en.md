@@ -126,6 +126,8 @@ Direct upload does not provide the web workflow's blank-board check, backups, or
 
 ## 8. Runtime, sleep, and recovery
 
+For optional cross-network WebDAV publication and local Codex quota collection, see the [host runtime guide (Chinese)](HOST_RUNTIME.zh-CN.md). The public source includes a generic foreground loop, not the developer's private LaunchAgent setup.
+
 - Run the backend in the foreground with `shared/backend/run-backend.sh`; stop it with `Ctrl-C`.
 - A sleeping Mac cannot run the backend on schedule. Wake recovery handles only the currently eligible catch-up; it cannot replay every missed publication.
 - ESP32 timed wake/deep sleep is independent. A device wake does not mean the host is awake.

@@ -58,7 +58,10 @@ inline int p3DesiredPage(P3Mode mode, int currentPage, bool newsAvailable,
                          bool baselineKnown, bool activityChanged,
                          int64_t nowSec, int64_t lastChangeAt,
                          int64_t aiHoldUntil) {
-    if (activityChanged || !baselineKnown) return 0;
+    // Missing observations are not activity changes. Let the idle timer work
+    // even before the first valid sample, while real key changes still win.
+    (void)baselineKnown;
+    if (activityChanged) return 0;
     if (currentPage == 1 && !newsAvailable) return 0;
     if (currentPage == 1 || mode == P3Mode::Night) return currentPage;
     int idle = p3IdleSwitchSeconds(mode);

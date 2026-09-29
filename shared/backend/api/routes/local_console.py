@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse, Response
 
 from core import (
+    codex_collector_health,
     firmware_tasks,
     local_console_audit,
     local_console_config,
@@ -107,6 +108,7 @@ async def overview(_user_id: int = Depends(require_local_root)):
             "draft_pending": config_view["draft"] is not None,
         },
         "credential": news_schedule.credential_state(),
+        "codex_collector": codex_collector_health.snapshot(),
         "current_issue": current_public,
         "schedule": {
             "rows": news_schedule._config().get("schedules") or [],

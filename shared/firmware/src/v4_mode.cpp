@@ -127,6 +127,10 @@ static void _initState(long long nowSec) {
     snprintf(s_p3.activityKey, sizeof(s_p3.activityKey), "%s", key.c_str());
     s_p3.lastChangeAt = prefs.getLong("p3_ai_chg", 0);
     s_p3.aiHoldUntil = prefs.getLong("p3_ai_hold", 0);
+    // A cold start without any observation still needs an idle deadline.
+    // Keep it RTC-only: an unknown sample is not a semantic activity change.
+    if (!s_p3.activityKey[0] && s_p3.lastChangeAt <= 0)
+        s_p3.lastChangeAt = nowSec;
     if (s_p3.lastChangeAt > nowSec + 300) {
         s_p3.lastChangeAt = nowSec;
         s_p3.aiHoldUntil = nowSec + PHASE3_AI_HOLD_SECONDS;
@@ -364,12 +368,12 @@ static bool _setPageForPolicy(const JsonDocument &doc, P3Mode mode,
     bool enabled = switchPolicy.isNull() ? true : (switchPolicy["enabled"] | true);
     int desired = current;
     const char *defaultPage = switchPolicy["default_page"] | "ai";
-    if (activity.established || !activity.baselineKnown) {
+    if (activity.established ||
+        (!activity.baselineKnown && strcmp(defaultPage, "news_gold") == 0)) {
         desired = strcmp(defaultPage, "news_gold") == 0 && _newsAvailable(doc) ? 1 : 0;
     } else if (!enabled) {
         if (current == 1 && !_newsAvailable(doc)) desired = 0;
-    } else if (forceAi || !activity.observationKnown ||
-               (current == 1 && !_newsAvailable(doc))) {
+    } else if (forceAi || (current == 1 && !_newsAvailable(doc))) {
         desired = 0;
     } else if (mode == P3Mode::Night) {
         const char *night = switchPolicy["night_behavior"] | "keep_current";
@@ -467,9 +471,12 @@ static bool _enterModeIfChanged(const JsonDocument *doc, P3Mode mode, bool workd
 static int _pageDueSeconds(P3Mode mode, const JsonDocument *doc,
                            const ActivityResult &activity, long long nowSec) {
     if (!doc || panelCurrentPage() != 0 || mode == P3Mode::Night ||
-        !activity.baselineKnown || !activity.observationKnown || !_newsAvailable(*doc))
+        !_newsAvailable(*doc))
         return 0;
+    JsonObjectConst policy = (*doc)["screen"]["device_policy"]["page_switch"].as<JsonObjectConst>();
+    if (!policy.isNull() && !(policy["enabled"] | true)) return 0;
     int idle = _pageIdleFromPolicy(doc, mode);
+    if (idle <= 0 || s_p3.lastChangeAt <= 0) return 0;
     long long dueAt = max(s_p3.lastChangeAt + idle, s_p3.aiHoldUntil);
     return dueAt > nowSec ? (int)min(dueAt - nowSec, (long long)INT_MAX) : 1;
 }
@@ -522,6 +529,11 @@ bool schedulerV4Cycle() {
         if (!connectWiFi()) {
             int retry = _recordNetworkFailure(cacheOk ? &cached : nullptr);
             nowSec = _nowSec();
+            if (cacheOk) {
+                bool switched = _setPageForPolicy(cached, mode, current, nowSec, "offline");
+                if (switched || dateChanged)
+                    _renderDocument(cached, false, switched, "offline-cache");
+            }
             time_t tRaw = (time_t)nowSec;
             struct tm *t2 = localtime(&tRaw);
             int modeDue = t2 ? p3SecondsToModeBoundary(workday, tomorrowWorkday,
@@ -538,6 +550,11 @@ bool schedulerV4Cycle() {
         if (!fetchStructured(doc, &modeId, &pending)) {
             int retry = _recordNetworkFailure(cacheOk ? &cached : nullptr);
             nowSec = _nowSec();
+            if (cacheOk) {
+                bool switched = _setPageForPolicy(cached, mode, current, nowSec, "offline");
+                if (switched || dateChanged)
+                    _renderDocument(cached, false, switched, "offline-cache");
+            }
             time_t tRaw = (time_t)nowSec;
             struct tm *t2 = localtime(&tRaw);
             int modeDue = t2 ? p3SecondsToModeBoundary(workday, tomorrowWorkday,

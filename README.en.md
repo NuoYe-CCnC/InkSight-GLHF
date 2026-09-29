@@ -76,6 +76,8 @@ When a scheduled job generates a news issue, its DeepSeek charge still updates t
 
 `shared/backend/run-backend.sh` is the foreground entry point included in the public candidate. Local processes cannot run on schedule while the Mac host is asleep. Wake recovery can idempotently catch up only the currently eligible task; it does not guarantee replay of every missed publication time. ESP32 timed wake/deep sleep is a separate path: a device wake does not imply that the host backend is awake. Keep the host awake for reliable scheduled publication, or deploy to an independently reviewed always-on environment.
 
+The optional generic host publisher and Codex quota collector are documented in the [host runtime guide (Chinese)](docs/HOST_RUNTIME.zh-CN.md). They read the existing private configuration; no developer-specific LaunchAgent or credentials are included.
+
 ## Optional external services
 
 - DeepSeek: balance lookup, news generation, and project token accounting; pricing and availability are controlled by the provider.
