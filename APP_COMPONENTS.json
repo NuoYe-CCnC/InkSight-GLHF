@@ -1,0 +1,689 @@
+{
+  "schema": 1,
+  "runtime": "CPython 3.11.15",
+  "runtime_license_in_app": "Contents/Resources/Python/lib/python3.11/LICENSE.txt",
+  "note": "Generated from the bundled interpreter; license metadata is not legal certification. Wheel metadata and available notice files remain in the app.",
+  "packages": [
+    {
+      "name": "aiofiles",
+      "version": "24.1.0",
+      "license_metadata": "Apache-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE",
+        "licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "aiohappyeyeballs",
+      "version": "2.7.1",
+      "license_metadata": "PSF-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "aiohttp",
+      "version": "3.14.3",
+      "license_metadata": "Apache-2.0 AND MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.txt",
+        "licenses/vendor/llhttp/LICENSE"
+      ]
+    },
+    {
+      "name": "aiosignal",
+      "version": "1.4.0",
+      "license_metadata": "Apache 2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "aiosqlite",
+      "version": "0.19.0",
+      "license_metadata": "not in metadata",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "alibabacloud-alimt20181012",
+      "version": "1.5.2",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "alibabacloud-credentials",
+      "version": "1.0.12",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "alibabacloud-credentials-api",
+      "version": "1.0.1",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "alibabacloud-gateway-spi",
+      "version": "0.0.4",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "alibabacloud-openapi-util",
+      "version": "0.2.4",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "alibabacloud-tea",
+      "version": "0.4.3",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "alibabacloud-tea-openapi",
+      "version": "0.4.6",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "alibabacloud-tea-util",
+      "version": "0.3.15",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "alibabacloud_endpoint_util",
+      "version": "0.0.4",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "alibabacloud_tea_fileform",
+      "version": "0.0.5",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "alibabacloud_tea_xml",
+      "version": "0.0.3",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "annotated-doc",
+      "version": "0.0.5",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "annotated-types",
+      "version": "0.8.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "anyio",
+      "version": "3.7.1",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "APScheduler",
+      "version": "3.10.4",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "name": "attrs",
+      "version": "26.1.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "license_metadata": "MPL-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "cffi",
+      "version": "2.1.1",
+      "license_metadata": "MIT-0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.1",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "click",
+      "version": "8.5.0",
+      "license_metadata": "BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "41.0.7",
+      "license_metadata": "Apache-2.0 OR BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "LICENSE",
+        "LICENSE.APACHE",
+        "LICENSE.BSD"
+      ]
+    },
+    {
+      "name": "darabonba-core",
+      "version": "1.0.9",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "dashscope",
+      "version": "1.27.4",
+      "license_metadata": "Apache 2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE",
+        "licenses/LICENSE.certifi",
+        "licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "Deprecated",
+      "version": "1.3.1",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.rst"
+      ]
+    },
+    {
+      "name": "distro",
+      "version": "1.9.0",
+      "license_metadata": "Apache License, Version 2.0",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "fastapi",
+      "version": "0.104.1",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "fonttools",
+      "version": "4.60.2",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE",
+        "licenses/LICENSE.external"
+      ]
+    },
+    {
+      "name": "frozenlist",
+      "version": "1.8.0",
+      "license_metadata": "Apache-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "license_metadata": "BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "httpx",
+      "version": "0.25.2",
+      "license_metadata": "BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "httpx-sse",
+      "version": "0.4.3",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.20",
+      "license_metadata": "BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "iniconfig",
+      "version": "2.3.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "limits",
+      "version": "5.8.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "lunar_python",
+      "version": "1.4.8",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "4.2.0",
+      "license_metadata": "not in metadata",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE",
+        "licenses/LICENSE.markdown-it"
+      ]
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2",
+      "license_metadata": "not in metadata",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "multidict",
+      "version": "6.9.1",
+      "license_metadata": "Apache License 2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "openai",
+      "version": "1.6.1",
+      "license_metadata": "Apache-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "opuslib",
+      "version": "3.0.1",
+      "license_metadata": "BSD 3-Clause License",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "license_metadata": "Apache-2.0 OR BSD-2-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE",
+        "licenses/LICENSE.APACHE",
+        "licenses/LICENSE.BSD"
+      ]
+    },
+    {
+      "name": "phonenumbers",
+      "version": "9.0.40",
+      "license_metadata": "Apache-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "Pillow",
+      "version": "10.1.0",
+      "license_metadata": "HPND",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "pip",
+      "version": "26.1.2",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.txt",
+        "licenses/src/pip/_vendor/cachecontrol/LICENSE.txt",
+        "licenses/src/pip/_vendor/certifi/LICENSE",
+        "licenses/src/pip/_vendor/distlib/LICENSE.txt",
+        "licenses/src/pip/_vendor/distro/LICENSE",
+        "licenses/src/pip/_vendor/idna/LICENSE.md",
+        "licenses/src/pip/_vendor/msgpack/COPYING",
+        "licenses/src/pip/_vendor/packaging/LICENSE",
+        "licenses/src/pip/_vendor/packaging/LICENSE.APACHE",
+        "licenses/src/pip/_vendor/packaging/LICENSE.BSD",
+        "licenses/src/pip/_vendor/pkg_resources/LICENSE",
+        "licenses/src/pip/_vendor/platformdirs/LICENSE",
+        "licenses/src/pip/_vendor/pygments/LICENSE",
+        "licenses/src/pip/_vendor/pyproject_hooks/LICENSE",
+        "licenses/src/pip/_vendor/requests/LICENSE",
+        "licenses/src/pip/_vendor/resolvelib/LICENSE",
+        "licenses/src/pip/_vendor/rich/LICENSE",
+        "licenses/src/pip/_vendor/tomli/LICENSE",
+        "licenses/src/pip/_vendor/tomli_w/LICENSE",
+        "licenses/src/pip/_vendor/truststore/LICENSE",
+        "licenses/src/pip/_vendor/urllib3/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "pluggy",
+      "version": "1.6.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "propcache",
+      "version": "0.5.4",
+      "license_metadata": "Apache-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE",
+        "licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "license_metadata": "BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pydantic",
+      "version": "2.5.3",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.14.6",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "license_files/LICENSE"
+      ]
+    },
+    {
+      "name": "Pygments",
+      "version": "2.21.0",
+      "license_metadata": "BSD-2-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "PyJWT",
+      "version": "2.8.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "pypng",
+      "version": "0.20220715.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "LICENCE"
+      ]
+    },
+    {
+      "name": "pyserial",
+      "version": "3.5",
+      "license_metadata": "BSD",
+      "notice_files_in_dist_info": []
+    },
+    {
+      "name": "pytest",
+      "version": "8.4.2",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pytest-asyncio",
+      "version": "1.4.0",
+      "license_metadata": "Apache-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.0.1",
+      "license_metadata": "BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "pytz",
+      "version": "2026.4",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "name": "qrcode",
+      "version": "7.4.2",
+      "license_metadata": "BSD",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "license_metadata": "Apache-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE",
+        "licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "rich",
+      "version": "15.0.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "setuptools",
+      "version": "82.0.1",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "shellingham",
+      "version": "1.5.4",
+      "license_metadata": "ISC License",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "slowapi",
+      "version": "0.1.10",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "sniffio",
+      "version": "1.3.1",
+      "license_metadata": "MIT OR Apache-2.0",
+      "notice_files_in_dist_info": [
+        "LICENSE",
+        "LICENSE.APACHE2",
+        "LICENSE.MIT"
+      ]
+    },
+    {
+      "name": "starlette",
+      "version": "0.27.0",
+      "license_metadata": "BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "tenacity",
+      "version": "8.2.3",
+      "license_metadata": "Apache 2.0",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "tqdm",
+      "version": "4.70.1",
+      "license_metadata": "MPL-2.0 AND MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENCE"
+      ]
+    },
+    {
+      "name": "typer",
+      "version": "0.27.2",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "license_metadata": "PSF-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "tzlocal",
+      "version": "5.4.4",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0",
+      "license_metadata": "MIT",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.24.0.post1",
+      "license_metadata": "BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "websocket-client",
+      "version": "1.9.2",
+      "license_metadata": "Apache-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "websockets",
+      "version": "12.0",
+      "license_metadata": "BSD-3-Clause",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "wrapt",
+      "version": "2.5.0",
+      "license_metadata": "BSD-2-Clause",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "yarl",
+      "version": "1.25.1",
+      "license_metadata": "Apache-2.0",
+      "notice_files_in_dist_info": [
+        "licenses/LICENSE",
+        "licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "zhdate",
+      "version": "0.1",
+      "license_metadata": "UNKNOWN",
+      "notice_files_in_dist_info": [
+        "LICENSE"
+      ]
+    }
+  ]
+}

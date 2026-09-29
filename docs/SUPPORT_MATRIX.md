@@ -1,13 +1,13 @@
 # Support matrix / 支持矩阵
 
-This is the first-test-candidate support boundary, not a roadmap promise. / 本表是首个测试候选的支持边界，不是路线图承诺。
+This is the `v0.1.0-test.3` support boundary, not a roadmap promise. / 本表是 `v0.1.0-test.3` 的支持边界，不是路线图承诺。
 
 | Area / 项目 | Verified / 已验证 | User-confirmed / 用户确认 | Not qualified / 未完成同级验收 |
 |---|---|---|---|
-| Host / 主机 | macOS ARM64, Python 3.9, hash-locked backend install | Local web console and current panel presentation / 本机管理端与当前面板呈现 | Windows, Linux, Intel Mac; clean-machine PlatformIO CLI bootstrap / Windows、Linux、Intel Mac、全新电脑 PlatformIO CLI 引导 |
+| Host / 主机 | Standalone App on Apple Silicon macOS 26.5.2 with bundled CPython 3.11.15 and hash-locked wheels; source backend on macOS ARM64 Python 3.9 / 独立 App 与源码两条路径 | Local web console and current panel presentation / 本机管理端与当前面板呈现 | Other macOS versions, Windows, Linux, Intel Mac; clean-machine PlatformIO CLI bootstrap / 其他 macOS 版本及平台、全新电脑 PlatformIO CLI 引导 |
 | MCU / 控制器 | ESP32-S3-DevKitC-1-N32R16V, 32 MB Octal flash, 16 MB Octal PSRAM | Current physical unit uses this path / 当前实机采用该路径 | Other boards listed in `platformio.ini` / 其他环境 |
 | Display / 屏幕 | Waveshare 4.26-inch monochrome SSD1677, 800×480 | `AI 用量` and `今日关注` layout direction / 两页布局方向 | Color panels, other resolutions, alternative controllers / 彩色屏、其他分辨率或控制器 |
-| Backend / 后端 | Python 3.9 macOS ARM64 dependency lock; offline import; automated regression | First-root and local configuration workflow / 首位管理员与本机配置流程 | Long-running clean-host soak, production HA / 全新主机长期运行与高可用 |
+| Backend / 后端 | App isolated first-run, local first-root creation, lifecycle/port tests; Python 3.9 source lock and automated regression / App 隔离首次启动与本机 root、进程/端口验证，源码测试 | Existing physical setup / 既有实机部署 | Second clean Mac, Developer ID signing/notarization, long-running soak, production HA / 第二台全新 Mac、苹果公证、长期运行与高可用 |
 | Local messages / 本地寄语 | Four exact GPL-3.0-only release messages, glyph/layout/rotation tests | Text and licensing choice / 文案与许可选择 | Large corpus or annual non-repeat / 大语料或全年不重复 |
 | Remote news / 远程新闻 | Disabled by default; source/key gates and offline tests | — | No source is promised as legally or operationally ready by default / 不承诺任何来源默认可用 |
 | Gold / 金价 | XAUS international spot conversion; timestamp/stale checks, bounded host/device wake retries and Beijing-day baseline tests | Current display observed by user / 用户见过当前显示；新补拉规则尚需长期运行观察 | Not domestic gold or prior close; provider uptime and off-market freshness are not guaranteed / 非国内金价或前收盘，不保证服务可用性及休市期间报价新鲜 |

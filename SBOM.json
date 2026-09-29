@@ -1,6 +1,7 @@
 {
   "schema": 2,
   "snapshot_kind": "local-installed dependency closure",
+  "desktop_app_inventory": "APP_COMPONENTS.json (bundled CPython 3.11.15 and wheels; separate from this Python 3.9 audit snapshot)",
   "project_license": "GPL-3.0-only",
   "python": {
     "requirements": "shared/backend/requirements.txt",

@@ -1,6 +1,6 @@
 # Third-party notices
 
-This file is an engineering inventory, not legal advice. Project-owned material is offered under `GPL-3.0-only`; see `LICENSE` and `LICENSE-SCOPE.md`. The source archive declares but does not vendor Python or PlatformIO packages. Exact local versions are in `SBOM.json`; the verified Python 3.9/macOS ARM64 install lock is `requirements-py39-macos-arm64.lock`; standard upstream texts available in the audit cache are under `LICENSES/`.
+This file is an engineering inventory, not legal advice. Project-owned material is offered under `GPL-3.0-only`; see `LICENSE` and `LICENSE-SCOPE.md`. The source archive declares but does not vendor Python or PlatformIO packages. The separate Mac app **does** bundle CPython 3.11.15 and its wheels. Their exact package/version inventory is `APP_COMPONENTS.json`, and the wheel lock is `requirements-py311-macos-arm64.lock`; the CPython license and available wheel notice files are retained inside the app. Some upstream wheel metadata leaves the license field blank or incomplete, so this inventory is not a license opinion. The prior Python 3.9/macOS ARM64 source-install lock is `requirements-py39-macos-arm64.lock`; `SBOM.json` records that earlier dependency audit snapshot. Standard upstream texts available in the audit cache are under `LICENSES/`.
 
 ## Firmware dependencies
 

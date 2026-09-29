@@ -13,6 +13,7 @@ PUBLIC_DOCS = (
     "docs/RELEASE_NOTES_DRAFT.zh-CN.md", "docs/RELEASE_NOTES_DRAFT.en.md",
     "docs/SUPPORT_MATRIX.md", "docs/GITHUB_RELEASE_CHECKLIST.zh-CN.md",
     "docs/README.md", "docs/DOWNLOAD.zh-CN.md",
+    "docs/APP_DESKTOP.zh-CN.md",
     "docs/FIRST_USE.zh-CN.md", "docs/CONFIGURATION.zh-CN.md",
     "docs/UPGRADE.zh-CN.md", "docs/TROUBLESHOOTING.zh-CN.md",
     "docs/RELEASE_TEMPLATE.zh-CN.md", "docs/archive/README.md",

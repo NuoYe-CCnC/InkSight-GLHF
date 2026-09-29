@@ -30,7 +30,7 @@ def test_operator_runtime_uses_existing_secrets_file(tmp_path):
 
 
 def test_host_cycle_does_not_enable_paid_or_queue_sources_by_default(monkeypatch):
-    monkeypatch.setattr(host_cycle, "from_operator_secrets", lambda _mac: {
+    monkeypatch.setattr(host_cycle, "from_operator_secrets", lambda _mac, **_kw: {
         "backend": "http://127.0.0.1:8080", "webdav": "https://example.invalid/dav",
         "devices": [{"mac": "AABBCCDDEEFF", "modes": ["AI_USAGE"]}],
     })
@@ -41,6 +41,26 @@ def test_host_cycle_does_not_enable_paid_or_queue_sources_by_default(monkeypatch
     host_cycle.cycle("AABBCCDDEEFF")
     assert len(calls) == 1
     assert calls[0][0]["admin_token"] == "unit-test-token"
+
+
+def test_host_cycle_uses_selected_loopback_port(monkeypatch):
+    seen = []
+    monkeypatch.setattr(host_cycle, "from_operator_secrets", lambda _mac, **kw: (
+        seen.append(kw["backend"]) or {"backend": kw["backend"],
+        "webdav": "https://example.invalid/dav", "devices": []}))
+    monkeypatch.setattr(host_cycle, "_admin_token", lambda: "unit-test-token")
+    monkeypatch.setattr(host_cycle.cloud_publish, "run", lambda *_a, **_kw: None)
+    host_cycle.cycle("AABBCCDDEEFF", backend="http://127.0.0.1:18137")
+    assert seen == ["http://127.0.0.1:18137"]
+
+
+def test_host_cycle_watchdog_stops_orphaned_desktop_loop(monkeypatch):
+    signals = []
+    monkeypatch.setattr(host_cycle.os, "getppid", lambda: 1)
+    monkeypatch.setattr(host_cycle.os, "kill", lambda pid, sig: signals.append((pid, sig)))
+    host_cycle._watch_parent(12345)
+    assert len(signals) == 1
+    assert signals[0][0] == host_cycle.os.getpid()
 
 
 def test_runtime_files_are_in_source_candidate_allowlist():

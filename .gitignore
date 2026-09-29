@@ -8,6 +8,7 @@ shared/backend/.env
 shared/backend/.jwt_secret
 shared/backend/*.db
 shared/backend/state/
+shared/backend/runtime_uploads/
 shared/backend/uploads/
 shared/backend/logs/
 shared/backend/core/native/*.so

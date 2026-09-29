@@ -15,9 +15,9 @@ from pathlib import Path, PurePosixPath
 
 
 ROOT_FILES = (
-    ".gitignore", "LICENSE", "LICENSE-SCOPE.md", "README.md", "README.en.md",
+    ".gitignore", "LICENSE", "LICENSE-SCOPE.md", "README.md", "README.en.md", "APP_COMPONENTS.json",
     "CONTRIBUTING.md", "SECURITY.md", "SBOM.json", "THIRD_PARTY_NOTICES.md", "requirements.lock.txt",
-    "requirements-py39-macos-arm64.lock",
+    "requirements-py39-macos-arm64.lock", "requirements-py311-macos-arm64.lock",
 )
 EXACT_FILES = (
     "shared/backend/.env.example", "shared/backend/pytest.ini",
@@ -58,11 +58,20 @@ EXACT_FILES = (
     "shared/backend/tests/test_codex_collector_health.py",
     "shared/backend/tests/test_host_runtime.py",
     "shared/backend/tests/test_gold_refresh_reliability.py",
+    "shared/backend/tests/test_app_data.py",
+    "shared/backend/tests/test_app_backend.py",
     "shared/backend/tests/test_phase1_reliable.py",
     "shared/backend/tests/test_phase5_hotfix.py",
     "docs/releases/v0.1.0-test.2.zh-CN.md",
     "docs/releases/v0.1.0-test.2.en.md",
+    "docs/releases/v0.1.0-test.3.zh-CN.md",
+    "docs/releases/v0.1.0-test.3.en.md",
+    "shared/tools/app_data.py", "shared/tools/app_backend.py",
+    "shared/tools/app/macos/InkSightApp.swift",
+    "shared/tools/app/macos/Info.plist", "shared/tools/app/macos/build.sh",
+    "shared/tools/app/macos/app_components.py",
     "docs/README.md", "docs/DOWNLOAD.zh-CN.md",
+    "docs/APP_DESKTOP.zh-CN.md",
     "docs/FIRST_USE.zh-CN.md", "docs/CONFIGURATION.zh-CN.md",
     "docs/UPGRADE.zh-CN.md", "docs/TROUBLESHOOTING.zh-CN.md",
     "docs/RELEASE_TEMPLATE.zh-CN.md", "docs/archive/README.md",
