@@ -8,7 +8,7 @@ A two-page information panel for an ESP32-S3 and a 4.26-inch monochrome e-paper 
 
 ## Start here
 
-1. [Download test release `v0.1.0-test.3`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.3) and read the [download and checksum guide](docs/DOWNLOAD.zh-CN.md). The Mac app and the source archive are different assets.
+1. [Download test release `v0.1.0-test.4`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.4) and read the [download and checksum guide](docs/DOWNLOAD.zh-CN.md). The Mac app and the source archive are different assets.
 2. [Mac app first use](docs/APP_DESKTOP.zh-CN.md) (Chinese): the runtime is bundled. The [source setup](docs/FIRST_USE.zh-CN.md) remains available separately.
 3. [Upgrade an existing setup](docs/UPGRADE.zh-CN.md): distinguish a backend-only update from a firmware flash and back up private state first.
 
@@ -32,4 +32,4 @@ The first local web-console visit creates a root account; **there is no default 
 
 Project-owned code and the four releasable local messages are licensed under [`GPL-3.0-only`](LICENSE). Third-party code, fonts, news content and services keep their own terms. MiSans is not distributed in this repository or the release archive. See [license scope](LICENSE-SCOPE.md), [third-party notices](THIRD_PARTY_NOTICES.md) and [SBOM](SBOM.json).
 
-The [`v0.1.0-test.3` notes](docs/releases/v0.1.0-test.3.en.md) document the standalone Mac app and its verification limits; no new firmware binary is included. [Report security issues privately](SECURITY.md), never in a public Issue with credentials or device identifiers.
+The [`v0.1.0-test.4` notes](docs/releases/v0.1.0-test.4.en.md) document Codex expiry quality, the bounded real-device Mac app handoff and the experimental rollback boundary; no new firmware binary is included. [Report security issues privately](SECURITY.md), never in a public Issue with credentials or device identifiers.

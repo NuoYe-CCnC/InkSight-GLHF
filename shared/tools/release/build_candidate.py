@@ -68,6 +68,8 @@ EXACT_FILES = (
     "docs/releases/v0.1.0-test.2.en.md",
     "docs/releases/v0.1.0-test.3.zh-CN.md",
     "docs/releases/v0.1.0-test.3.en.md",
+    "docs/releases/v0.1.0-test.4.zh-CN.md",
+    "docs/releases/v0.1.0-test.4.en.md",
     "shared/tools/app_data.py", "shared/tools/app_backend.py",
     "shared/tools/app/macos/InkSightApp.swift",
     "shared/tools/app/macos/Info.plist", "shared/tools/app/macos/build.sh",
