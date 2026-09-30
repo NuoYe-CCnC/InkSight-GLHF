@@ -103,3 +103,27 @@ def test_upgrade_rejects_runtime_symlink_before_following_it(tmp_path):
     with pytest.raises(ValueError, match="symbolic link"):
         app_data.ensure_install(template, data, "v0.1.0-test.4")
     assert json.loads((data / "current.json").read_text())["version"] == "v0.1.0-test.3"
+
+
+def test_import_preserves_user_calendars_messages_policy_and_private_fonts(tmp_path):
+    template = template_at(tmp_path)
+    data = tmp_path / "data"
+    runtime = Path(app_data.ensure_install(template, data, "v0.1.0-test.5")["runtime"])
+    source = tmp_path / "old"
+    (source / "shared/config").mkdir(parents=True)
+    fixtures = {
+        "shared/backend/data/news_calendar.json": b'{"custom-calendar":true}',
+        "shared/backend/data/daily_messages.json": b'["personal message"]',
+        "shared/tools/agent_policy.json": b'{"publish_sec":120}',
+        ".local/fonts/misans/private-font.ttf": b"private-font-fixture",
+        "shared/backend/fonts/misans/private-font.ttf": b"private-preview-font-fixture",
+        "shared/firmware/src/fonts_gen/misans_reg_21.h": b"private-device-width-fixture",
+    }
+    for relative, content in fixtures.items():
+        path = source / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    app_data.import_existing(source, data, confirm=True)
+    for relative, content in fixtures.items():
+        assert (runtime / relative).read_bytes() == content
+        assert (runtime / relative).stat().st_mode & 0o077 == 0

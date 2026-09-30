@@ -1,8 +1,8 @@
 # 升级已有主机与设备
 
-[文档目录](README.md) · [当前测试版说明](releases/v0.1.0-test.4.zh-CN.md) · [Mac App 使用](APP_DESKTOP.zh-CN.md) · [完整安装与受控刷写](INSTALLATION.zh-CN.md) · [实验性固件回退流程](FIRMWARE_UPDATE_ROLLBACK.zh-CN.md)
+[文档目录](README.md) · [当前测试版说明](releases/v0.1.0-test.5.zh-CN.md) · [Mac App 使用](APP_DESKTOP.zh-CN.md) · [完整安装与受控刷写](INSTALLATION.zh-CN.md) · [实验性固件回退流程](FIRMWARE_UPDATE_ROLLBACK.zh-CN.md)
 
-先读**目标版本 Release 说明**，确认它究竟是后端更新、固件更新还是两者都有。`v0.1.0-test.4` 改进独立 Mac App 的 Codex 额度采集与到期质量，并公开实验性固件回退源码；**不含新固件二进制，不要求为了本次主机更新刷屏**。此前测试版附件保持不变。
+先读**目标版本 Release 说明**，确认它究竟是后端更新、固件更新还是两者都有。`v0.1.0-test.5` 补全 App 请求队列、唤醒恢复和数据迁移；**不含新固件二进制，不要求为了本次主机更新刷屏**。此前测试版附件保持不变。切换前停用旧发布者及其自动重启；独立目录的文件锁不会阻止两个实例写同一云端设备。迁移与回退都保存最新调用预算、出刊去重、金价基准和请求状态，不能直接拿迁移前快照覆盖新状态。
 
 ## 改用独立 Mac App
 

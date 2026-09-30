@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 REPO_URL = "https://github.com/NuoYe-CCnC/InkSight-GLHF"
-VERSION = "v0.1.0-test.4"
+VERSION = "v0.1.0-test.5"
 
 
 def _load_builder():
@@ -28,6 +28,8 @@ def test_final_release_documents_are_allowlisted():
         "docs/phase18-github-public-test-release-2026-09-20/02-publication-record.md",
         "docs/releases/v0.1.0-test.4.zh-CN.md",
         "docs/releases/v0.1.0-test.4.en.md",
+        "docs/releases/v0.1.0-test.5.zh-CN.md",
+        "docs/releases/v0.1.0-test.5.en.md",
     ):
         assert relative in collected
 

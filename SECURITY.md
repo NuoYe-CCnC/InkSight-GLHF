@@ -2,9 +2,9 @@
 
 ## 当前状态 / Current status
 
-当前安全修复以最新公开测试版 `v0.1.0-test.4` 为基线。后端 API `1.1.0` 不是项目发布版本号。Mac App 测试包尚未 Apple 公证。
+当前安全修复以最新公开测试版 `v0.1.0-test.5` 为基线。后端 API `1.1.0` 不是项目发布版本号。Mac App 测试包尚未 Apple 公证。
 
-Security fixes currently target the latest public test release, `v0.1.0-test.4`. Backend API `1.1.0` is not the project release version. The Mac app test archive is not Apple-notarized.
+Security fixes currently target the latest public test release, `v0.1.0-test.5`. Backend API `1.1.0` is not the project release version. The Mac app test archive is not Apple-notarized.
 
 ## 报告敏感问题 / Reporting sensitive issues
 

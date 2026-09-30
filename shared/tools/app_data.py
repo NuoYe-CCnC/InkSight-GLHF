@@ -29,12 +29,19 @@ DATA_FILES = (
     "shared/backend/inksight.db", "shared/backend/cache.db",
     "shared/backend/stats.db", "shared/backend/static.db",
     "shared/backend/data/member_config.json",
+    "shared/backend/data/news_calendar.json",
+    "shared/backend/data/daily_messages.json",
+    "shared/tools/agent_policy.json",
+    "shared/firmware/src/fonts_misans_16.h",
+    "shared/firmware/src/fonts_misans_24.h",
     "shared/tools/.cloud_publish_state.json",
     "shared/tools/.cloud_publish_state.json.bak",
 )
 DATA_DIRS = (
     "shared/backend/state", "shared/backend/runtime_uploads",
     "shared/config/backups",
+    "shared/backend/fonts/misans", ".local/fonts/misans",
+    "shared/firmware/src/fonts_gen",
 )
 CONFIG_NAMES = (
     "inksight_config.json", "inksight_secrets.json", "manual_settings.json",
