@@ -201,32 +201,54 @@ def normalize(result: dict) -> dict:
             resets = w.get("resetsAt")
             windows.append({"label": _fmt_dur(dur), "duration_minutes": dur,
                             "used_percent": used, "resets_at": resets})
-    reset_credits = result.get("rateLimitResetCredits") or {}
+    reset_credits = result.get("rateLimitResetCredits")
+    reset_credits = reset_credits if isinstance(reset_credits, dict) else {}
     available = reset_credits.get("availableCount")
-    # 手动重置机会到期列表（2026-09-07 接入）：
-    # 原始响应 rateLimitResetCredits.credits[] 每项含 {status, expiresAt(Unix秒), resetType…}。
-    # 规则：仅 status=='available' 且 expiresAt>now（未过期）；升序；Unix 秒数组。
-    # 接口无该结构 → reset_expiry_list=None（与空列表 [] 严格区分，缺失≠0 次）。
-    exp_list = None
+    available = available if type(available) is int and 0 <= available <= 100 else None
+    # A present but incomplete list is *not* a verified expiry observation.
+    # Preserve duplicate timestamps: separate opportunities may expire together.
     raw_items = reset_credits.get("credits")
     now = int(time.time())
-    total_raw = 0
-    if isinstance(raw_items, list):
-        total_raw = len(raw_items)
-        exp_list = []
-        for c in raw_items:
-            if not isinstance(c, dict):
+    exp_list = None
+    observation = "missing" if "credits" not in reset_credits else "null"
+    total_raw = len(raw_items) if isinstance(raw_items, list) else None
+    identity = None
+    if available == 0:
+        exp_list, observation = [], "zero"
+    elif isinstance(raw_items, list):
+        valid = []
+        keys = []
+        malformed = False
+        for credit in raw_items:
+            if not isinstance(credit, dict):
+                malformed = True
                 continue
-            st = c.get("status")
-            exp = c.get("expiresAt")
-            if st == "available" and isinstance(exp, int) and exp > now:
-                exp_list.append(exp)
-        exp_list = sorted(set(exp_list))
+            if credit.get("status") != "available":
+                continue
+            expiry = credit.get("expiresAt")
+            if type(expiry) is not int or not now < expiry <= 4_102_444_800:
+                malformed = True
+                continue
+            valid.append(expiry)
+            credit_id = credit.get("id")
+            if isinstance(credit_id, (str, int)) and not isinstance(credit_id, bool):
+                keys.append(str(credit_id))
+        if not malformed and available is not None and len(valid) == available:
+            exp_list, observation = sorted(valid), "verified"
+            if len(keys) == len(valid) and len(set(keys)) == len(keys):
+                identity = hashlib.sha256(
+                    json.dumps(sorted(zip(keys, valid)), separators=(",", ":")).encode()
+                ).hexdigest()[:32]
+        else:
+            observation = "inconsistent"
+    elif raw_items is not None:
+        observation = "invalid"
     out = {
         "windows": windows,
         "reset_credits_available": available,
         "reset_expiry_list": exp_list,
         "reset_expiry_total": total_raw,
+        "reset_expiry_observation": observation,
         "ts": int(time.time()),
     }
     point_credits = rl.get("credits") if isinstance(rl.get("credits"), dict) else None
@@ -240,10 +262,9 @@ def normalize(result: dict) -> dict:
     if isinstance(account_id, str) and account_id:
         # Stable isolation key only; the raw account id never leaves this host.
         out["account_key"] = hashlib.sha256(account_id.encode("utf-8")).hexdigest()[:20]
-    if available is not None and exp_list is not None and available != len(exp_list):
-        # 次数与“可用且未过期”项数不一致 → 标记待核对（不猜测、不自动删除日期）
-        out["reset_expiry_note"] = f"count/list mismatch: {available} vs {len(exp_list)} (raw {total_raw})"
-    if isinstance(raw_items, list):
+    if identity:
+        out["reset_expiry_identity"] = identity
+    if observation in {"verified", "zero"}:
         out["reset_expiry_source"] = "api"
     if rl.get("planType"):
         out["plan"] = rl.get("planType")

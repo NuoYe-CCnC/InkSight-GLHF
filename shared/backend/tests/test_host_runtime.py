@@ -54,6 +54,26 @@ def test_host_cycle_uses_selected_loopback_port(monkeypatch):
     assert seen == ["http://127.0.0.1:18137"]
 
 
+def test_codex_read_precedes_publish_without_paid_queues(monkeypatch):
+    events = []
+    monkeypatch.setattr(host_cycle, "from_operator_secrets", lambda _mac, **_kw: {
+        "backend": "http://127.0.0.1:18137", "webdav": "https://example.invalid/dav",
+        "devices": [{"mac": "AABBCCDDEEFF", "modes": ["AI_USAGE"]}],
+    })
+    monkeypatch.setattr(host_cycle, "_admin_token", lambda: "unit-test-token")
+    monkeypatch.setattr(host_cycle.subprocess, "run", lambda args, **kwargs: (
+        events.append(("codex", args, kwargs))
+    ))
+    monkeypatch.setattr(host_cycle.cloud_publish, "run", lambda *_a, **_kw: events.append(("publish",)))
+    host_cycle.cycle("AABBCCDDEEFF", codex=True)
+    assert [event[0] for event in events] == ["codex", "publish"]
+    assert "codex_quota_probe.py" in events[0][1][1]
+    assert events[0][2]["timeout"] == 65
+    assert "--request-queues" not in events[0][1]
+    swift = (Path(__file__).resolve().parents[2] / "tools/app/macos/InkSightApp.swift").read_text()
+    assert '"--backend", baseURL.absoluteString, "--codex"' in swift
+
+
 def test_host_cycle_watchdog_stops_orphaned_desktop_loop(monkeypatch):
     signals = []
     monkeypatch.setattr(host_cycle.os, "getppid", lambda: 1)

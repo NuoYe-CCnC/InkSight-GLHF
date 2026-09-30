@@ -43,10 +43,12 @@ class CodexUsagePayload(BaseModel):
     reset_credits_available: Optional[int] = Field(default=None, ge=0, le=100)
     auth_ok: Optional[bool] = None
     # 手动重置机会到期列表（2026-09-07 接入：rateLimitResetCredits.credits[].expiresAt）
-    reset_expiry_list: Optional[List[int]] = None   # Unix 秒，升序；None=未接通，[]=明确0次
+    reset_expiry_list: Optional[List[int]] = Field(default=None, max_length=100)  # Unix 秒；None=缺失，[]=明确0次
     reset_expiry_source: Optional[str] = None       # "api" | "manual"
-    reset_expiry_total: Optional[int] = None        # 原始返回项数（核对用）
+    reset_expiry_total: Optional[int] = Field(default=None, ge=0, le=1000)  # 原始返回项数（核对用）
     reset_expiry_note: Optional[str] = None         # 次数/列表不一致标记
+    reset_expiry_observation: Optional[str] = Field(default=None, pattern="^(verified|zero|missing|null|invalid|inconsistent|revoked)$")
+    reset_expiry_identity: Optional[str] = Field(default=None, pattern="^[0-9a-f]{32}$")
     plan: Optional[str] = None
     # Codex account credits are independent from rateLimitResetCredits.
     # Balance stays a string so the source precision is never rounded in transit.
@@ -102,6 +104,10 @@ async def post_codex_usage(
         raise HTTPException(status_code=400, detail=f"source must be one of {VALID_SOURCES}")
 
     payload = body.model_dump(exclude_none=True)
+    # Pydantic's exclude_none would otherwise erase explicit JSON null, which
+    # is meaningfully different from a field omitted by an older collector.
+    if "reset_expiry_list" in body.model_fields_set and body.reset_expiry_list is None:
+        payload["reset_expiry_list"] = None
     if not payload.get("ts"):
         payload["ts"] = time.time()
     await set_codex_usage(mac, body.source, payload)

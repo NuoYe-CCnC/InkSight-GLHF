@@ -14,6 +14,8 @@ import time
 import cloud_publish
 from runtime_config import from_operator_secrets
 
+CODEX_POLL_SECONDS = 30 * 60
+
 
 def _admin_token() -> str:
     env_file = Path(__file__).resolve().parents[1] / "backend" / ".env"
@@ -34,11 +36,18 @@ def cycle(mac: str, *, codex: bool = False, request_queues: bool = False,
         raise RuntimeError("set ADMIN_TOKEN in shared/backend/.env before host sync")
     env = {**os.environ, "ADMIN_TOKEN": token}
     config["admin_token"] = token
-    cloud_publish.run(config, once=True, force=heartbeat)
     if codex:
-        subprocess.run([sys.executable, str(Path(__file__).with_name("codex_quota_probe.py")),
-                        "--server", config["backend"], "--mac", "MAC-CODEX", "--source", "mac"],
-                       env=env, check=False)
+        # Read the local Codex quota before composing the screen. This does not
+        # invoke a model or spend a reset opportunity. A hung CLI must not
+        # stall the publisher indefinitely.
+        try:
+            subprocess.run([sys.executable, str(Path(__file__).with_name("codex_quota_probe.py")),
+                            "--server", config["backend"], "--mac", "MAC-CODEX", "--source", "mac"],
+                           env=env, check=False, timeout=65,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            pass
+    cloud_publish.run(config, once=True, force=heartbeat)
     if request_queues:
         for script in ("gold_requests.py", "news_requests.py"):
             subprocess.run([sys.executable, str(Path(__file__).with_name(script)),
@@ -79,11 +88,15 @@ def main() -> None:
         raise SystemExit(0 if cloud_publish.probe_webdav(
             config["webdav"], config["user"], config["password"]) else 1)
     last_heartbeat = 0
+    next_codex_at = 0
     while True:
         now = int(time.time())
         heartbeat = now - last_heartbeat >= 600
-        cycle(args.mac, codex=args.codex, request_queues=args.request_queues,
+        read_codex = bool(args.codex and now >= next_codex_at)
+        cycle(args.mac, codex=read_codex, request_queues=args.request_queues,
               heartbeat=heartbeat, backend=args.backend)
+        if read_codex:
+            next_codex_at = now + CODEX_POLL_SECONDS
         if heartbeat:
             last_heartbeat = now
         if args.once:

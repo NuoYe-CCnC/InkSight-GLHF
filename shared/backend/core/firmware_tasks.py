@@ -99,7 +99,7 @@ def configure_paths(*, state_file: Path | None = None, private_dir: Path | None 
 
 
 def _empty() -> dict:
-    return {"builds": {}, "plans": {}, "flashes": {}}
+    return {"builds": {}, "plans": {}, "flashes": {}, "rollback_plans": {}, "rollbacks": {}}
 
 
 def _read() -> dict:
@@ -108,7 +108,7 @@ def _read() -> dict:
         return _empty()
     if error or not isinstance(value, dict):
         raise state_store.StateStoreError(f"{_STATE.name}: {error or 'invalid'}")
-    for name in ("builds", "plans", "flashes"):
+    for name in ("builds", "plans", "flashes", "rollback_plans", "rollbacks"):
         value.setdefault(name, {})
     return value
 
@@ -536,6 +536,34 @@ def prepare_flash(build_id: str, device_id: str, install_mode: str = "update") -
     return public
 
 
+def get_flash_plan_identity(plan_id: str) -> dict:
+    plan = (_read().get("plans") or {}).get(plan_id)
+    if not isinstance(plan, dict):
+        raise KeyError(plan_id)
+    return {"mac": str(plan.get("mac") or "")}
+
+
+def bind_previous_build(plan_id: str, heartbeat: dict | None) -> None:
+    """Record an authenticated, recent pre-upgrade build for rollback proof."""
+    if not isinstance(heartbeat, dict):
+        return
+    build_id = heartbeat.get("firmware_build_id")
+    if not isinstance(build_id, str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", build_id):
+        return
+    try:
+        from datetime import datetime
+        observed = int(datetime.fromisoformat(str(heartbeat.get("created_at") or "")).timestamp())
+    except (TypeError, ValueError):
+        return
+    if not 0 <= int(time.time()) - observed <= 3600:
+        return
+    def update(value: dict) -> None:
+        plan = value.setdefault("plans", {}).get(plan_id)
+        if isinstance(plan, dict) and plan.get("status") == "ready":
+            plan["previous_build_id"] = build_id
+    _update(update)
+
+
 def create_flash(plan_id: str, confirmation_token: str) -> dict:
     flash_id = _new_id("flash")
     now = int(time.time())
@@ -559,6 +587,7 @@ def create_flash(plan_id: str, confirmation_token: str) -> dict:
             "install_mode": plan["install_mode"], "partition_state": plan["partition_state"],
             "source_hash": plan.get("source_hash"), "status": "queued", "port": plan["port"],
             "mac": plan["mac"], "device_fingerprint": plan["device_fingerprint"],
+            "previous_build_id": plan.get("previous_build_id"),
             "target": TARGET, "created_at": now, "updated_at": now, "verification": "pending",
         }
         value.setdefault("flashes", {})[flash_id] = job
@@ -641,18 +670,43 @@ def run_flash(flash_id: str) -> dict:
             if job.get("install_mode") == "update":
                 nvs = _read_region(str(job["port"]), NVS_OFFSET, NVS_SIZE, backup / "nvs.bin")
                 ota = _read_region(str(job["port"]), OTADATA_OFFSET, OTADATA_SIZE, backup / "otadata.bin")
+                if not _valid_ota_records(ota):
+                    if not all(value == 0xFF for value in ota):
+                        raise RuntimeError("OTA 启动记录异常，已拒绝更新")
+                    app0_header = _read_region(str(job["port"]), APP_OFFSET, "0x1000",
+                                               backup / "app0-header.bin")
+                    if not app0_header or app0_header[0] != 0xE9:
+                        raise RuntimeError("空白 OTA 记录下未找到有效 app0，已拒绝更新")
                 next_ota, target_slot = _next_ota_data(ota)
                 app_offset = APP1_OFFSET if target_slot == 1 else APP_OFFSET
                 _read_region(str(job["port"]), app_offset, APP_SIZE, backup / f"app{target_slot}.bin", timeout=8 * 60)
+                previous_slot = 1 - target_slot
+                previous_offset = APP1_OFFSET if previous_slot == 1 else APP_OFFSET
+                previous_app = _read_region(str(job["port"]), previous_offset, APP_SIZE,
+                                            backup / f"app{previous_slot}.bin", timeout=8 * 60)
+                if not previous_app or previous_app[0] != 0xE9:
+                    raise RuntimeError("旧应用镜像头无效，已拒绝更新")
+                backup_manifest = {
+                    name: hashlib.sha256((backup / name).read_bytes()).hexdigest()
+                    for name in ("partition.bin", "nvs.bin", "otadata.bin",
+                                 f"app{target_slot}.bin", f"app{previous_slot}.bin")
+                }
+                _set("flashes", flash_id, backup_manifest=backup_manifest, target_slot=target_slot)
                 firmware = _artifact_path(build, "firmware.bin")
                 _step(base + ["--baud", BAUD, "write_flash", app_offset, str(firmware)], logs, "写入应用", 8 * 60)
                 _step(base + ["verify_flash", app_offset, str(firmware)], logs, "校验应用", 8 * 60)
                 ota_path = backup.parent / "otadata-next.bin"
                 ota_path.write_bytes(next_ota)
                 os.chmod(ota_path, 0o600)
+                _set("flashes", flash_id, next_ota_sha256=hashlib.sha256(next_ota).hexdigest())
                 _step(base + ["--baud", BAUD, "write_flash", OTADATA_OFFSET, str(ota_path)], logs, "切换启动分区")
                 _step(base + ["verify_flash", OTADATA_OFFSET, str(ota_path)], logs, "校验启动分区")
-                _ = nvs
+                # Before reboot, the update itself must not have altered any
+                # Wi-Fi, cloud or device identity bytes in NVS.
+                post_nvs = _read_region(str(job["port"]), NVS_OFFSET, NVS_SIZE,
+                                        backup.parent / "nvs-after.bin")
+                if not hmac.compare_digest(nvs, post_nvs):
+                    raise RuntimeError("更新期间 NVS 发生变化，已停止自动重启；保留备份供人工检查")
             else:
                 _require_fresh_blank(str(job["port"]), backup, "execute")
                 for name in ("bootloader.bin", "partitions.bin", "boot_app0.bin", "firmware.bin"):
@@ -761,3 +815,240 @@ def confirm_heartbeat(flash_id: str, heartbeat: dict | None) -> dict:
         verification="flash-verified; matching-network-heartbeat",
         error=None,
     )
+
+
+def _checked_backup(flash: dict, name: str) -> bytes:
+    """Read an original region only when its recorded digest still matches."""
+    expected = (flash.get("backup_manifest") or {}).get(name)
+    path = _PRIVATE / str(flash["id"]) / "backup" / name
+    if not isinstance(expected, str) or not path.is_file():
+        raise RuntimeError("回退备份不完整；已拒绝写入")
+    raw = path.read_bytes()
+    if not hmac.compare_digest(hashlib.sha256(raw).hexdigest(), expected):
+        raise RuntimeError("回退备份校验失败；已拒绝写入")
+    return raw
+
+
+def _checked_next_ota(flash: dict) -> bytes:
+    path = _PRIVATE / str(flash["id"]) / "otadata-next.bin"
+    expected = flash.get("next_ota_sha256")
+    if not isinstance(expected, str) or not path.is_file():
+        raise RuntimeError("更新后的启动项记录不完整；已拒绝回退")
+    raw = path.read_bytes()
+    if len(raw) != int(OTADATA_SIZE, 16) or not hmac.compare_digest(hashlib.sha256(raw).hexdigest(), expected):
+        raise RuntimeError("更新后的启动项记录校验失败；已拒绝回退")
+    return raw
+
+
+def prepare_rollback(flash_id: str, device_id: str) -> dict:
+    """Read-only device verification before offering an OTA-selector rollback."""
+    flash = (_read().get("flashes") or {}).get(flash_id)
+    device = _DEVICE_CACHE.get(device_id)
+    if not isinstance(flash, dict) or flash.get("install_mode") != "update":
+        raise RuntimeError("只有已有设备 OTA 更新支持此回退流程")
+    if flash.get("status") not in {"completed", "network_timeout", "failed", "waiting_heartbeat"}:
+        raise RuntimeError("更新尚未停止，不能准备回退")
+    if not device:
+        raise RuntimeError("设备列表已变化，请重新检测")
+    original_ota = _checked_backup(flash, "otadata.bin")
+    current_expected = _checked_next_ota(flash)
+    if len(original_ota) != int(OTADATA_SIZE, 16):
+        raise RuntimeError("原始启动项备份长度异常")
+    _checked_backup(flash, "partition.bin")
+    _checked_backup(flash, "nvs.bin")
+    target_slot = flash.get("target_slot")
+    if target_slot not in (0, 1):
+        raise RuntimeError("原始更新目标分区未知")
+    _checked_backup(flash, f"app{target_slot}.bin")
+    previous_slot = 1 - target_slot
+    previous_app = _checked_backup(flash, f"app{previous_slot}.bin")
+    if len(previous_app) != int(APP_SIZE, 16) or previous_app[0] != 0xE9:
+        raise RuntimeError("旧应用备份不完整，已拒绝回退")
+    mac, flash_size = _identify(str(device["port"]))
+    if not hmac.compare_digest(mac, str(flash.get("mac") or "")):
+        raise RuntimeError("设备标识与原始更新记录不符")
+    plan_id = _new_id("rollback-plan")
+    directory = _PRIVATE / plan_id
+    directory.mkdir(parents=True, exist_ok=False)
+    os.chmod(directory, 0o700)
+    partition = _read_region(str(device["port"]), PARTITION_OFFSET, PARTITION_SIZE,
+                             directory / "partition-current.bin")
+    if not hmac.compare_digest(partition, _checked_backup(flash, "partition.bin")):
+        raise RuntimeError("分区表已变化，不能自动回退")
+    ota = _read_region(str(device["port"]), OTADATA_OFFSET, OTADATA_SIZE,
+                       directory / "otadata-current.bin")
+    if not hmac.compare_digest(ota, current_expected):
+        raise RuntimeError("启动项已被其他更新改变，不能自动回退")
+    previous_offset = APP1_OFFSET if previous_slot == 1 else APP_OFFSET
+    current_previous_app = _read_region(str(device["port"]), previous_offset, APP_SIZE,
+                                        directory / f"app{previous_slot}-current.bin", timeout=8 * 60)
+    if not hmac.compare_digest(hashlib.sha256(current_previous_app).digest(),
+                               hashlib.sha256(previous_app).digest()):
+        raise RuntimeError("旧应用分区已变化，不能自动回退")
+    token = os.urandom(24).hex()
+    now = int(time.time())
+    plan = {
+        "id": plan_id, "flash_id": flash_id, "device_id": device_id,
+        "status": "ready", "target": TARGET, "chip": "ESP32-S3",
+        "flash_size": flash_size, "device_fingerprint": flash["device_fingerprint"],
+        "port": device["port"], "mac": mac,
+        "current_ota_sha256": hashlib.sha256(ota).hexdigest(),
+        "restore_ota_sha256": hashlib.sha256(original_ota).hexdigest(),
+        "confirmation_token": token, "created_at": now, "expires_at": now + 5 * 60,
+        "scope": "仅恢复已校验的旧 OTA 启动项；不写 NVS、Wi-Fi、LittleFS、应用或分区表。设备联网仍需再次验证。",
+    }
+    _update(lambda value: value.setdefault("rollback_plans", {}).update({plan_id: plan}))
+    public = _public_job(plan)
+    public["confirmation_token"] = token
+    return public
+
+
+def create_rollback(plan_id: str, confirmation_token: str) -> dict:
+    rollback_id = _new_id("rollback")
+    now = int(time.time())
+    holder: dict = {}
+    def consume(value: dict) -> None:
+        plan = value.setdefault("rollback_plans", {}).get(plan_id)
+        if not isinstance(plan, dict) or plan.get("status") != "ready":
+            raise RuntimeError("回退计划不可用或已使用")
+        if int(plan.get("expires_at") or 0) < now:
+            raise RuntimeError("回退确认已过期")
+        if not hmac.compare_digest(str(plan.get("confirmation_token") or ""), confirmation_token or ""):
+            raise RuntimeError("回退确认码无效")
+        plan["status"] = "consumed"
+        job = {
+            "id": rollback_id, "plan_id": plan_id, "flash_id": plan["flash_id"],
+            "status": "queued", "target": TARGET, "port": plan["port"], "mac": plan["mac"],
+            "device_fingerprint": plan["device_fingerprint"],
+            "current_ota_sha256": plan["current_ota_sha256"],
+            "restore_ota_sha256": plan["restore_ota_sha256"],
+            "created_at": now, "updated_at": now, "verification": "pending",
+        }
+        value.setdefault("rollbacks", {})[rollback_id] = job
+        holder.update(job)
+    _update(consume)
+    return _public_job(holder)
+
+
+def run_rollback(rollback_id: str) -> dict:
+    job = (_read().get("rollbacks") or {}).get(rollback_id)
+    if not isinstance(job, dict):
+        raise KeyError(rollback_id)
+    with _FLASH_LOCK, _exclusive_lock("flash"):
+        _set("rollbacks", rollback_id, status="running", started_at=int(time.time()))
+        directory = _PRIVATE / rollback_id
+        directory.mkdir(parents=True, exist_ok=True)
+        os.chmod(directory, 0o700)
+        logs: list[str] = []
+        try:
+            flash = (_read().get("flashes") or {}).get(job.get("flash_id"))
+            if not isinstance(flash, dict) or flash.get("install_mode") != "update":
+                raise RuntimeError("原始更新任务不可用")
+            original_ota = _checked_backup(flash, "otadata.bin")
+            expected_next = _checked_next_ota(flash)
+            if not hmac.compare_digest(hashlib.sha256(original_ota).hexdigest(),
+                                       str(job.get("restore_ota_sha256") or "")):
+                raise RuntimeError("回退备份与确认时不一致")
+            if not hmac.compare_digest(hashlib.sha256(expected_next).hexdigest(),
+                                       str(job.get("current_ota_sha256") or "")):
+                raise RuntimeError("当前启动项与确认时不一致")
+            mac, _flash_size = _identify(str(job["port"]))
+            if not hmac.compare_digest(mac, str(job["mac"])):
+                raise RuntimeError("执行前检测到设备已更换")
+            partition = _read_region(str(job["port"]), PARTITION_OFFSET, PARTITION_SIZE,
+                                     directory / "partition-before.bin")
+            if not hmac.compare_digest(partition, _checked_backup(flash, "partition.bin")):
+                raise RuntimeError("分区表已变化；未执行回退")
+            current = _read_region(str(job["port"]), OTADATA_OFFSET, OTADATA_SIZE,
+                                   directory / "otadata-before.bin")
+            if not hmac.compare_digest(current, expected_next):
+                raise RuntimeError("启动项已变化；未执行回退")
+            target_slot = flash.get("target_slot")
+            if target_slot not in (0, 1):
+                raise RuntimeError("旧应用分区未知；未执行回退")
+            previous_slot = 1 - target_slot
+            previous_app = _checked_backup(flash, f"app{previous_slot}.bin")
+            previous_offset = APP1_OFFSET if previous_slot == 1 else APP_OFFSET
+            live_app = _read_region(str(job["port"]), previous_offset, APP_SIZE,
+                                    directory / "previous-app-before.bin", timeout=8 * 60)
+            if not hmac.compare_digest(hashlib.sha256(live_app).digest(),
+                                       hashlib.sha256(previous_app).digest()):
+                raise RuntimeError("旧应用分区已变化；未执行回退")
+            nvs_before = _read_region(str(job["port"]), NVS_OFFSET, NVS_SIZE,
+                                      directory / "nvs-before.bin")
+            # Restore only the original OTA selector; the previous application
+            # has not been overwritten by this update, and NVS is never written.
+            original_path = _PRIVATE / str(flash["id"]) / "backup" / "otadata.bin"
+            base = _esptool(str(job["port"]))
+            _step(base + ["--baud", BAUD, "write_flash", OTADATA_OFFSET, str(original_path)],
+                  logs, "恢复旧启动项")
+            _step(base + ["verify_flash", OTADATA_OFFSET, str(original_path)],
+                  logs, "校验旧启动项")
+            nvs_after = _read_region(str(job["port"]), NVS_OFFSET, NVS_SIZE,
+                                     directory / "nvs-after.bin")
+            if not hmac.compare_digest(nvs_before, nvs_after):
+                raise RuntimeError("回退期间 NVS 发生变化；已停止自动重启")
+            verified_at = int(time.time())
+            _set("rollbacks", rollback_id, status="written_unconfirmed",
+                 verified_at=verified_at, verification="ota-selector-verified; rebooting",
+                 log="\n".join(logs)[-12000:])
+            _step(base + ["run"], logs, "重启设备")
+            return _set("rollbacks", rollback_id, status="written_unconfirmed",
+                        verified_at=verified_at, verification="ota-selector-verified; rebooted",
+                        log="\n".join(logs)[-12000:])
+        except RuntimeError as exc:
+            return _set("rollbacks", rollback_id, status="failed", error=str(exc),
+                        log="\n".join(logs)[-12000:])
+
+
+def start_rollback(rollback_id: str) -> dict:
+    with _THREADS_LOCK:
+        existing = _THREADS.get(rollback_id)
+        if not (existing and existing.is_alive()):
+            worker = threading.Thread(target=run_rollback, args=(rollback_id,), daemon=True,
+                                      name=f"inksight-{rollback_id}")
+            _THREADS[rollback_id] = worker
+            worker.start()
+    return get_rollback(rollback_id)
+
+
+def get_rollback(rollback_id: str) -> dict:
+    job = (_read().get("rollbacks") or {}).get(rollback_id)
+    if not isinstance(job, dict):
+        raise KeyError(rollback_id)
+    if job.get("status") == "running":
+        with _THREADS_LOCK:
+            worker = _THREADS.get(rollback_id)
+            if not (worker and worker.is_alive()):
+                return _set("rollbacks", rollback_id, status="failed",
+                            error="回退任务异常结束；请检查设备和私有备份")
+    return _public_job(job)
+
+
+def get_rollback_identity(rollback_id: str) -> dict:
+    job = (_read().get("rollbacks") or {}).get(rollback_id)
+    if not isinstance(job, dict):
+        raise KeyError(rollback_id)
+    flash = (_read().get("flashes") or {}).get(job.get("flash_id")) or {}
+    return {"mac": str(job.get("mac") or ""),
+            "previous_build_id": str(flash.get("previous_build_id") or "")}
+
+
+def confirm_rollback_heartbeat(rollback_id: str, heartbeat: dict | None) -> dict:
+    job = (_read().get("rollbacks") or {}).get(rollback_id)
+    if not isinstance(job, dict):
+        raise KeyError(rollback_id)
+    if job.get("status") != "written_unconfirmed" or not isinstance(heartbeat, dict):
+        return _public_job(job)
+    expected = get_rollback_identity(rollback_id)["previous_build_id"]
+    if not expected or not hmac.compare_digest(expected, str(heartbeat.get("firmware_build_id") or "")):
+        return _public_job(job)
+    try:
+        from datetime import datetime
+        observed = int(datetime.fromisoformat(str(heartbeat.get("created_at") or "")).timestamp())
+    except (TypeError, ValueError):
+        return _public_job(job)
+    if observed <= int(job.get("verified_at") or 0):
+        return _public_job(job)
+    return _set("rollbacks", rollback_id, status="completed",
+                finished_at=int(time.time()), verification="ota-selector-verified; matching-old-build-heartbeat")

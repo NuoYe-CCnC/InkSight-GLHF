@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 import SwiftUI
 
-private let appVersion = "v0.1.0-test.3"
+private let appVersion = "v0.1.0-test.4"
 private let inkBlue = Color(red: 0.19, green: 0.37, blue: 0.53)
 
 @main
@@ -377,7 +377,7 @@ final class RuntimeManager: ObservableObject {
         process.currentDirectoryURL = runtime.appendingPathComponent("shared/tools", isDirectory: true)
         process.arguments = [runtime.appendingPathComponent("shared/tools/host_cycle.py").path,
                              "--mac", macText.trimmingCharacters(in: .whitespacesAndNewlines),
-                             "--backend", baseURL.absoluteString, "--parent-pid",
+                             "--backend", baseURL.absoluteString, "--codex", "--parent-pid",
                              String(ProcessInfo.processInfo.processIdentifier)]
         process.environment = cleanEnvironment()
         process.standardOutput = FileHandle.nullDevice

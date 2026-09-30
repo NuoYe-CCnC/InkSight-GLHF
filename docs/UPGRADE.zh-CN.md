@@ -1,8 +1,8 @@
 # 升级已有主机与设备
 
-[文档目录](README.md) · [当前测试版说明](releases/v0.1.0-test.3.zh-CN.md) · [Mac App 使用](APP_DESKTOP.zh-CN.md) · [完整安装与受控刷写](INSTALLATION.zh-CN.md)
+[文档目录](README.md) · [当前测试版说明](releases/v0.1.0-test.4.zh-CN.md) · [Mac App 使用](APP_DESKTOP.zh-CN.md) · [完整安装与受控刷写](INSTALLATION.zh-CN.md) · [实验性固件回退流程](FIRMWARE_UPDATE_ROLLBACK.zh-CN.md)
 
-先读**目标版本 Release 说明**，确认它究竟是后端更新、固件更新还是两者都有。`v0.1.0-test.3` 新增独立 Mac App，不含新固件二进制，不要求为了本次主机更新刷屏。此前 test.2 附件保持不变。
+先读**目标版本 Release 说明**，确认它究竟是后端更新、固件更新还是两者都有。`v0.1.0-test.4` 改进独立 Mac App 的 Codex 额度采集与到期质量，并公开实验性固件回退源码；**不含新固件二进制，不要求为了本次主机更新刷屏**。此前测试版附件保持不变。
 
 ## 改用独立 Mac App
 
