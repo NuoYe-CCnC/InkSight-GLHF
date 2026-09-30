@@ -1,6 +1,6 @@
 # Support matrix / 支持矩阵
 
-This is the `v0.1.0-test.4` support boundary, not a roadmap promise. / 本表是 `v0.1.0-test.4` 的支持边界，不是路线图承诺。
+This is the `v0.1.0-test.5` support boundary, not a roadmap promise. / 本表是 `v0.1.0-test.5` 的支持边界，不是路线图承诺。
 
 | Area / 项目 | Verified / 已验证 | User-confirmed / 用户确认 | Not qualified / 未完成同级验收 |
 |---|---|---|---|

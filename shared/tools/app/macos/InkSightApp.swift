@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 import SwiftUI
 
-private let appVersion = "v0.1.0-test.4"
+private let appVersion = "v0.1.0-test.5"
 private let inkBlue = Color(red: 0.19, green: 0.37, blue: 0.53)
 
 @main
@@ -51,7 +51,7 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
-    func applicationWillTerminate(_ notification: Notification) { RuntimeManager.shared.stop() }
+    func applicationWillTerminate(_ notification: Notification) { RuntimeManager.shared.shutdown() }
 }
 
 final class RuntimeManager: ObservableObject {
@@ -73,6 +73,19 @@ final class RuntimeManager: ObservableObject {
     private var runtimeURL: URL?
     private var backendProcess: Process?
     private var publisherProcess: Process?
+    private var cloudProbeProcess: Process?
+    private var recoveryProcess: Process?
+    private var publisherRequested = UserDefaults.standard.bool(forKey: "resumePublisher")
+    private var serviceRequested = false
+    private var activeNetwork = false
+    private var testedMac = ""
+    private var restartAttempts = 0
+    private var cloudRetryTimer: Timer?
+    private var wakeObserver: NSObjectProtocol?
+    private var wakeTimer: Timer?
+    private var lastRecovery = Date.distantPast
+    private var lastAbsolute = mach_absolute_time()
+    private var lastContinuous = mach_continuous_time()
     private var healthTimer: Timer?
     private var healthAttempts = 0
     private var currentPort = 18080
@@ -150,6 +163,7 @@ final class RuntimeManager: ObservableObject {
             detail = result["status"] as? String == "installed" ? "本机数据已准备。请创建管理员。" : "继续使用本机数据。"
             refreshConfiguration()
             checkCollection()
+            observeWake()
             start()
         } catch { backend = "准备失败"; detail = "无法准备本机运行环境。请保留用户数据目录并查看构建说明。" }
     }
@@ -172,6 +186,7 @@ final class RuntimeManager: ObservableObject {
 
     func start() {
         guard backendProcess == nil, let runtime = runtimeURL else { return }
+        serviceRequested = true
         guard let port = Int(portText), (1024...65535).contains(port) else {
             backend = "端口无效"; detail = "请输入 1024-65535 之间的端口。"; return
         }
@@ -189,7 +204,8 @@ final class RuntimeManager: ObservableObject {
                              "--port", String(port), "--parent-pid",
                              String(ProcessInfo.processInfo.processIdentifier)]
         var environment = cleanEnvironment()
-        if !allowNetwork { environment["INKSIGHT_OFFLINE_STARTUP"] = "1" }
+        activeNetwork = allowNetwork
+        if !activeNetwork { environment["INKSIGHT_OFFLINE_STARTUP"] = "1" }
         process.environment = environment
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -197,10 +213,17 @@ final class RuntimeManager: ObservableObject {
             DispatchQueue.main.async {
                 guard let self = self, self.backendProcess === finished else { return }
                 self.backendProcess = nil
-                self.stopPublisher()
+                self.stopPublisher(preserveRequest: true)
                 self.healthTimer?.invalidate()
                 self.backend = "已停止"
                 self.detail = "后端已退出（代码 \(finished.terminationStatus)）；未影响其他服务。"
+                if self.serviceRequested && self.restartAttempts < 3 {
+                    self.restartAttempts += 1
+                    let delay = Double(self.restartAttempts * 2)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        if self.serviceRequested { self.start() }
+                    }
+                }
             }
         }
         do {
@@ -242,6 +265,9 @@ final class RuntimeManager: ObservableObject {
                 self.detail = "后端健康检查通过。采集、云端和设备仍需分别确认。"
                 self.checkRoot()
                 self.checkCollection()
+                if self.publisherRequested && self.cloudReady {
+                    self.performCloudTest(resume: true)
+                }
                 if !self.openedBrowser {
                     self.openedBrowser = true
                     if ProcessInfo.processInfo.environment["INKSIGHT_TEST_NO_BROWSER"] != "1" {
@@ -301,7 +327,8 @@ final class RuntimeManager: ObservableObject {
     func openConfiguration() { NSWorkspace.shared.open(baseURL) }
 
     func savePortAndRestart() {
-        stop()
+        stopAll(preservePublishing: true)
+        restartAttempts = 0
         start()
     }
 
@@ -335,7 +362,10 @@ final class RuntimeManager: ObservableObject {
         } catch { detail = "旧数据导入失败；原有数据未被自动删除。" }
     }
 
-    func testCloud() {
+    func testCloud() { performCloudTest(resume: publisherRequested) }
+
+    private func performCloudTest(resume: Bool) {
+        guard cloudProbeProcess == nil else { return }
         guard backend == "运行正常", cloudReady, let runtime = runtimeURL else {
             cloud = "请先完成配置"; return
         }
@@ -346,6 +376,7 @@ final class RuntimeManager: ObservableObject {
             cloud = "设备标识无效"; return
         }
         cloud = "正在测试"
+        cloudTestPassed = false
         let process = Process()
         process.executableURL = python
         process.currentDirectoryURL = runtime.appendingPathComponent("shared/tools", isDirectory: true)
@@ -357,13 +388,29 @@ final class RuntimeManager: ObservableObject {
         process.standardError = FileHandle.nullDevice
         do {
             try process.run()
+            cloudProbeProcess = process
             DispatchQueue.global(qos: .userInitiated).async {
                 process.waitUntilExit()
                 DispatchQueue.main.async {
+                    guard self.cloudProbeProcess === process else { return }
+                    self.cloudProbeProcess = nil
                     self.cloudTestPassed = process.terminationStatus == 0
+                    self.testedMac = self.cloudTestPassed ? mac : ""
                     self.cloud = self.cloudTestPassed ? "上传/回读通过" : "测试失败"
                     self.detail = self.cloudTestPassed ? "云端测试通过；设备是否已拉取仍需实机确认。" :
                         "云端测试未通过。请在管理端检查地址、账号、应用密码和网络。"
+                    if resume && self.publisherRequested && self.serviceRequested {
+                        if self.cloudTestPassed {
+                            self.cloudRetryTimer?.invalidate()
+                            self.startPublisher()
+                        } else {
+                            self.cloudRetryTimer?.invalidate()
+                            self.cloudRetryTimer = Timer.scheduledTimer(withTimeInterval: 60,
+                                repeats: false) { [weak self] _ in
+                                    self?.performCloudTest(resume: true)
+                                }
+                        }
+                    }
                 }
             }
         } catch { cloud = "测试无法启动" }
@@ -372,13 +419,16 @@ final class RuntimeManager: ObservableObject {
     func startPublisher() {
         guard publisherProcess == nil, cloudTestPassed, backend == "运行正常",
               let runtime = runtimeURL else { return }
+        let mac = macText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard mac == testedMac else { cloud = "设备标识已改变，请重新测试云端"; return }
         let process = Process()
         process.executableURL = python
         process.currentDirectoryURL = runtime.appendingPathComponent("shared/tools", isDirectory: true)
         process.arguments = [runtime.appendingPathComponent("shared/tools/host_cycle.py").path,
-                             "--mac", macText.trimmingCharacters(in: .whitespacesAndNewlines),
+                             "--mac", mac,
                              "--backend", baseURL.absoluteString, "--codex", "--parent-pid",
                              String(ProcessInfo.processInfo.processIdentifier)]
+        if activeNetwork { process.arguments?.append("--request-queues") }
         process.environment = cleanEnvironment()
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -392,29 +442,95 @@ final class RuntimeManager: ObservableObject {
         do {
             try process.run()
             publisherProcess = process
+            publisherRequested = true
+            UserDefaults.standard.set(true, forKey: "resumePublisher")
             UserDefaults.standard.set(macText, forKey: "deviceMac")
             cloud = "发布循环运行中"
             device = "未验证（需实机确认）"
         } catch { cloud = "发布无法启动" }
     }
 
-    func stopPublisher() {
+    func stopPublisher() { stopPublisher(preserveRequest: false) }
+
+    private func stopPublisher(preserveRequest: Bool) {
+        cloudRetryTimer?.invalidate()
+        if !preserveRequest {
+            publisherRequested = false
+            UserDefaults.standard.set(false, forKey: "resumePublisher")
+        }
         if let process = publisherProcess {
             publisherProcess = nil
-            if process.isRunning { process.terminate() }
+            if process.isRunning { process.terminate(); process.waitUntilExit() }
         }
         if cloudReady { cloud = cloudTestPassed ? "测试通过，发布已停止" : "已填写，未测试" }
     }
 
-    func stop() {
-        stopPublisher()
+    func stop() { stopAll(preservePublishing: false) }
+
+    func shutdown() { stopAll(preservePublishing: true) }
+
+    private func stopAll(preservePublishing: Bool) {
+        serviceRequested = false
+        stopPublisher(preserveRequest: preservePublishing)
+        for process in [cloudProbeProcess, recoveryProcess].compactMap({ $0 }) {
+            if process.isRunning { process.terminate(); process.waitUntilExit() }
+        }
+        cloudProbeProcess = nil
+        recoveryProcess = nil
         healthTimer?.invalidate()
         if let process = backendProcess {
             backendProcess = nil
-            if process.isRunning { process.terminate() }
+            if process.isRunning { process.terminate(); process.waitUntilExit() }
         }
         backend = "已停止"
         detail = "本应用启动的服务已停止；不会停止其他源码部署。"
+    }
+
+    private func observeWake() {
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+                self?.scheduleWakeRecovery()
+            }
+        wakeTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            var info = mach_timebase_info_data_t()
+            mach_timebase_info(&info)
+            let absolute = mach_absolute_time()
+            let continuous = mach_continuous_time()
+            let elapsed = Double(continuous - self.lastContinuous) - Double(absolute - self.lastAbsolute)
+            let suspended = elapsed * Double(info.numer) / Double(info.denom) / 1_000_000_000
+            self.lastAbsolute = absolute
+            self.lastContinuous = continuous
+            if suspended >= 20 { self.scheduleWakeRecovery() }
+        }
+    }
+
+    private func scheduleWakeRecovery() {
+        guard serviceRequested, activeNetwork, backend == "运行正常",
+              Date().timeIntervalSince(lastRecovery) >= 15 else { return }
+        lastRecovery = Date()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.recoverAfterWake() }
+    }
+
+    private func recoverAfterWake() {
+        guard serviceRequested, activeNetwork, backend == "运行正常", recoveryProcess == nil,
+              let runtime = runtimeURL else { return }
+        let process = Process()
+        process.executableURL = python
+        process.currentDirectoryURL = runtime.appendingPathComponent("shared/tools", isDirectory: true)
+        process.arguments = [runtime.appendingPathComponent("shared/tools/host_cycle.py").path,
+                             "--backend", baseURL.absoluteString, "--recover-host", "--parent-pid",
+                             String(ProcessInfo.processInfo.processIdentifier)]
+        process.environment = cleanEnvironment()
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { [weak self] finished in
+            DispatchQueue.main.async {
+                if self?.recoveryProcess === finished { self?.recoveryProcess = nil }
+            }
+        }
+        do { try process.run(); recoveryProcess = process }
+        catch { detail = "唤醒恢复未能启动；正常采集仍按原计划执行。" }
     }
 }
 
@@ -497,7 +613,7 @@ private struct ControlView: View {
                         Toggle("允许下次启动运行已配置的后台网络采集", isOn: Binding(
                             get: { runtime.allowNetwork }, set: { runtime.setScheduledNetwork($0) }))
                             .font(.system(size: 12))
-                        Text("默认不开启。启用前请在管理端审查新闻来源、密钥和可能的费用；当前运行需重启才生效。")
+                        Text("默认不开启。启用后也处理设备补拉请求与主机唤醒恢复。请审查来源、密钥和费用；当前运行需重启才生效。")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                         HStack {
                             Text("采集结果独立于后端健康；未启用网络采集时可保持无结果。")
@@ -525,7 +641,7 @@ private struct ControlView: View {
                     Button("选择性导入旧源码数据", action: runtime.importOldSource)
                         .disabled(runtime.backend == "运行正常")
                     Spacer()
-                    Text("关闭窗口会停止本应用服务。Mac 休眠期间不能保证定时发布。")
+                    Text("关闭窗口会停止服务；再次打开会恢复此前启用的发布。Mac 休眠期间不能保证定时发布。")
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
             }

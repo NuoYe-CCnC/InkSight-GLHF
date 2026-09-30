@@ -22,7 +22,7 @@ shared/backend/.venv/bin/python shared/tools/host_cycle.py \
 
 ## 可选采集与设备请求
 
-若本机已安装并登录 Codex CLI，可加 `--codex`。该选项只读取本机 `account/rateLimits/read`，不会发起模型对话；读取结果必须含真正的 7 日窗口才会提交。失败时保留旧额度，最多每 10 分钟重试一次；本机管理页总览会显示失败分类、上次成功和重试时间。Codex 登录状态与订阅状态由官方客户端管理，本项目不读取或发布认证材料。
+若本机已安装并登录 Codex CLI，可加 `--codex`。该选项只读取本机 `account/rateLimits/read`，不会发起模型对话；读取结果必须含真正的 7 日窗口才会提交。失败重试按 60 秒至 10 分钟退避；本机管理页显示失败分类、上次成功和重试时间。没有旧策略时每 30 分钟采集；导入旧 `shared/tools/agent_policy.json` 时沿用其 `publish_sec`、`codex_open_sec`、`codex_closed_sec` 与 `chatgpt_process_names`（间隔须为 60–86400 秒整数）。该私有兼容文件不随发行包提供。Codex 登录状态由官方客户端管理，本项目不读取或发布认证材料。
 
 ```bash
 shared/backend/.venv/bin/python shared/tools/host_cycle.py \
@@ -30,6 +30,8 @@ shared/backend/.venv/bin/python shared/tools/host_cycle.py \
 ```
 
 `--request-queues` 会处理设备在 WebDAV 写入的金价补拉与资讯到期请求。它是**额外的主动开关**：只在你已审查新闻源授权、配置 API 密钥与调用预算后启用，可能触发收费的服务端请求。没有该开关，发布器不会主动处理这些队列。
+
+队列使用 `--backend` 指定的同一端口，并先处理再发布。网络失败后循环会在下一周期继续尝试。Mac App 的已授权网络开关同时控制队列和唤醒恢复；源码前台循环仍需显式选择上述选项。主机恢复可显式运行 `host_cycle.py --backend http://127.0.0.1:8080 --recover-host`，它使用已有幂等接口和预算，可能补取当前合法期次；不要把它作为不收费的测试命令。
 
 首次测试建议先保持 `--once` 且不开 `--request-queues`。若需要只运行某个组件，源码入口分别是 `cloud_publish.py --operator-mac ... --once`、`codex_quota_probe.py --json`、`gold_requests.py --operator-mac ...` 和 `news_requests.py --operator-mac ...`。前两者只读/发布；后两者可能触发后端已有的受限补取流程。
 

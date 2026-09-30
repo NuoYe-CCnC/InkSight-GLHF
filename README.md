@@ -8,7 +8,7 @@
 
 ## 从这里开始
 
-1. [下载测试版 `v0.1.0-test.4`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.4)——先看[文件选择与校验](docs/DOWNLOAD.zh-CN.md)。Mac 应用和供开发者用的 `InkSight-Source.zip` 是不同资产。
+1. [下载测试版 `v0.1.0-test.5`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.5)——先看[文件选择与校验](docs/DOWNLOAD.zh-CN.md)。Mac 应用和供开发者用的 `InkSight-Source.zip` 是不同资产。
 2. [Mac 应用首次使用](docs/APP_DESKTOP.zh-CN.md)——内含运行环境，不必单独装 Python；源码部署继续看[源码首次使用](docs/FIRST_USE.zh-CN.md)。
 3. [升级已有设备](docs/UPGRADE.zh-CN.md)——先分清仅更新后端与需要刷写固件的版本，备份后再操作。
 
@@ -32,4 +32,4 @@
 
 项目有权许可的自有代码及四条发行寄语按 [`GPL-3.0-only`](LICENSE) 提供。第三方代码、字体、新闻内容与服务仍受各自条款约束；MiSans 不随仓库、源码 ZIP 或固件二进制分发。参见[许可范围](LICENSE-SCOPE.md)、[第三方通知](THIRD_PARTY_NOTICES.md)和[SBOM](SBOM.json)。
 
-[`v0.1.0-test.4` 说明](docs/releases/v0.1.0-test.4.zh-CN.md)记录了 Codex 到期质量、Mac App 实机发布和实验性固件回退的验证边界；仍不包含新固件二进制。[安全问题请私密报告](SECURITY.md)，不要在公开 Issue 贴密钥、配置或设备标识。
+[`v0.1.0-test.5` 说明](docs/releases/v0.1.0-test.5.zh-CN.md)记录了 App 日常采集、请求队列、唤醒恢复与数据迁移的边界；仍不包含新固件二进制。[安全问题请私密报告](SECURITY.md)，不要在公开 Issue 贴密钥、配置或设备标识。
