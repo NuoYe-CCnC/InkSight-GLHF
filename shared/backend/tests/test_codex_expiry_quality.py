@@ -121,3 +121,18 @@ async def test_store_transaction_preserves_then_clears_and_rejects_old_sample():
     assert current["reset_expiry_list"] == []
     assert current["reset_expiry_status"] == "zero"
     await close_all()
+
+
+@pytest.mark.asyncio
+async def test_same_second_verified_detail_repairs_partial_only_for_same_account():
+    now = int(time.time())
+    mac = "EXPIRY-SAME-SECOND-TEST"
+    partial = sample(ts=now, reset_expiry_list=None)
+    await set_codex_usage(mac, "mac", partial)
+    repaired = sample(ts=now, reset_expiry_list=[now + 3600, now + 7200])
+    await set_codex_usage(mac, "mac", repaired)
+    assert (await get_codex_usage(mac))["reset_expiry_status"] == "verified"
+    await set_codex_usage(mac, "mac", sample(ts=now, account_key="b" * 20,
+                                              reset_expiry_list=[now + 4000, now + 8000]))
+    assert (await get_codex_usage(mac))["account_key"] == ACCOUNT
+    await close_all()

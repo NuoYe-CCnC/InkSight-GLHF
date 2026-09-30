@@ -58,7 +58,7 @@ async def set_codex_usage(mac: str, source: str, payload: dict) -> None:
                 (mac.upper(), source),
             )
             row = await cur.fetchone()
-            if row is not None and ts <= float(row[1]):
+            if row is not None and ts < float(row[1]):
                 await writer.rollback()  # A delayed collector cannot overwrite newer data.
                 return
             previous = None
@@ -69,6 +69,24 @@ async def set_codex_usage(mac: str, source: str, payload: dict) -> None:
                     pass
             merged = reconcile(previous if isinstance(previous, dict) else None,
                                payload, now=int(now))
+            if row is not None and ts == float(row[1]):
+                # Two reads can legitimately land in one Unix second. Let a
+                # verified expiry detail repair an earlier partial read, but
+                # never let same-second replay change account, count, or an
+                # already verified observation.
+                same_identity = (
+                    isinstance(previous, dict)
+                    and previous.get("account_key")
+                    and previous.get("account_key") == payload.get("account_key")
+                    and previous.get("reset_credits_available") == payload.get("reset_credits_available")
+                )
+                improves_detail = (
+                    merged.get("reset_expiry_status") in {"verified", "zero"}
+                    and previous.get("reset_expiry_status") not in {"verified", "zero"}
+                ) if isinstance(previous, dict) else False
+                if not (same_identity and improves_detail):
+                    await writer.rollback()
+                    return
             await writer.execute(
                 """INSERT INTO codex_usage (device_mac, source, payload_json, ts, updated_at)
                    VALUES (?, ?, ?, ?, ?)
