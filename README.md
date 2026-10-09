@@ -8,7 +8,7 @@
 
 ## 从这里开始
 
-1. [下载测试版 `v0.1.0-test.5`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.5)——先看[文件选择与校验](docs/DOWNLOAD.zh-CN.md)。Mac 应用和供开发者用的 `InkSight-Source.zip` 是不同资产。
+1. [下载测试版 `v0.1.0-test.9`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.9)——先看[文件选择与校验](docs/DOWNLOAD.zh-CN.md)。Mac 应用和供开发者用的 `InkSight-Source.zip` 是不同资产。
 2. [Mac 应用首次使用](docs/APP_DESKTOP.zh-CN.md)——内含运行环境，不必单独装 Python；源码部署继续看[源码首次使用](docs/FIRST_USE.zh-CN.md)。
 3. [升级已有设备](docs/UPGRADE.zh-CN.md)——先分清仅更新后端与需要刷写固件的版本，备份后再操作。
 
@@ -26,10 +26,12 @@
 
 新安装时**远程新闻源全部关闭**；没有自行启用并配置密钥的新闻源，页面使用四条本地寄语，不会自动调用付费模型。可选的 OpenAI `API 本月消费`是所选组织的 **UTC 自然月**成本，不是 API 余额或个人 Codex 全部消费；DeepSeek 今日 Token 也不是供应商全账户总账。未知值显示 `--`，不冒充零。详见[配置与数据口径](docs/CONFIGURATION.zh-CN.md)和[支持矩阵](docs/SUPPORT_MATRIX.md)。
 
-本机首次打开管理端时需要创建 root 用户，**没有默认用户名或密码**。私有配置、API Key、真实设备地址与运行数据均不随源码分发。Mac 休眠时后端不能按计划运行；设备自行唤醒不代表主机已唤醒。详见[首次使用](docs/FIRST_USE.zh-CN.md)和[主机发布指南](docs/HOST_RUNTIME.zh-CN.md)。
+test.9 App 静默驻留 Is 菜单栏；从“打开配置”进入本机受保护会话，**不需要 root 账号或密码**。图标旁显示已有本机 Codex 7D 缓存的剩余整数百分比，缺失或过期显示 `-`，不增加上游采集频率。关闭状态窗口不停止后台，退出须用 Is 菜单。源码独立部署仍需自行创建管理员，**没有默认用户名或密码**。详见[App 使用](docs/APP_DESKTOP.zh-CN.md)和[入口与菜单栏](docs/MENU_BAR.zh-CN.md)。
+
+私有配置、API Key、真实设备地址与运行数据均不随源码分发。Mac 休眠时后端不能按计划运行；设备自行唤醒不代表主机已唤醒。详见[首次使用](docs/FIRST_USE.zh-CN.md)和[主机发布指南](docs/HOST_RUNTIME.zh-CN.md)。
 
 ## 许可与状态
 
 项目有权许可的自有代码及四条发行寄语按 [`GPL-3.0-only`](LICENSE) 提供。第三方代码、字体、新闻内容与服务仍受各自条款约束；MiSans 不随仓库、源码 ZIP 或固件二进制分发。参见[许可范围](LICENSE-SCOPE.md)、[第三方通知](THIRD_PARTY_NOTICES.md)和[SBOM](SBOM.json)。
 
-[`v0.1.0-test.5` 说明](docs/releases/v0.1.0-test.5.zh-CN.md)记录了 App 日常采集、请求队列、唤醒恢复与数据迁移的边界；仍不包含新固件二进制。[安全问题请私密报告](SECURITY.md)，不要在公开 Issue 贴密钥、配置或设备标识。
+[`v0.1.0-test.9` 说明](docs/releases/v0.1.0-test.9.zh-CN.md)记录菜单栏、免密码配置、期刊状态和黄金统一计算的变更与验收边界。黄金新版实体屏仍待验证，不将自动测试或预览当作实屏验收。仍不包含新固件二进制；旧版 [test.5](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.5)保留供受控回退。[安全问题请私密报告](SECURITY.md)，不要在公开 Issue 贴密钥、配置或设备标识。

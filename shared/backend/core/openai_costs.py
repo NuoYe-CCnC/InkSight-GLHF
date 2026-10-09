@@ -384,9 +384,12 @@ async def refresh(*, reason: str = "auto", verify: bool = False,
 
 
 async def _poll_loop() -> None:
+    from .desktop_service import gate
     while True:
         try:
-            await refresh(reason="auto")
+            with gate.work() as admitted:
+                if admitted:
+                    await refresh(reason="auto")
         except asyncio.CancelledError:
             raise
         except Exception as exc:  # noqa: BLE001

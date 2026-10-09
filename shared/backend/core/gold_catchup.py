@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from . import gold_feed as gf
+from .desktop_service import critical_entry
 
 logger = logging.getLogger(__name__)
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,95}$")
@@ -92,6 +93,7 @@ def _record_attempt(current: float, ok: bool, note: str) -> None:
     _save(state)
 
 
+@critical_entry
 def catchup(now: Optional[float] = None, request_id: str | None = None,
             reason: str = "device_wake") -> dict:
     rid = _safe_request_id(request_id) if request_id else None

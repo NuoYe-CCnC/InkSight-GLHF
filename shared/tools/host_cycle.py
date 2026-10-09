@@ -20,6 +20,12 @@ from runtime_config import from_operator_secrets
 CODEX_POLL_SECONDS = 30 * 60
 POLICY_FILE = Path(__file__).with_name("agent_policy.json")
 _active_child: subprocess.Popen | None = None
+_graceful_stop = False
+
+
+def _request_stop(_signal, _frame):
+    global _graceful_stop
+    _graceful_stop = True
 
 
 @dataclass(frozen=True)
@@ -138,12 +144,14 @@ def recover_host(backend: str) -> dict:
 def _watch_parent(parent_pid: int) -> None:
     while True:
         if os.getppid() != parent_pid:
-            os.kill(os.getpid(), signal.SIGTERM)
+            os.kill(os.getpid(), signal.SIGUSR1)
             return
         time.sleep(1)
 
 
 def main() -> None:
+    global _graceful_stop
+    _graceful_stop = False
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--mac", help="target ESP32 MAC; never a private account ID")
     ap.add_argument("--codex", action="store_true", help="enable local Codex quota probe")
@@ -164,6 +172,7 @@ def main() -> None:
     interval = args.interval if args.interval is not None else policy.publish_sec
     if interval < 60:
         ap.error("--interval must be at least 60")
+    signal.signal(signal.SIGUSR1, _request_stop)
     if args.parent_pid is not None:
         if args.parent_pid < 2 or os.getppid() != args.parent_pid:
             ap.error("desktop parent is no longer running")
@@ -182,7 +191,7 @@ def main() -> None:
             config["webdav"], config["user"], config["password"]) else 1)
     last_heartbeat = 0
     last_codex_at = float("-inf")
-    while True:
+    while not _graceful_stop:
         now = time.monotonic()
         heartbeat = now - last_heartbeat >= 600
         read_codex = bool(args.codex and now - last_codex_at >= codex_interval(policy))
@@ -199,7 +208,12 @@ def main() -> None:
             last_heartbeat = now
         if args.once:
             return
-        time.sleep(interval)
+        # A graceful request finishes the current cycle including its paid
+        # queue child and atomic cloud write; idle exit latency is <= 1 second.
+        for _ in range(interval):
+            if _graceful_stop:
+                break
+            time.sleep(1)
 
 
 if __name__ == "__main__":

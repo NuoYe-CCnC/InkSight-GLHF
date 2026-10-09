@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import io
+import hashlib
 import mimetypes
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from PIL import Image, ImageDraw
 
@@ -131,7 +133,34 @@ def _legacy_removed_html(title: str, target_url: str) -> str:
 @router.get("/", response_class=HTMLResponse)
 async def backend_landing_page(request: Request):
     require_loopback(request)
+    from core.desktop_browser import enabled
+    if enabled():
+        return _desktop_document()
     return FileResponse(_console_index_path(), media_type="text/html")
+
+
+def _desktop_document():
+    """Fresh entry document and content-addressed resources survive old caches.
+
+    no-store on a new response cannot evict an already-cached old document or
+    script. A per-open path also prevents fragment-only, same-document reuse.
+    The path contains no authentication material; the capability stays in #.
+    """
+    index = _console_index_path()
+    html = index.read_text(encoding="utf-8")
+    for name in ("manager.css", "desktop-entry.js", "manager.js"):
+        digest = hashlib.sha256((index.parent / name).read_bytes()).hexdigest()[:16]
+        html = html.replace(f'/static/manager/{name}"', f'/static/manager/{name}?v={digest}"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-store", "X-InkSight-UI": "desktop-session-v2"})
+
+
+@router.get("/desktop/config/{entry_id}", response_class=HTMLResponse)
+async def desktop_config_entry(request: Request, entry_id: str):
+    from core.desktop_browser import enabled
+    require_loopback(request)
+    if not enabled() or not re.fullmatch(r"[0-9a-f]{32}", entry_id):
+        raise HTTPException(404, "配置入口不存在")
+    return _desktop_document()
 
 
 @router.get("/admin/analytics", response_class=HTMLResponse)

@@ -510,6 +510,10 @@ def _run_unlocked(config, once=False, dry_run=False, force=False):
         ok = publish_one(webdav, user, password, mac, combined, dry_run=dry_run)
         if ok:
             state[mac] = pubid
+            # Only a completed upload + verified GET advances this timestamp.
+            # File mtime alone is not proof: state is also saved on no-change.
+            state.setdefault('_desktop_publications', {})[mac] = {
+                'last_success_at': combined['ts'], 'publish_id': pubid}
             changed_any = True
             print(f"[pub ] {mac} -> {pid} 模块 {[m['id'] for m in combined['screen']['modules']]} "
                   f"({len(json.dumps(combined, ensure_ascii=False))}B)")

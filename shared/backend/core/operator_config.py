@@ -155,7 +155,7 @@ DEFAULT_CONFIG = {
         "scheduled_enabled": True,
         "mode_enabled": {"active": True, "light": True, "night": True},
         "wake_enabled": True,
-        "minimum_request_interval_seconds": 30,
+        "minimum_request_interval_seconds": 60,
         "response_max_age_seconds": 300,
         "quote_max_age_seconds": 7200,
         "cache_max_age_seconds": 2700,

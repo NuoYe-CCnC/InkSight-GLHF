@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from . import operator_config, state_store
+from .desktop_service import critical_entry
 
 TARGET = "epd_426_ssd1677_s3_n32r16"
 CHIP = "esp32s3"
@@ -247,6 +248,7 @@ def preflight() -> dict:
     }
 
 
+@critical_entry
 def create_build() -> dict:
     public, private, input_hash = _input_snapshot()
     check = preflight()
@@ -351,10 +353,15 @@ def run_build(task_id: str) -> dict:
         )
 
 
+@critical_entry
 def start_build(task_id: str) -> dict:
     with _THREADS_LOCK:
         existing = _THREADS.get(task_id)
         if not (existing and existing.is_alive()):
+            job = get_build(task_id)
+            if job.get("status") == "completed":
+                return job
+            _set("builds", task_id, status="queued")
             worker = threading.Thread(target=run_build, args=(task_id,), daemon=True, name=f"inksight-{task_id}")
             _THREADS[task_id] = worker
             worker.start()
@@ -483,6 +490,7 @@ def _require_fresh_blank(port: str, directory: Path, prefix: str) -> None:
             raise RuntimeError("空白板安装检测到已有数据，已拒绝初始化")
 
 
+@critical_entry
 def prepare_flash(build_id: str, device_id: str, install_mode: str = "update") -> dict:
     if install_mode not in {"update", "fresh"}:
         raise RuntimeError("安装模式无效")
@@ -564,6 +572,7 @@ def bind_previous_build(plan_id: str, heartbeat: dict | None) -> None:
     _update(update)
 
 
+@critical_entry
 def create_flash(plan_id: str, confirmation_token: str) -> dict:
     flash_id = _new_id("flash")
     now = int(time.time())
@@ -734,10 +743,17 @@ def run_flash(flash_id: str) -> dict:
             )
 
 
+@critical_entry
 def start_flash(flash_id: str) -> dict:
     with _THREADS_LOCK:
         existing = _THREADS.get(flash_id)
         if not (existing and existing.is_alive()):
+            job = (_read().get("flashes") or {}).get(flash_id)
+            if not isinstance(job, dict):
+                raise KeyError(flash_id)
+            if job.get("status") not in {"queued", "failed"}:
+                raise RuntimeError("此写入任务不可重复启动")
+            _set("flashes", flash_id, status="queued")
             worker = threading.Thread(target=run_flash, args=(flash_id,), daemon=True, name=f"inksight-{flash_id}")
             _THREADS[flash_id] = worker
             worker.start()
@@ -840,6 +856,7 @@ def _checked_next_ota(flash: dict) -> bytes:
     return raw
 
 
+@critical_entry
 def prepare_rollback(flash_id: str, device_id: str) -> dict:
     """Read-only device verification before offering an OTA-selector rollback."""
     flash = (_read().get("flashes") or {}).get(flash_id)
@@ -903,6 +920,7 @@ def prepare_rollback(flash_id: str, device_id: str) -> dict:
     return public
 
 
+@critical_entry
 def create_rollback(plan_id: str, confirmation_token: str) -> dict:
     rollback_id = _new_id("rollback")
     now = int(time.time())
@@ -1001,10 +1019,17 @@ def run_rollback(rollback_id: str) -> dict:
                         log="\n".join(logs)[-12000:])
 
 
+@critical_entry
 def start_rollback(rollback_id: str) -> dict:
     with _THREADS_LOCK:
         existing = _THREADS.get(rollback_id)
         if not (existing and existing.is_alive()):
+            job = (_read().get("rollbacks") or {}).get(rollback_id)
+            if not isinstance(job, dict):
+                raise KeyError(rollback_id)
+            if job.get("status") not in {"queued", "failed"}:
+                raise RuntimeError("此回退任务不可重复启动")
+            _set("rollbacks", rollback_id, status="queued")
             worker = threading.Thread(target=run_rollback, args=(rollback_id,), daemon=True,
                                       name=f"inksight-{rollback_id}")
             _THREADS[rollback_id] = worker

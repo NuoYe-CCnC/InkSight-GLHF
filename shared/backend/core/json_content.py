@@ -1880,38 +1880,24 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
     # 第二阶段：附加新闻/金价/版本/布局信息（读可靠缓存，不触发采集）
     try:
         from . import data_cache as _dc
-        from .news_feed import items_cached as _news_cached
         from .gold_feed import cached as _gold_cached
-        # 科技/AI 简报（news.items）优先；无 current brief 时沿用旧三分类新闻结构
+        # Authoritative publication snapshot, including an explicit empty body.
         _brief = None
         try:
-            from .news_brief import fetch_news_for_publish as _brief_news
+            from .news_schedule import news_publication_snapshot as _brief_news
             _brief = _brief_news()
         except Exception:  # noqa: BLE001
-            _brief = None
-        result["feed_news"] = copy.deepcopy(_brief if _brief is not None else _news_cached())
-        if isinstance(result["feed_news"], dict):
-            try:
-                from .news_schedule import current_due_status as _news_due_status
-                _due = _news_due_status()
-                _state = str(_due.get("state") or "")
-                if _state in {"due", "waiting", "generating"}:
-                    result["feed_news"]["update_state"] = "due"
-                elif _state in {"failed", "expired"} and not _due.get("current"):
-                    result["feed_news"]["update_state"] = "not-updated"
-                else:
-                    result["feed_news"]["update_state"] = "current"
-                result["feed_news"]["expected_schedule_id"] = _due.get("schedule_id")
-            except Exception:  # noqa: BLE001
-                result["feed_news"]["update_state"] = "unknown"
+            _brief = {"mode": "status", "text": "", "events": [],
+                      "freshness": "error", "origin": "local-status", "version": "unavailable",
+                      "update_state": "unknown", "expected_schedule_id": None,
+                      "issue_status": {"schema": 1, "state": "unknown", "as_of_date": None,
+                                       "clock_trusted": False, "coherent": False,
+                                       "current": {"date": None, "id": None}, "expected": None}}
+        result["feed_news"] = copy.deepcopy(_brief)
         result["feed_gold"] = _gold_cached()
         _news_ver = None
         if _brief is not None:
-            try:
-                from .news_brief import _load_state as _brief_state
-                _news_ver = (_brief_state().get("current") or {}).get("version")
-            except Exception:  # noqa: BLE001
-                _news_ver = None
+            _news_ver = _brief.get("version")
         result["feed_versions"] = {
             "ai_key": _dc.version("ai_key"),
             "news": _news_ver or _dc.version("news"),

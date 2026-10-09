@@ -24,14 +24,14 @@ from . import state_store
 
 logger = logging.getLogger(__name__)
 
-GROUP = "gold.xaus.spot.cny_gram"
+GROUP = "gold.xaus.usd_fx.v2"
 ENDPOINT = "https://xaus.com/api/v1/spot?currency=CNY&unit=gram&compact=1"
 PROVIDER = "xaus.com"
 INSTRUMENT = {"provider": PROVIDER, "instrument": "XAU", "instrument_id": "XAU",
               "instrument_label": "伦敦金参考价", "currency": "CNY", "unit": "g"}
 PENDING_NOTE = None
 STATE_FILE = state_store.state_path("xaus_gold_state.json")
-MIN_REQUEST_INTERVAL_S = 30
+MIN_REQUEST_INTERVAL_S = 60
 MAX_PROVIDER_CLOCK_SKEW = 300
 DEFAULT_RESPONSE_MAX_AGE_S = 300
 DEFAULT_QUOTE_MAX_AGE_S = 7200
@@ -94,6 +94,8 @@ def _save_state(value: dict) -> None:
 
 
 def _fnum(value) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
     try:
         parsed = float(value)
     except (TypeError, ValueError):
@@ -136,13 +138,13 @@ def _parse(data: dict, fetched_at: float) -> dict:
         raise ValueError("missing xau object")
     currency = str(xau.get("currency") or "").upper()
     unit = str(xau.get("unit") or "").lower()
-    cny_g = _fnum(xau.get("price"))
+    reported_cny_g = _fnum(xau.get("price"))  # diagnostics, never calculation authority
     usd_oz = _fnum(data.get("spot_usd_oz"))
     fx = _fnum(data.get("fx_rate"))
     if currency != "CNY" or unit not in {"gram", "g"}:
         raise ValueError(f"unexpected xau unit {currency}/{unit}")
-    if cny_g is None or cny_g <= 0 or usd_oz is None or usd_oz <= 0 or fx is None or fx <= 0:
-        raise ValueError("non-positive or non-finite price/fx")
+    if usd_oz is None or usd_oz <= 0:
+        raise ValueError("non-positive or non-finite USD price")
     source = str(data.get("source") or "").lower()
     if source and source != PROVIDER:
         raise ValueError(f"unexpected response source {source}")
@@ -156,9 +158,11 @@ def _parse(data: dict, fetched_at: float) -> dict:
     for label, stamp in (("updated_at", updated_at), ("price_as_of", price_as_of)):
         if stamp is None:
             raise ValueError(f"missing/invalid {label}")
-        if stamp > now_i + MAX_PROVIDER_CLOCK_SKEW:
+        if stamp > now_i:
             raise ValueError(f"future {label}")
-    provider_stale = bool(data.get("stale")) or bool(data.get("fx_stale"))
+    if state_as_of is not None and state_as_of > now_i:
+        raise ValueError("future data_state.as_of")
+    provider_stale = bool(data.get("stale"))
     state_status = str(state.get("status") or ("stale" if provider_stale else "fresh")).lower()
     if state_status not in {"fresh", "stale", "degraded", "unknown", "error"}:
         state_status = "unknown"
@@ -171,6 +175,15 @@ def _parse(data: dict, fetched_at: float) -> dict:
         freshness_reason = "provider_stale"
     else:
         freshness_reason = None
+    usd_status = "stale" if freshness_reason else "fresh"
+    fx_invalid = fx is None or fx <= 0
+    fx_stale = bool(data.get("fx_stale")) or fx_invalid
+    cny_reason = freshness_reason or ("fx_invalid" if fx_invalid else "fx_stale" if fx_stale else None)
+    cny_g = (usd_oz * fx / gold_baseline.GRAMS_PER_TROY_OUNCE
+             if cny_reason is None else None)
+    if cny_g is not None and not math.isfinite(cny_g):
+        cny_g, cny_reason = None, "conversion_nonfinite"
+    freshness_reason = freshness_reason or cny_reason
     # XAUS spot JSON has no documented market-open state. A stale price does
     # not prove a normal market closure, even during a weekend.
     market_state = ("closed" if data.get("market_status") == "closed"
@@ -178,9 +191,21 @@ def _parse(data: dict, fetched_at: float) -> dict:
     return {
         "provider": PROVIDER, "instrument_id": "XAU",
         "instrument_label": "伦敦金参考价",
+        "calculation_schema": gold_baseline.SCHEMA,
+        "calculation_method": "usd_fx_same_response",
+        "grams_per_troy_ounce": gold_baseline.GRAMS_PER_TROY_OUNCE,
         "spot_usd_oz": usd_oz, "price_gram_cny": cny_g,
+        "reported_price_gram_cny": reported_cny_g,
         "currency": "CNY", "unit": "g", "fx_rate": fx,
-        "fx_rate_display": round(fx, 2),
+        "fx_rate_display": _rounded_optional(fx),
+        "usd_status": usd_status,
+        "cny_status": "fresh" if cny_reason is None else "unavailable",
+        "cny_freshness_reason": cny_reason,
+        "cny_spot_usd_oz": usd_oz if cny_g is not None else None,
+        "cny_fx_rate": fx if cny_g is not None else None,
+        "cny_price_as_of": price_as_of if cny_g is not None else None,
+        "cny_updated_at": updated_at if cny_g is not None else None,
+        "cny_fetched_at": now_i if cny_g is not None else None,
         "price_source": str(data.get("price_source") or "unknown"),
         "price_as_of": price_as_of,
         "quote_time": price_as_of,  # old firmware compatibility; same honest source time
@@ -189,7 +214,7 @@ def _parse(data: dict, fetched_at: float) -> dict:
         "stale": freshness_reason is not None,
         "provider_stale": bool(data.get("stale")),
         "fx_source": str(data.get("fx_source") or "unknown"),
-        "fx_stale": bool(data.get("fx_stale")), "fx_as_of": None,
+        "fx_stale": fx_stale, "fx_as_of": None,
         "updated_at": updated_at, "fetched_at": now_i,
         "status": "stale" if freshness_reason else "ok",
         "freshness_reason": freshness_reason, "market_state": market_state,
@@ -212,21 +237,22 @@ def _request(timeout_sec: float = 12) -> tuple[int, Optional[dict]]:
 
 def _visible_seed(item: dict, cache_status: str) -> dict:
     """Only visible/status changes redraw; receipt time/sub-cent jitter do not."""
-    return {"spot_usd_oz": round(float(item["spot_usd_oz"]), 2),
-            "price_gram_cny": round(float(item["price_gram_cny"]), 2),
-            "fx_rate": round(float(item["fx_rate"]), 2),
+    return {"calculation_schema": item.get("calculation_schema"),
+            "spot_usd_oz": _rounded_optional(item.get("spot_usd_oz")),
+            "price_gram_cny": _rounded_optional(item.get("price_gram_cny")),
+            "fx_rate": _rounded_optional(item.get("fx_rate")),
             "price_source": item.get("price_source"),
             "price_as_of": item.get("price_as_of"),
             "baseline_date": item.get("baseline_date"),
             "baseline_method": item.get("baseline_method"),
             "baseline_price_as_of": item.get("baseline_price_as_of"),
-            "baseline_cny_kind": item.get("baseline_cny_kind"),
-            "baseline_cny_price_as_of": item.get("baseline_cny_price_as_of"),
+            "baseline_reference_kind": item.get("baseline_reference_kind"),
+            "cny_price_as_of": item.get("cny_price_as_of"),
+            "usd_status": item.get("usd_status"), "cny_status": item.get("cny_status"),
             "change_usd_oz": _rounded_optional(
-                item.get("change_usd_oz_since_bj_midnight")),
+                item.get("change_usd_oz_since_reference")),
             "change_cny_g": _rounded_optional(
-                item.get("change_cny_g_since_reference",
-                         item.get("change_cny_g_since_bj_midnight"))),
+                item.get("change_cny_g_usd_reference")),
             "change_status": item.get("change_status"),
             "data_state": (item.get("data_state") or {}).get("status"),
             "stale": bool(item.get("stale")),
@@ -266,6 +292,9 @@ def _attach_changes_safely(item: dict, *, now: float | None = None) -> dict:
             "change_usd_oz_since_bj_midnight": None,
             "change_cny_g_since_bj_midnight": None,
             "change_cny_g_since_reference": None,
+            "change_usd_oz_since_reference": None,
+            "change_cny_g_usd_reference": None,
+            "baseline_reference_kind": None, "baseline_schema": gold_baseline.SCHEMA,
             "change_status": {"date": day_text, "same_day_quote": False,
                               "usd": "missing", "cny": "missing",
                               "cny_reference_kind": None},
@@ -285,12 +314,13 @@ def _classify_error(exc) -> tuple[str, bool]:
 
 
 def _fetch_once(fetched_at: float) -> dict:
+    started = time.monotonic()
     status, data = _request()
     if status != 200:
         raise urllib.error.HTTPError(ENDPOINT, status, "unexpected status", {}, None)
     if not data:
         raise ValueError("empty/non-object JSON")
-    return _parse(data, fetched_at)
+    return _parse(data, fetched_at + max(0, time.monotonic() - started))
 
 
 def _scheduled_slot(now: datetime | None = None) -> str:
@@ -449,7 +479,18 @@ def refresh(force: bool = False, *, reason: str = "scheduled",
             if (old and _fnum(old.get("updated_at")) is not None and
                     item["updated_at"] < float(old["updated_at"])):
                 raise ValueError("response_older_than_cache")
-            if item["status"] == "ok":
+            if item.get("cny_status") != "fresh" and old and old.get("price_gram_cny") is not None:
+                # Retain all operands and source/receipt times from ONE complete
+                # response. Never multiply the new P by a previous response's R.
+                item["current_response_fx_rate"] = item.get("fx_rate")
+                item["current_response_fx_source"] = item.get("fx_source")
+                for field in ("price_gram_cny", "cny_spot_usd_oz", "cny_fx_rate",
+                              "cny_price_as_of", "cny_updated_at", "cny_fetched_at",
+                              "fx_rate", "fx_rate_display", "fx_source", "fx_as_of"):
+                    item[field] = old.get(field)
+                item["cny_status"] = "stale"
+                item["fx_stale"] = True
+            if item.get("usd_status") == "fresh":
                 try:
                     gold_baseline.consider_spot(item, now=t)
                 except Exception as exc:  # noqa: BLE001
@@ -516,7 +557,7 @@ def retry_pending(*, now: float | None = None) -> dict:
 
 
 def recover_baseline_if_due(*, now: float | None = None) -> dict:
-    """Use the same provider lock and 30-second floor for intraday recovery."""
+    """Use the same provider lock and 60-second floor for intraday recovery."""
     t = float(time.time() if now is None else now)
     with state_store.file_lock(STATE_FILE, operation="xaus-gold-refresh"):
         state = _load_state()
@@ -535,6 +576,10 @@ def recover_baseline_if_due(*, now: float | None = None) -> dict:
         state["stats"]["requests"] += 1
         _save_state(state)
         result = gold_baseline.maybe_recover_usd(now=t)
+        if result.get("status") == "recovered":
+            item = cached(now=t)
+            if item:
+                dc.bump_version("gold", _visible_seed(item, effective_cache_status(now=t)))
         retry_after = result.get("retry_after_s")
         if retry_after is not None:
             state = _load_state()
@@ -547,7 +592,8 @@ def recover_baseline_if_due(*, now: float | None = None) -> dict:
 def cached(*, now: float | None = None) -> Optional[dict]:
     group = dc.get_group(GROUP) or {}
     value = group.get("value")
-    if not isinstance(value, dict) or value.get("provider") != PROVIDER:
+    if (not isinstance(value, dict) or value.get("provider") != PROVIDER
+            or value.get("calculation_schema") != gold_baseline.SCHEMA):
         return None
     t = float(time.time() if now is None else now)
     item = dict(value)
@@ -568,6 +614,14 @@ def cached(*, now: float | None = None) -> Optional[dict]:
     if reason:
         item.update({"status": "stale", "stale": True,
                      "freshness_reason": reason, "note": reason})
+        if reason not in {"fx_invalid", "fx_stale", "conversion_nonfinite"}:
+            item["usd_status"] = "stale"
+    cny_at = _fnum(item.get("cny_price_as_of"))
+    cny_fetched = _fnum(item.get("cny_fetched_at"))
+    if item.get("price_gram_cny") is not None and (
+            item.get("usd_status") != "fresh" or cny_at is None or cny_fetched is None
+            or t - cny_at > quote_max_age or t - cny_fetched > cache_max_age):
+        item["cny_status"] = "stale"
     return _attach_changes_safely(item, now=t)
 
 

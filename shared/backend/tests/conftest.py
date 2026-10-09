@@ -3,6 +3,7 @@ Shared pytest fixtures for InkSight unit tests.
 """
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -48,6 +49,23 @@ def pytest_sessionfinish(session, exitstatus):
     if _OWN_TEST_STATE_DIR:
         shutil.rmtree(_OWN_TEST_STATE_DIR, ignore_errors=True)
     shutil.rmtree(_OWN_TEST_DB_DIR, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def no_live_network(monkeypatch):
+    """Mock transports only; never reach production localhost or a paid API."""
+    def denied(*args, **kwargs):
+        pytest.fail("live network forbidden in isolated unit tests")
+    monkeypatch.setattr(socket.socket, "connect", denied)
+    monkeypatch.setattr(socket.socket, "connect_ex", denied)
+
+
+@pytest.fixture(autouse=True)
+def reset_desktop_work_gate():
+    from core.desktop_service import gate
+    gate.resume()
+    yield
+    gate.resume()
 
 
 @pytest.fixture

@@ -69,7 +69,7 @@
     "scheduled_enabled": true,
     "mode_enabled": {"active": true, "light": true, "night": true},
     "wake_enabled": true,
-    "minimum_request_interval_seconds": 30,
+    "minimum_request_interval_seconds": 60,
     "response_max_age_seconds": 300,
     "quote_max_age_seconds": 7200,
     "cache_max_age_seconds": 2700,

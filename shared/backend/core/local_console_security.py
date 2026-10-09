@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 from fastapi import Depends, Header, HTTPException, Request
 
 from .auth import get_current_root_user
+from . import desktop_browser
 
 _CSRF_SECRET = secrets.token_bytes(32)
 _TOKEN_TTL_SECONDS = 8 * 60 * 60
@@ -76,10 +77,11 @@ def require_same_origin(request: Request) -> None:
 
 async def require_local_root(
     request: Request,
-    user_id: int = Depends(get_current_root_user),
 ) -> int:
+    if desktop_browser.enabled():
+        return desktop_browser.authorize_session(request)
     require_loopback(request)
-    return user_id
+    return await get_current_root_user(request, request.cookies.get("ink_session"))
 
 
 def issue_csrf_token(user_id: int, *, now: int | None = None) -> str:

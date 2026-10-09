@@ -37,6 +37,8 @@ async def gold_catchup_endpoint(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/admin/host/recover")
@@ -50,6 +52,8 @@ async def host_recover_endpoint(
         return await run_in_threadpool(host_recovery.recover, reason)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/admin/host/recovery-status")
@@ -72,6 +76,8 @@ async def news_check_endpoint(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/admin/news/check-status")

@@ -563,12 +563,13 @@ def select_top3(cands: list[dict], current: list | None) -> dict:
             "note": "awaiting NEWS_DEEPSEEK_API_KEY（基础完成，未执行付费调用）"}
 
 
-def fetch_news_for_publish() -> dict | None:
+def fetch_news_for_publish(*, snapshot: dict | None = None,
+                           now_dt=None, schedule_state=None, config=None) -> dict | None:
     """供 json_content/feed 使用：
     - current 为 digest → 透传段落版 news（mode/text/period/events/时间戳…）；
     - current 为 brief → items 三条；
-    - 无 current → None（沿用旧三分类结构）。"""
-    st = _load_state()
+    - 无 current → None；期刊快照调用方补充明确的空正文状态。"""
+    st = snapshot if snapshot is not None else _load_state()
     cur = st.get("current")
     if not cur:
         return None
@@ -602,14 +603,14 @@ def fetch_news_for_publish() -> dict | None:
                                        "date", "planned_at",
                                        "generated_at", "text", "events",
                                        "reasons", "exception", "freshness", "note", "origin",
-                                       "message_id")
+                                       "message_id", "version")
                if cur.get(k) is not None}
         if cur.get("text") and not cur.get("quality_fallback"):
             # 期次新鲜度实时评估（§8.4）：超过有效窗口未出新稿 → stale；错误保留
             try:
                 from .news_schedule import digest_freshness
-                import datetime as _dt
-                out["freshness"] = digest_freshness(cur, _dt.datetime.now())
+                out["freshness"] = digest_freshness(
+                    cur, now_dt, config=config, schedule_state=schedule_state)
             except Exception:  # noqa: BLE001
                 pass
         return out if cur.get("text") else None

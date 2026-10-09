@@ -22,7 +22,7 @@ This file is an engineering inventory, not legal advice. Project-owned material 
 
 ## Fonts and visual resources
 
-MiSans raw fonts, generated headers, glyph data, previews and firmware binaries are excluded. Users fetch MiSans only from Xiaomi's official page and run the local importer. Noto Serif SC, Inter and Lora are fetched from Google Fonts and identified there as OFL-1.1; no font files are distributed. The historical WenQuanYi mirror has no authoritative license file, so the public setup script no longer downloads it and uses the OFL vector-font fallback. Existing icon PNG files are excluded because their provenance is unverified.
+MiSans raw fonts, generated headers, glyph data, previews and firmware binaries are excluded. Users fetch MiSans only from [Xiaomi's official MiSans page](https://hyperos.mi.com/font/) and run the local importer. Noto Serif SC, Inter and Lora are fetched from Google Fonts and identified there as OFL-1.1; no font files are distributed. The historical WenQuanYi mirror has no authoritative license file, so the public setup script no longer downloads it and uses the OFL vector-font fallback. Unverified historical icon PNGs remain excluded. The sole permitted project icon is the owner-approved B2 Is original with a pinned SHA-256; its provenance and GPL scope are documented in [the asset notice](shared/tools/app/macos/assets/README.md). It contains no redistributed font file and does not imply OpenAI affiliation.
 
 ## Adapted and upstream source
 

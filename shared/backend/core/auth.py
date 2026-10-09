@@ -146,6 +146,10 @@ def _extract_user(
     request: Request,
 ) -> Optional[dict]:
     """Extract user payload from cookie or authorization header."""
+    # Desktop browser capabilities never grant generic account/root APIs.
+    # In particular, pre-upgrade JWT cookies and headers are not accepted.
+    if os.environ.get("INKSIGHT_DESKTOP_MODE") == "1":
+        return None
     sources = []
     if ink_session:
         sources.append(("cookie", ink_session))
