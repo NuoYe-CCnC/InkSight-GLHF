@@ -291,8 +291,8 @@ def fmt_money(v: float) -> str:
 
 
 def fmt_signed_delta(v: float) -> str:
-    if v != v:
-        return "--"
+    if not math.isfinite(v):
+        return "—"
     if abs(v) < 0.005:
         return "0.00"
     return f"{v:+.2f}" if v > 0 else f"{v:.2f}"
@@ -472,7 +472,118 @@ def _src_word(missing: bool, last: int, now_s: int, stale_after: int) -> str:
     return "ok"
 
 
-def page_status_text(doc: dict, page: str, now: int) -> str:
+def news_expected_issue(doc: dict, now: int) -> dict:
+    """Mirror newsExpectedIssue; no weekday guesses without a calendar row."""
+    out = {"trusted": False, "due": False, "day": "", "id": "", "label": "资讯"}
+    if now < 1600000000 or int(doc.get("ts") or 0) > now + 300:
+        return out
+    t = _bjtm(now)
+    out["day"] = time.strftime("%Y-%m-%d", t)
+    screen = doc.get("screen") or {}
+    calendar = next((row for row in (screen.get("calendar") or {}).get("days", [])
+                     if row.get("d") == out["day"] and isinstance(row.get("workday"), bool)), None)
+    rows = ((screen.get("device_policy") or {}).get("news_check") or {}).get("schedules")
+    if calendar is None or not isinstance(rows, list):
+        return out
+    if calendar.get("workday_degraded"):
+        return out
+    out["trusted"] = True
+    best = -1
+    for row in rows:
+        if not row.get("enabled") or not any(kind in ("all", "workday" if calendar["workday"] else "restday")
+                                              for kind in row.get("day_types", [])):
+            continue
+        ident = str(row.get("id") or "")
+        clock = str(row.get("time") or "")
+        if not ident or len(ident.encode()) >= 65 or not re.fullmatch(r"[0-9]{2}:[0-9]{2}", clock):
+            out["trusted"] = False
+            return out
+        h, m = map(int, clock.split(":"))
+        if h >= 24 or m >= 60:
+            out["trusted"] = False
+            return out
+        at = h*60+m
+        if at > t.tm_hour*60+t.tm_min or at < best or (at == best and ident <= out["id"]):
+            continue
+        best = at
+        out.update(id=ident, label=row.get("display_label") or "资讯")
+    out["due"] = best >= 0
+    return out
+
+
+def news_body_matches(news: dict, due: dict) -> bool:
+    return bool(due["trusted"] and due["due"] and news.get("date") == due["day"]
+                and (news.get("schedule_id") or news.get("period")) == due["id"]
+                and news.get("mode") in {"digest", "daily_message"}
+                and news.get("text") and news.get("freshness") != "error")
+
+
+def news_local_update_valid(news: dict, due: dict, now: int) -> bool:
+    return bool(due["trusted"] and due["due"] and not news_body_matches(news, due)
+                and news.get("device_update_issue_key") == f"{due['day']}|{due['id']}"
+                and now <= int(news.get("device_update_expires_at") or 0) <= now+900)
+
+
+def news_issue_status_text(doc: dict, now: int, label_validator=None) -> str | None:
+    import datetime as dt
+    news = (_pages(doc).get("news_gold") or {}).get("news")
+    if not isinstance(news, dict):
+        return None
+    due = news_expected_issue(doc, now)
+    detail = news.get("issue_status")
+    if not due["trusted"]:
+        if news.get("update_state") == "due":
+            return "资讯待更新"
+        if news.get("update_state") == "not-updated":
+            return "资讯暂未更新"
+        return None if detail is None else "资讯待更新"
+    date = str(news.get("date") or "")
+    try:
+        valid_date = len(date) == 10 and 2000 <= dt.date.fromisoformat(date).year <= 2099
+    except ValueError:
+        valid_date = False
+    if valid_date and date < due["day"] and not due["due"]:
+        yesterday = time.strftime("%Y-%m-%d", _bjtm(now-86400))
+        return "昨日内容" if date == yesterday else "资讯陈旧"
+    detail_current = (detail or {}).get("current") or {}
+    if detail is not None and (detail.get("schema") != 1 or not detail.get("coherent")
+            or not detail.get("clock_trusted") or detail.get("calendar_trusted") is False
+            or (detail_current.get("date") or "") != date
+            or (detail_current.get("id") or "") != (news.get("schedule_id") or news.get("period") or "")):
+        return "资讯待更新"
+    if news_body_matches(news, due):
+        return None
+    if not due["due"]:
+        return None if valid_date and date == due["day"] else "资讯待更新"
+    expected = (detail or {}).get("expected") or {}
+    current = (detail or {}).get("current") or {}
+    matches = bool(detail and detail.get("schema") == 1 and detail.get("coherent")
+                   and detail.get("clock_trusted") and detail.get("as_of_date") == due["day"]
+                   and expected.get("date") == due["day"] and expected.get("id") == due["id"]
+                   and (current.get("date") or "") == date
+                   and (current.get("id") or "") == (news.get("schedule_id") or news.get("period") or ""))
+    label = str(expected.get("display_label") or "资讯") if matches else "资讯"
+    if (not re.fullmatch(r"[A-Za-z0-9\u3400-\u9fff ]{1,12}", label)
+            or label_validator is None or not label_validator(label)):
+        label = "资讯"
+    state = detail.get("state", "") if matches else ""
+    suffix = "待更新"
+    if state in {"failed", "expired"} or (matches and expected.get("cutoff_at") and now >= expected["cutoff_at"]):
+        suffix = "暂未更新"
+    elif state == "generating" and int(doc.get("ts") or 0) >= now-600:
+        suffix = "生成中"
+    elif state == "unknown" or (detail is not None and not matches):
+        label = "资讯"
+    if news_local_update_valid(news, due, now) and news.get("device_update_state") == "unreachable":
+        suffix = "暂未更新"
+    if detail is None:
+        label = "资讯"
+        if news.get("update_state") == "not-updated":
+            suffix = "暂未更新"
+    return label+suffix
+
+
+def page_status_text(doc: dict, page: str, now: int, *, label_validator=None) -> str:
     """统一页脚状态（镜像固件 pageStatusText，§8.5）。"""
     if not time_trusted(now):
         return "时间待校准"
@@ -561,17 +672,9 @@ def page_status_text(doc: dict, page: str, now: int) -> str:
         elif w == "stale":
             has_stale = True
     if page == "news_gold":
-        local_update = str(nw.get("device_update_state") or "")
-        local_until = int(nw.get("device_update_expires_at") or 0)
-        if local_update == "requested" and local_until >= now_s:
-            return "早报待更新"
-        if local_update == "unreachable" and local_until >= now_s:
-            return "资讯暂未更新"
-        update_state = str(nw.get("update_state") or "")
-        if update_state == "due":
-            return "早报待更新"
-        if update_state == "not-updated":
-            return "资讯暂未更新"
+        issue_status = news_issue_status_text(doc, now_s, label_validator)
+        if issue_status is not None:
+            return issue_status
     if whole_missing:
         return "部分数据缺失" if has_missing else "部分数据陈旧"
     if whole_future:
@@ -928,25 +1031,27 @@ def render_news_gold_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     same_quote_day = bool(current_day and quote_day and
                           (current_day.tm_year, current_day.tm_yday) ==
                           (quote_day.tm_year, quote_day.tm_yday))
-    gold_stale = bool(gold.get("stale") or state.get("status") not in (None, "fresh")
+    unified_gold = gold.get("calculation_schema") == 2 and gold.get("baseline_schema") == 2
+    gold_stale = bool(gold.get("usd_status") != "fresh"
                       or (time_trusted(now) and not same_quote_day))
     p.draw_text(F_SMALL, "伦敦金 较旧" if gold_stale else "伦敦金", L, 83)
     CNY_X = 330
-    p.draw_text(F_SMALL, "人民币金价", CNY_X, 83)
+    cny_stale = gold.get("cny_status") != "fresh"
+    p.draw_text(F_SMALL, "人民币金价 较旧" if cny_stale else "人民币金价", CNY_X, 83)
     p.draw_right(F_TINY, "美元人民币汇率", R, 83)
 
     usd_text = fmt_money(usd_oz)
     usd_base_at = int(gold.get("baseline_price_as_of") or 0)
     usd_base_day = _bjtm(usd_base_at) if usd_base_at > 0 else None
-    usd_today = bool(same_quote_day and usd_base_day and
+    base_today = bool(unified_gold and usd_base_day and current_day and
                      (current_day.tm_year, current_day.tm_yday) ==
                      (usd_base_day.tm_year, usd_base_day.tm_yday))
-    usd_delta = (jnum(gold.get("change_usd_oz_since_bj_midnight"))
-                 if usd_today else math.nan)
+    usd_delta = (jnum(gold.get("change_usd_oz_since_reference"))
+                 if same_quote_day and base_today else math.nan)
     draw_gold_price_delta(p, fonts, usd_text, fmt_signed_delta(usd_delta), L, 282, 124)
 
     cny_text = fmt_money(cny_g)
-    cny_delta = jnum(gold.get("change_cny_g_since_reference"))
+    cny_delta = jnum(gold.get("change_cny_g_usd_reference"))
 
     fx_text = fmt_money(fx_rate)
     fx_fonts = [F_SMALL, F_TINY]
@@ -954,29 +1059,27 @@ def render_news_gold_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     p.draw_right(fx_font, fx_text, R, 124)
 
     p.draw_text(F_TINY, "USD/oz", L, 149)
-    p.draw_text(F_TINY, "较北京00:00", 96, 149)
+    base_hm = usd_base_day
+    usd_note = (("较零点" if gold.get("baseline_reference_kind") == "midnight" else
+                 f"较{base_hm.tm_hour:02d}:{base_hm.tm_min:02d}") if base_today else "基准待建立")
+    p.draw_text(F_TINY, usd_note, 96, 149)
     p.draw_text(F_TINY, "CNY/g", CNY_X, 149)
-    cny_kind = str(gold.get("baseline_cny_kind") or "")
-    legacy_cny_baseline = gold.get("baseline_cny_g") is not None
-    cny_base_at = int(gold.get("baseline_cny_price_as_of") or
-                      (gold.get("baseline_price_as_of") if legacy_cny_baseline else 0) or 0)
-    cny_base_hm = _bjtm(cny_base_at) if cny_base_at > 0 else None
-    cny_today = bool(same_quote_day and cny_kind == "first_valid" and cny_base_hm and
+    cny_price_at = int(gold.get("cny_price_as_of") or 0)
+    cny_quote_hm = _bjtm(cny_price_at) if cny_price_at > 0 else None
+    cny_today = bool(base_today and cny_quote_hm and
                      (current_day.tm_year, current_day.tm_yday) ==
-                     (cny_base_hm.tm_year, cny_base_hm.tm_yday))
+                     (cny_quote_hm.tm_year, cny_quote_hm.tm_yday))
     if not cny_today:
         cny_delta = math.nan
     draw_gold_price_delta(p, fonts, cny_text, fmt_signed_delta(cny_delta), CNY_X, 620, 124)
     if cny_today:
-        cny_note = f"较今日 {cny_base_hm.tm_hour:02d}:{cny_base_hm.tm_min:02d}"
+        cny_note = usd_note + "·折算"
     else:
         cny_note = "基准待建立"
     p.draw_text(F_TINY, cny_note, CNY_X + 64, 149)
     p.draw_right(F_TINY, "USD/CNY", R, 149)
 
-    base_at = cny_base_at
     quote_hm = _bjtm(price_at) if price_at > 0 else None
-    base_hm = _bjtm(base_at) if base_at > 0 else None
     if quote_hm and same_quote_day:
         quote_note = f"报价 {quote_hm.tm_hour:02d}:{quote_hm.tm_min:02d}"
     elif quote_hm:
@@ -984,8 +1087,14 @@ def render_news_gold_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     else:
         quote_note = "报价 --:--"
     p.draw_text(F_TINY, quote_note, L, 169)
-    p.draw_text(F_TINY, f"首笔 {base_hm.tm_hour:02d}:{base_hm.tm_min:02d}" if cny_today else "首笔 --:--", CNY_X, 169)
-    fx_cached = bool(gold.get("fx_stale") or gold_stale)
+    if cny_quote_hm and current_day and (current_day.tm_year, current_day.tm_yday) == (cny_quote_hm.tm_year, cny_quote_hm.tm_yday):
+        cny_quote = f"报价 {cny_quote_hm.tm_hour:02d}:{cny_quote_hm.tm_min:02d}"
+    elif cny_quote_hm:
+        cny_quote = f"报价 {cny_quote_hm.tm_mon:02d}-{cny_quote_hm.tm_mday:02d} {cny_quote_hm.tm_hour:02d}:{cny_quote_hm.tm_min:02d}"
+    else:
+        cny_quote = "报价 --:--"
+    p.draw_text(F_TINY, cny_quote, CNY_X, 169)
+    fx_cached = bool(gold.get("fx_stale") or cny_stale)
     p.draw_right(F_TINY, "汇率缓存" if fx_cached else "参考汇率", R, 169)
     p.hline(L, R, 174, 2)
 
@@ -1058,10 +1167,13 @@ def render_news_gold_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     token_font = F_SMALL if R - p.ink_width(F_SMALL, token_line) - amount_right >= 16 else F_TINY
     p.draw_right(token_font, token_line, R, 414)
 
-    st = page_status_text(doc, "news_gold", now)
+    st = page_status_text(doc, "news_gold", now,
+                          label_validator=lambda label: all(F_SMALL.glyph_index(ord(c)) >= 0 for c in label)
+                          and p.ink_width(F_SMALL, label) <= 252)
     ts = payload_ts(doc)
     p.hline(PUB_L, PUB_R, PUB_FTR_Y, 2)
-    p.draw_text(F_SMALL, fmt_upd_text(st, ts, now), PUB_L, PUB_FOOT_Y)
+    p.draw_trunc(F_SMALL, fmt_upd_text(st, ts, now), PUB_L, PUB_FOOT_Y,
+                 PUB_R-PUB_L-p.ink_width(F_SMALL, "INKSIGHT")-16)
     p.draw_right(F_SMALL, "INKSIGHT", PUB_R, PUB_FOOT_Y)
 
 

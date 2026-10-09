@@ -47,8 +47,21 @@ def _device_id(user_id: int, mac: str) -> str:
     return "screen-" + hmac.new(_DEVICE_ID_SECRET, body, hashlib.sha256).hexdigest()[:18]
 
 
+async def _operator_devices(user_id: int) -> list[dict]:
+    from .desktop_browser import enabled
+    if user_id == 0 and enabled():
+        from .db import get_main_db
+        db = await get_main_db()
+        cursor = await db.execute(
+            "SELECT DISTINCT mac, nickname FROM device_memberships WHERE status = 'active'")
+        rows = [{"mac": row[0], "nickname": row[1]} for row in await cursor.fetchall()]
+    else:
+        rows = await get_user_devices(user_id)
+    return rows
+
+
 async def list_devices(user_id: int) -> list[dict]:
-    rows = await get_user_devices(user_id)
+    rows = await _operator_devices(user_id)
     return [
         {
             "id": _device_id(user_id, str(row["mac"])),
@@ -63,7 +76,7 @@ async def list_devices(user_id: int) -> list[dict]:
 async def _resolve_device(user_id: int, opaque_id: str | None) -> str | None:
     if not opaque_id:
         return None
-    rows = await get_user_devices(user_id)
+    rows = await _operator_devices(user_id)
     for row in rows:
         mac = str(row.get("mac") or "").upper()
         if mac and hmac.compare_digest(_device_id(user_id, mac), opaque_id):

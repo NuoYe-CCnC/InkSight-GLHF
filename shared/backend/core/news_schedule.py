@@ -12,7 +12,7 @@ import copy
 import hashlib
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import news_brief as brief
@@ -97,7 +97,8 @@ def _schedules(now: datetime, cfg: dict | None = None) -> list[dict]:
     rows = sorted(rows, key=lambda row: (row.get("time", "00:00"), row.get("id", "")))
     # The historical default used the stable id ``morning`` for both day types.
     # Preserve that ledger identity while presenting the approved rest-day title.
-    if actual == "restday" and len(rows) == 1 and rows[0].get("id") == "morning":
+    if (actual == "restday" and len(rows) == 1 and rows[0].get("id") == "morning"
+            and rows[0].get("label") == "科技 / AI 早报"):
         rows[0]["label"] = "科技 / AI 日报"
     return rows
 
@@ -568,14 +569,17 @@ def _run_one(state: dict, cands: list[dict] | None, period: str, planned: dateti
     return publish(result)
 
 
-def digest_freshness(cur: dict | None, now_dt: datetime | None = None) -> str:
+def digest_freshness(cur: dict | None, now_dt: datetime | None = None, *,
+                     config: dict | None = None, schedule_state: dict | None = None) -> str:
     if not cur or cur.get("mode") not in {"digest", "daily_message", "status"}:
         return "fresh"
     current = str(cur.get("freshness") or "fresh")
     if current == "error":
         return "error"
-    now = now_dt or cal.bj_now()
-    cfg = _config()
+    now = _beijing_time(now_dt)
+    if str(cur.get("date") or "") != now.strftime("%Y-%m-%d"):
+        return "stale"
+    cfg = config if config is not None else _config()
     rows = _schedules(now, cfg)
     due = [(row, _planned(row, now)) for row in rows if _planned(row, now) <= now]
     if not due:
@@ -584,8 +588,8 @@ def digest_freshness(cur: dict | None, now_dt: datetime | None = None) -> str:
     _, cutoff = _issue_window(row, rows, now, cfg)
     if now < cutoff:
         return current
-    done = _load().get("done") or {}
-    return "fresh" if done.get(_key(now.strftime("%Y-%m-%d"), row["id"])) == "published" else "stale"
+    done = (schedule_state if schedule_state is not None else _load()).get("done") or {}
+    return "fresh" if str(done.get(_key(now.strftime("%Y-%m-%d"), row["id"])) or "").startswith("published") else "stale"
 
 
 def _terminal_outcome(outcome: str) -> bool:
@@ -723,14 +727,26 @@ def tick(now_dt: datetime | None = None) -> dict:
         return _tick_unlocked(now_dt)
 
 
-def current_due_status(now_dt: datetime | None = None) -> dict:
+def _beijing_time(now_dt: datetime | None = None) -> datetime:
+    now = now_dt or cal.bj_now()
+    if now.tzinfo is not None:
+        now = now.astimezone(timezone(timedelta(hours=8))).replace(tzinfo=None)
+    return now
+
+
+def _beijing_epoch(now: datetime) -> int:
+    return int(now.replace(tzinfo=timezone(timedelta(hours=8))).timestamp())
+
+
+def current_due_status(now_dt: datetime | None = None, *, current: dict | None = None,
+                       schedule_state: dict | None = None, config: dict | None = None) -> dict:
     """Describe the latest issue that should exist now without running it.
 
     Selection uses only the publisher's trusted calendar and active operator
     configuration. Device-supplied dates or schedule ids never choose an issue.
     """
-    now = now_dt or cal.bj_now()
-    cfg = _config()
+    now = _beijing_time(now_dt)
+    cfg = config if config is not None else _config()
     rows = _schedules(now, cfg)
     due = [(row, _planned(row, now)) for row in rows if _planned(row, now) <= now]
     if not due:
@@ -739,9 +755,9 @@ def current_due_status(now_dt: datetime | None = None) -> dict:
     row, planned = due[-1]
     schedule_id = str(row.get("id") or "")
     issue_key = _key(now.strftime("%Y-%m-%d"), schedule_id)
-    schedule_state = _load()
+    schedule_state = schedule_state if schedule_state is not None else _load()
     done = (schedule_state.get("done") or {}).get(issue_key)
-    current = brief._load_state().get("current") or {}
+    current = current if current is not None else (brief._load_state().get("current") or {})
     current_matches = bool(
         isinstance(current, dict)
         and current.get("date") == now.strftime("%Y-%m-%d")
@@ -754,9 +770,15 @@ def current_due_status(now_dt: datetime | None = None) -> dict:
                               issue_cfg if isinstance(issue_cfg, dict) else cfg)
     inside_window = planned <= now < cutoff
     inflight = (schedule_state.get("inflight") or {}).get(issue_key)
-    running = (isinstance(inflight, dict)
-               and time.time() - float(inflight.get("started_at") or 0) < 600)
-    if current_matches and str(done or "").startswith("published"):
+    age = _beijing_epoch(now) - float((inflight or {}).get("started_at") or 0)
+    running = isinstance(inflight, dict) and 0 <= age < 600
+    # The final-gated body is made visible before the completion ledger is
+    # saved. Never report that exact accepted body as still generating.
+    accepted_body = (current.get("mode") in {"digest", "daily_message"}
+                     and current.get("freshness") != "error")
+    if schedule_state.get("_state_error"):
+        state_name = "unknown"
+    elif current_matches and accepted_body:
         state_name = "current"
     elif running:
         state_name = "generating"
@@ -778,12 +800,84 @@ def current_due_status(now_dt: datetime | None = None) -> dict:
         "issue_key": issue_key,
         "schedule_id": schedule_id,
         "label": row.get("label"),
-        "planned_at": int(planned.timestamp()),
+        "planned_at": _beijing_epoch(planned),
+        "cutoff_at": _beijing_epoch(cutoff),
         "done": done,
         "model_calls": int((schedule_state.get("model_calls") or {}).get(issue_key, 0)),
         "max_model_calls": _max_model_calls(
             (schedule_state.get("issue_configs") or {}).get(issue_key) or cfg),
     }
+
+
+def issue_display_label(label: object) -> str:
+    """Bounded configuration label, never guessed from the body/title/id."""
+    import re
+    text = str(label or "").strip()
+    if text.startswith("科技 / AI "):
+        text = text[len("科技 / AI "):]
+    if not text or len(text) > 12 or not re.fullmatch(r"[A-Za-z0-9\u3400-\u9fff ]+", text):
+        return "资讯"
+    return text
+
+
+def news_publication_snapshot(now_dt: datetime | None = None) -> dict:
+    """Read body and ledger as one bounded optimistic snapshot.
+
+    Do not take the scheduler's lock: it is held across a paid generation and
+    would hide the generating state. Retry concurrent atomic replacements;
+    if they never settle, keep the validated body but report unknown status.
+    No writes, collections, or generation occur here.
+    """
+    now = _beijing_time(now_dt)
+    coherent = False
+    for _ in range(3):
+        cfg = _config()
+        ledger = _load()
+        source = brief._load_state()
+        if ledger == _load() and source == brief._load_state() and cfg == _config():
+            coherent = True
+            break
+    body = brief.fetch_news_for_publish(snapshot=source, now_dt=now,
+                                       schedule_state=ledger, config=cfg)
+    if not isinstance(body, dict):
+        # No invented title/date/body: the empty status belongs to this same
+        # schedule snapshot, not the retired three-category feed.
+        body = {"mode": "status", "text": "", "events": [],
+                "freshness": "missing", "origin": "local-empty", "version": "empty"}
+    body = copy.deepcopy(body)
+    due = current_due_status(now, current=body, schedule_state=ledger, config=cfg)
+    day = now.strftime("%Y-%m-%d")
+    clock_trusted = _beijing_epoch(now) >= 1600000000
+    calendar_trusted = not cal.workday_info(now).get("degraded", True)
+    state = str(due.get("state") or "unknown")
+    if not coherent or not clock_trusted or not calendar_trusted:
+        state = "unknown"
+    elif state == "current":
+        state = "published"
+    elif state == "not-due" and body.get("date") and str(body["date"]) < day:
+        state = "old"
+    elif state == "not-due" and not body.get("text"):
+        state = "not-due-empty"
+    expected = None
+    if due.get("schedule_id"):
+        expected = {"date": day, "id": due["schedule_id"],
+                    "label": str(due.get("label") or ""),
+                    "display_label": issue_display_label(due.get("label")),
+                    "planned_at": due.get("planned_at"), "cutoff_at": due.get("cutoff_at")}
+    body["issue_status"] = {
+        "schema": 1, "state": state, "as_of_date": day,
+        "clock_trusted": clock_trusted, "calendar_trusted": calendar_trusted,
+        "coherent": coherent,
+        "current": {"date": body.get("date"),
+                    "id": body.get("schedule_id") or body.get("period"),
+                    "label": body.get("issue_title"), "origin": body.get("origin")},
+        "expected": expected,
+    }
+    body["update_state"] = ("due" if state in {"due", "waiting", "generating", "not-due-empty"}
+                            else "not-updated" if state in {"failed", "expired", "old"}
+                            else "unknown" if state == "unknown" else "current")
+    body["expected_schedule_id"] = due.get("schedule_id")
+    return body
 
 
 def run_manual_issue(issue_key: str, issue_config: dict, *,

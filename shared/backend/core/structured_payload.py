@@ -302,8 +302,10 @@ def build_screen_payload(persona: str, content: dict, w: int, h: int,
         news_cfg = dict(_operator.get("news_digest") or {})
         news_policy["enabled"] = bool(news_policy.get("enabled", True)
                                       and news_cfg.get("enabled", True))
+        from .news_schedule import issue_display_label
         news_policy["schedules"] = [
             {"id": str(row.get("id") or ""),
+             "display_label": issue_display_label(row.get("label")),
              "time": str(row.get("time") or ""),
              "enabled": bool(row.get("enabled", False)),
              "day_types": list(row.get("day_types") or [])}

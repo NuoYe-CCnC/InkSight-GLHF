@@ -257,3 +257,7 @@ for router in api_routers:
 
 for router in page_routers:
     app.include_router(router)
+
+# Outermost desktop boundary precedes legacy CORS/forwarded-origin handling.
+from core.desktop_browser import DesktopBoundaryMiddleware
+app.add_middleware(DesktopBoundaryMiddleware)

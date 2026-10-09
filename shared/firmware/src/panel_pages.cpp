@@ -16,6 +16,7 @@
 #include <time.h>
 
 #include "panel_ui.h"
+#include "news_issue_status.h"
 
 static const int PW = 800, PH = 480;
 
@@ -50,6 +51,20 @@ static const MiFont *F_TINY()   { return &kFonts[MF_REG_16]; }    // 更小注/�
 static const MiFont *F_BIG()    { return &kFonts[MF_REG_82]; }    // 大数值（82px）
 static const MiFont *F_MID()    { return &kFonts[MF_REG_62]; }    // 金价主价（62px）
 static const MiFont *F_PRICE_SMALL() { return &kFonts[MF_REG_30]; }
+
+extern int32_t panelGlyphIndex(const MiFont *f, uint32_t cp);
+static bool safeNewsStatusLabel(const char *label) {
+    if (!label || !label[0] || strlen(label) > 48) return false;
+    const char *p = label;
+    int count = 0;
+    while (*p) {
+        uint32_t cp = utf8decode(&p);
+        if (++count > 12 || !((cp >= 'A' && cp <= 'Z') || (cp >= 'a' && cp <= 'z') ||
+            (cp >= '0' && cp <= '9') || cp == ' ' || (cp >= 0x3400 && cp <= 0x9fff)) ||
+            panelGlyphIndex(F_SMALL(), cp) < 0) return false;
+    }
+    return panelTextInkWidth(F_SMALL(), label) <= 252;
+}
 
 static double jnum(JsonVariantConst v, double dflt) {
     if (v.isNull()) return dflt;
@@ -141,7 +156,7 @@ static void fmtPointBalance(JsonVariantConst value, char *out, size_t cap) {
 }
 
 static void fmtSignedDelta(double v, char *out, size_t cap) {
-    if (v != v) { snprintf(out, cap, "--"); return; }
+    if (!isfinite(v)) { snprintf(out, cap, "—"); return; }
     if (fabs(v) < 0.005) { snprintf(out, cap, "0.00"); return; }
     snprintf(out, cap, v > 0 ? "+%.2f" : "%.2f", v);
 }
@@ -406,15 +421,8 @@ static const char *pageStatusText(const JsonDocument &doc, const char *page, int
     }
     if (anomalyOut) *anomalyOut = any;
     if (strcmp(page, "news_gold") == 0) {
-        const char *localUpdate = nw["device_update_state"] | "";
-        long long localUntil = nw["device_update_expires_at"].as<long long>();
-        if (localUntil >= nowS && strcmp(localUpdate, "requested") == 0)
-            return "早报待更新";
-        if (localUntil >= nowS && strcmp(localUpdate, "unreachable") == 0)
-            return "资讯暂未更新";
-        const char *updateState = nw["update_state"] | "";
-        if (strcmp(updateState, "due") == 0) return "早报待更新";
-        if (strcmp(updateState, "not-updated") == 0) return "资讯暂未更新";
+        const char *issueStatus = newsIssueStatusText(doc, now, safeNewsStatusLabel);
+        if (issueStatus) return issueStatus;
     }
     // 聚合优先级（§8.5）：时间待校准 > 数据陈旧(整份) > 部分数据陈旧 > 部分数据缺失 > 数据正常
     if (wholeMissing) return hasMissing ? "部分数据缺失" : "部分数据陈旧";
@@ -743,18 +751,20 @@ bool renderNewsGoldPanel(const JsonDocument &doc) {
     panelDrawTextRight(F_SMALL(), dbar, PUB_R, PUB_TOP_Y);
     panelHLine(PUB_L, PUB_R, PUB_HDR_Y, 2);
 
-    // XAUS 三指标区：USD 比较北京零点；CNY 缺零点时明确比较当天首次有效报价。
+    // XAUS v2: one USD reference; CNY main price/delta use one response's FX.
     double usdOz = jnum(gold["spot_usd_oz"], NAN);
     double cnyGram = jnum(gold["price_gram_cny"], NAN);
     double fxRate = jnum(gold["fx_rate"], NAN);
     time_t priceAt = (time_t)(long long)(gold["price_as_of"] | 0LL);
     bool quoteToday = timeTrusted(now) && sameLocalDate(now, priceAt);
-    bool goldStale = (gold["stale"] | false) ||
-                     strcmp(gold["data_state"]["status"] | "fresh", "fresh") != 0 ||
+    bool unifiedGold = (gold["calculation_schema"] | 0) == 2 &&
+                       (gold["baseline_schema"] | 0) == 2;
+    bool goldStale = strcmp(gold["usd_status"] | "stale", "fresh") != 0 ||
                      (timeTrusted(now) && !quoteToday);
     panelDrawText(F_SMALL(), goldStale ? "伦敦金 较旧" : "伦敦金", L, 83);
     const int CNY_X = 330;
-    panelDrawText(F_SMALL(), "人民币金价", CNY_X, 83);
+    bool cnyStale = strcmp(gold["cny_status"] | "unavailable", "fresh") != 0;
+    panelDrawText(F_SMALL(), cnyStale ? "人民币金价 较旧" : "人民币金价", CNY_X, 83);
     panelDrawTextRight(F_TINY(), "美元人民币汇率", R, 83);
 
     // Keep every displayed metric in its own buffer. Reusing one buffer here
@@ -763,13 +773,14 @@ bool renderNewsGoldPanel(const JsonDocument &doc) {
     char usdValue[40], cnyValue[40], fxValue[40], delta[40], hm[16];
     fmtMoney(usdOz, usdValue, sizeof(usdValue));
     time_t usdBaseAt = (time_t)(long long)(gold["baseline_price_as_of"] | 0LL);
-    double usdDelta = quoteToday && sameLocalDate(now, usdBaseAt) ?
-        jnum(gold["change_usd_oz_since_bj_midnight"], NAN) : NAN;
+    bool baseToday = unifiedGold && timeTrusted(usdBaseAt) && sameLocalDate(now, usdBaseAt);
+    double usdDelta = quoteToday && baseToday ?
+        jnum(gold["change_usd_oz_since_reference"], NAN) : NAN;
     fmtSignedDelta(usdDelta, delta, sizeof(delta));
     drawGoldPriceDelta(usdValue, delta, L, 282, 124);
 
     fmtMoney(cnyGram, cnyValue, sizeof(cnyValue));
-    double cnyDelta = jnum(gold["change_cny_g_since_reference"], NAN);
+    double cnyDelta = jnum(gold["change_cny_g_usd_reference"], NAN);
 
     fmtMoney(fxRate, fxValue, sizeof(fxValue));
     const MiFont *fxCands[] = {F_SMALL(), F_TINY()};
@@ -777,27 +788,30 @@ bool renderNewsGoldPanel(const JsonDocument &doc) {
     panelDrawTextRight(fxCands[fxFont], fxValue, R, 124);
 
     panelDrawText(F_TINY(), "USD/oz", L, 149);
-    panelDrawText(F_TINY(), "较北京00:00", 96, 149);
+    char usdNote[48];
+    const char *baseKind = gold["baseline_reference_kind"] | "";
+    if (baseToday) {
+        fmtHm(usdBaseAt, hm, sizeof(hm));
+        if (strcmp(baseKind, "midnight") == 0) snprintf(usdNote, sizeof(usdNote), "较零点");
+        else snprintf(usdNote, sizeof(usdNote), "较%s", hm);
+    } else snprintf(usdNote, sizeof(usdNote), "基准待建立");
+    panelDrawText(F_TINY(), usdNote, 96, 149);
     panelDrawText(F_TINY(), "CNY/g", CNY_X, 149);
-    const char *cnyKind = gold["baseline_cny_kind"] | "";
-    time_t cnyBaseAt = (time_t)(long long)(gold["baseline_cny_price_as_of"] |
-        0LL);
-    bool cnyToday = quoteToday && strcmp(cnyKind, "first_valid") == 0 &&
-                    sameLocalDate(now, cnyBaseAt);
+    time_t cnyPriceAt = (time_t)(long long)(gold["cny_price_as_of"] | 0LL);
+    bool cnyToday = baseToday && timeTrusted(cnyPriceAt) && sameLocalDate(now, cnyPriceAt);
     if (!cnyToday) cnyDelta = NAN;
     fmtSignedDelta(cnyDelta, delta, sizeof(delta));
     drawGoldPriceDelta(cnyValue, delta, CNY_X, 620, 124);
-    char cnyNote[32];
+    char cnyNote[48];
     if (cnyToday) {
-        fmtHm(cnyBaseAt, hm, sizeof(hm));
-        snprintf(cnyNote, sizeof(cnyNote), "较今日 %s", hm);
+        snprintf(cnyNote, sizeof(cnyNote), "%s·折算", usdNote);
     } else {
         snprintf(cnyNote, sizeof(cnyNote), "基准待建立");
     }
     panelDrawText(F_TINY(), cnyNote, CNY_X + 64, 149);
     panelDrawTextRight(F_TINY(), "USD/CNY", R, 149);
 
-    char quoteText[40], baselineText[32];
+    char quoteText[48], cnyQuoteText[48];
     if (quoteToday) {
         fmtHm(priceAt, hm, sizeof(hm));
         snprintf(quoteText, sizeof(quoteText), "报价 %s", hm);
@@ -807,12 +821,13 @@ bool renderNewsGoldPanel(const JsonDocument &doc) {
         snprintf(quoteText, sizeof(quoteText), "报价 %s", mdhm);
     } else snprintf(quoteText, sizeof(quoteText), "报价 --:--");
     panelDrawText(F_TINY(), quoteText, L, 169);
-    if (cnyToday) {
-        fmtHm(cnyBaseAt, hm, sizeof(hm));
-        snprintf(baselineText, sizeof(baselineText), "首笔 %s", hm);
-    } else snprintf(baselineText, sizeof(baselineText), "首笔 --:--");
-    panelDrawText(F_TINY(), baselineText, CNY_X, 169);
-    bool fxCached = (gold["fx_stale"] | false) || goldStale;
+    if (timeTrusted(cnyPriceAt)) {
+        if (sameLocalDate(now, cnyPriceAt)) fmtHm(cnyPriceAt, hm, sizeof(hm));
+        else fmtMdHm(cnyPriceAt, hm, sizeof(hm));
+        snprintf(cnyQuoteText, sizeof(cnyQuoteText), "报价 %s", hm);
+    } else snprintf(cnyQuoteText, sizeof(cnyQuoteText), "报价 --:--");
+    panelDrawText(F_TINY(), cnyQuoteText, CNY_X, 169);
+    bool fxCached = (gold["fx_stale"] | false) || cnyStale;
     panelDrawTextRight(F_TINY(), fxCached ? "汇率缓存" : "参考汇率", R, 169);
     panelHLine(L, R, 174, 2);
 
@@ -933,7 +948,8 @@ bool renderNewsGoldPanel(const JsonDocument &doc) {
     int miss = 0;
     const char *st = pageStatusText(doc, "news_gold", &miss);
     fmtUpdText(line, sizeof(line), st, payloadTsOf(doc));
-    panelDrawText(F_SMALL(), line, PUB_L, PUB_FOOT_Y);
+    panelDrawTextTrunc(F_SMALL(), line, PUB_L, PUB_FOOT_Y,
+                      PUB_R - PUB_L - panelTextInkWidth(F_SMALL(), "INKSIGHT") - 16);
     panelDrawTextRight(F_SMALL(), "INKSIGHT", PUB_R, PUB_FOOT_Y);
     return true;
 }

@@ -299,7 +299,12 @@ def start_watcher(interval_seconds: int = WATCHER_INTERVAL_SECONDS):
         except Exception as e:  # noqa: BLE001
             logger.warning("[WATCHER] scan job error: %s", e)
 
-    _scheduler = BackgroundScheduler()
+    from .desktop_service import gate
+    class GuardedScheduler(BackgroundScheduler):
+        def add_job(self, func, *args, **kwargs):
+            return super().add_job(gate.wrap(func), *args, **kwargs)
+
+    _scheduler = GuardedScheduler()
     _scheduler.add_job(_scan_job, "interval",
                        seconds=interval_seconds, id="ai_usage_watcher", max_instances=1,
                        coalesce=True, misfire_grace_time=120)

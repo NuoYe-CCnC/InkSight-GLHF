@@ -28,4 +28,7 @@ __pycache__/
 .pytest_cache/
 dist/
 release-candidate/
+/InkSight-Source.zip
+/InkSight-Source.zip.sha256
+/InkSight-Source.zip.receipt.json
 .backups/

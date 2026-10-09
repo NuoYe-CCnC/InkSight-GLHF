@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from . import news_schedule, state_store
+from .desktop_service import critical_entry
 
 STATE_FILE = state_store.state_path("news_due_requests.json")
 _REQUEST_RE = re.compile(r"^news-[0-9]{8}-[a-z0-9][a-z0-9_-]{0,31}$")
@@ -49,6 +50,7 @@ def _prune(requests: dict) -> dict:
     return dict(rows[-_KEEP:])
 
 
+@critical_entry
 def check(request_id: str | None, *, now_dt=None, reason: str = "device") -> dict:
     """Check/run only the latest issue currently due under trusted policy."""
     rid = _safe_request_id(request_id)

@@ -227,7 +227,8 @@ def test_gold_real_field_parse_and_gram_conversion(monkeypatch, tmp_path):
     it = r["item"]
     assert it["provider"] == "xaus.com" and it["instrument_id"] == "XAU"
     assert it["currency"] == "CNY" and it["unit"] == "g"
-    assert abs(it["price_gram_cny"] - 956.2143) < 1e-9
+    assert abs(it["price_gram_cny"] - 4420.12 * 6.73 / 31.1034768) < 1e-9
+    assert it["reported_price_gram_cny"] == 956.2143
     assert it["spot_usd_oz"] == 4420.12 and it["fx_rate"] == 6.73
     assert it["fx_as_of"] is None and it["fetched_at"] > 0
     assert it["note"] is None

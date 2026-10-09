@@ -1216,82 +1216,18 @@ bool requestGoldCatchupIfStale(const JsonDocument &doc) {
     return requestGoldRefreshForWake(doc);
 }
 
-struct DueNewsIssue {
-    bool due = false;
-    String day;
-    String id;
-};
-
-static bool _newsScheduleApplies(JsonArrayConst dayTypes, bool workday) {
-    for (JsonVariantConst value : dayTypes) {
-        const char *kind = value | "";
-        if (strcmp(kind, "all") == 0) return true;
-        if (workday && strcmp(kind, "workday") == 0) return true;
-        if (!workday && strcmp(kind, "restday") == 0) return true;
-    }
-    return false;
-}
-
-static int _newsMinute(const char *value) {
-    if (!value || strlen(value) != 5 || value[2] != ':') return -1;
-    if (value[0] < '0' || value[0] > '9' || value[1] < '0' || value[1] > '9'
-        || value[3] < '0' || value[3] > '9' || value[4] < '0' || value[4] > '9') return -1;
-    int hour = (value[0] - '0') * 10 + value[1] - '0';
-    int minute = (value[3] - '0') * 10 + value[4] - '0';
-    return hour < 24 && minute < 60 ? hour * 60 + minute : -1;
-}
-
+#include "news_issue_status.h"
+using DueNewsIssue = NewsExpectedIssue;
 static DueNewsIssue _dueNewsIssue(const JsonDocument &doc) {
-    DueNewsIssue out;
-    if (!(doc["screen"]["device_policy"]["news_check"]["enabled"] | true)) return out;
-    time_t now = time(nullptr);
-    if (now < 1600000000LL) return out;
-    struct tm *local = localtime(&now);
-    if (!local) return out;
-    char day[16];
-    snprintf(day, sizeof(day), "%04d-%02d-%02d", local->tm_year + 1900,
-             local->tm_mon + 1, local->tm_mday);
-    bool workday = local->tm_wday >= 1 && local->tm_wday <= 5;
-    JsonArrayConst days = doc["screen"]["calendar"]["days"].as<JsonArrayConst>();
-    for (JsonVariantConst value : days) {
-        JsonObjectConst row = value.as<JsonObjectConst>();
-        if (strcmp(row["d"] | "", day) == 0 && row["workday"].is<bool>()) {
-            workday = row["workday"].as<bool>();
-            break;
-        }
-    }
-    int nowMinute = local->tm_hour * 60 + local->tm_min;
-    int bestMinute = -1;
-    String bestId;
-    JsonArrayConst schedules = doc["screen"]["device_policy"]["news_check"]
-                                  ["schedules"].as<JsonArrayConst>();
-    for (JsonVariantConst value : schedules) {
-        JsonObjectConst row = value.as<JsonObjectConst>();
-        if (!(row["enabled"] | false)) continue;
-        const char *id = row["id"] | "";
-        int at = _newsMinute(row["time"] | "");
-        if (!id[0] || at < 0 || at > nowMinute) continue;
-        if (!_newsScheduleApplies(row["day_types"].as<JsonArrayConst>(), workday)) continue;
-        if (at > bestMinute || (at == bestMinute && String(id) > bestId)) {
-            bestMinute = at;
-            bestId = id;
-        }
-    }
-    if (bestMinute >= 0 && bestId.length() > 0) {
-        out.due = true;
-        out.day = day;
-        out.id = bestId;
-    }
-    return out;
+    if (!(doc["screen"]["device_policy"]["news_check"]["enabled"] | true)) return {};
+    return newsExpectedIssue(doc, time(nullptr));
 }
 
 bool newsCurrentIssueMissing(const JsonDocument &doc) {
     DueNewsIssue due = _dueNewsIssue(doc);
     if (!due.due) return false;
     JsonObjectConst news = doc["screen"]["pages"]["news_gold"]["news"].as<JsonObjectConst>();
-    if (news.isNull() || strcmp(news["date"] | "", due.day.c_str()) != 0) return true;
-    const char *actual = news["schedule_id"] | (news["period"] | "");
-    return strcmp(actual, due.id.c_str()) != 0;
+    return !newsBodyMatches(news, due);
 }
 
 static String _safeNewsId(const String &value) {
@@ -1304,6 +1240,7 @@ static String _safeNewsId(const String &value) {
 }
 
 bool requestNewsCheckForWake(JsonDocument &doc) {
+    newsClearObsoleteLocalUpdate(doc, time(nullptr));
     if (WiFi.status() != WL_CONNECTED || !newsCurrentIssueMissing(doc)) return false;
     time_t now = time(nullptr);
     if (now < 1600000000LL) return false;
@@ -1313,6 +1250,7 @@ bool requestNewsCheckForWake(JsonDocument &doc) {
     String compactDay = due.day;
     compactDay.replace("-", "");
     String requestId = "news-" + compactDay + "-" + safeId;
+    String issueKey = String(due.day) + "|" + due.id;
     int followup = doc["screen"]["device_policy"]["news_check"]["followup_seconds"] | 300;
     followup = max(0, min(followup, 900));
 
@@ -1324,6 +1262,7 @@ bool requestNewsCheckForWake(JsonDocument &doc) {
     if (savedId == requestId) {
         if (savedAt > 0 && (long long)now <= savedAt + followup) {
             doc["screen"]["pages"]["news_gold"]["news"]["device_update_state"] = "requested";
+            doc["screen"]["pages"]["news_gold"]["news"]["device_update_issue_key"] = issueKey;
             doc["screen"]["pages"]["news_gold"]["news"]["device_update_expires_at"] = savedAt + followup;
             return true;
         }
@@ -1374,6 +1313,7 @@ bool requestNewsCheckForWake(JsonDocument &doc) {
             saved.putLong("news_req_at", (long long)now);
             saved.end();
             doc["screen"]["pages"]["news_gold"]["news"]["device_update_state"] = "requested";
+            doc["screen"]["pages"]["news_gold"]["news"]["device_update_issue_key"] = issueKey;
             doc["screen"]["pages"]["news_gold"]["news"]["device_update_expires_at"] = (long long)now + followup;
             Serial.printf("[NEWS][CHECK] accepted channel=%s request=%s\n",
                           cloud ? "queue" : "direct", requestId.c_str());
@@ -1386,6 +1326,7 @@ bool requestNewsCheckForWake(JsonDocument &doc) {
         Serial.printf("[NEWS][CHECK] HTTP %d, bounded retry\n", code);
     }
     doc["screen"]["pages"]["news_gold"]["news"]["device_update_state"] = "unreachable";
+    doc["screen"]["pages"]["news_gold"]["news"]["device_update_issue_key"] = issueKey;
     doc["screen"]["pages"]["news_gold"]["news"]["device_update_expires_at"] = (long long)now + 120;
     return false;
 }

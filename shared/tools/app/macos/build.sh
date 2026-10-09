@@ -40,8 +40,16 @@ PYTHONDONTWRITEBYTECODE=1 "$APP_PATH/Contents/Resources/Python/bin/python3.11" \
 ditto "$BUILD_TEMP/candidate/InkSight-Source" \
   "$APP_PATH/Contents/Resources/InkSight-Source"
 ditto "$REPO_ROOT/shared/tools/app/macos/Info.plist" "$APP_PATH/Contents/Info.plist"
+swiftc -parse-as-library -framework AppKit \
+  "$REPO_ROOT/shared/tools/app/macos/BuildIcons.swift" -o "$BUILD_TEMP/build-icons"
+"$BUILD_TEMP/build-icons" "$REPO_ROOT/shared/tools/app/macos/assets/InkSight-B2-1024.png" \
+  "$APP_PATH/Contents/Resources"
 swiftc -parse-as-library -target arm64-apple-macosx26.0 -O \
-  -framework SwiftUI -framework AppKit \
+  -framework SwiftUI -framework AppKit -framework ServiceManagement \
+  "$REPO_ROOT/shared/tools/app/macos/MenuMark.swift" \
+  "$REPO_ROOT/shared/tools/app/macos/MenuQuota.swift" \
+  "$REPO_ROOT/shared/tools/app/macos/DesktopEntry.swift" \
+  "$REPO_ROOT/shared/tools/app/macos/LoginItems.swift" \
   "$REPO_ROOT/shared/tools/app/macos/InkSightApp.swift" \
   -o "$APP_PATH/Contents/MacOS/InkSight"
 

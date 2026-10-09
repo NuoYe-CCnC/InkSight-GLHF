@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from . import news_brief, news_calendar, news_schedule, state_store
+from .desktop_service import critical_entry
 
 _STATE = state_store.state_path("manual_issue_tasks.json")
 _IDEMPOTENCY_RE = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
@@ -70,6 +71,7 @@ def preflight() -> dict:
     }
 
 
+@critical_entry
 def create(idempotency_key: str, *, issue_title: str = "手动生成") -> tuple[dict, bool]:
     if not _IDEMPOTENCY_RE.match(idempotency_key or ""):
         raise ValueError("idempotency_key must contain 8-128 safe characters")
@@ -175,6 +177,7 @@ def run(task_id: str) -> dict:
         )
 
 
+@critical_entry
 def start(task_id: str) -> dict:
     task = get(task_id)
     if not task:
@@ -185,6 +188,7 @@ def start(task_id: str) -> dict:
         existing = _THREADS.get(task_id)
         if existing and existing.is_alive():
             return task
+        _set_status(task_id, "queued")
         worker = threading.Thread(target=run, args=(task_id,), daemon=True, name=f"inksight-{task_id}")
         _THREADS[task_id] = worker
         worker.start()

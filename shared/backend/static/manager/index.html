@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   <title>InkSight 本机管理</title>
   <link rel="stylesheet" href="/static/manager/manager.css">
+  <script src="/static/manager/desktop-entry.js" defer></script>
   <script src="/static/manager/manager.js" defer></script>
 </head>
 <body>
@@ -25,7 +26,7 @@
       <header class="topbar">
         <button class="menu secondary" id="menu">菜单</button>
         <div><p class="eyebrow">INKSIGHT CONTROL</p><h1 id="pageTitle">总览</h1></div>
-        <div class="top-actions"><span id="saveState">尚未读取</span><button class="secondary" id="refresh">刷新</button><button class="secondary" id="logout">退出</button></div>
+        <div class="top-actions"><span id="saveState">尚未读取</span><button class="secondary" id="refresh">刷新</button></div>
       </header>
 
       <section class="page is-active" data-page-panel="overview">
@@ -96,8 +97,7 @@
   </div>
 
   <div class="overlay" id="loginOverlay">
-    <form class="dialog login" id="loginForm"><p class="eyebrow">LOCAL ROOT</p><h2>登录本机管理端</h2><p>仅允许当前电脑访问，需要 root 账户。</p><label><span>用户名</span><input id="username" autocomplete="username" required></label><label><span>密码</span><input id="password" type="password" autocomplete="current-password" required></label><p class="error" id="loginError"></p><button class="primary full" type="submit">登录</button></form>
-    <form class="dialog login" id="setupForm" hidden><p class="eyebrow">FIRST START</p><h2>创建首位管理员</h2><p>当前数据库中还没有 root 管理员。此入口仅在本机且仅能成功一次。</p><label><span>管理员用户名</span><input id="setupUsername" autocomplete="username" minlength="2" maxlength="30" required></label><label><span>密码（至少 12 位）</span><input id="setupPassword" type="password" autocomplete="new-password" minlength="12" required></label><label><span>再次输入密码</span><input id="setupPasswordAgain" type="password" autocomplete="new-password" minlength="12" required></label><p class="error" id="setupError"></p><button class="primary full" type="submit">创建并登录</button></form>
+    <section class="dialog" role="alert" aria-labelledby="entryTitle"><h2 id="entryTitle">从菜单栏打开配置</h2><p>点击右上角 InkSight 图标，再选择“打开配置”。无需填写账号或密码。</p><p id="loginError" class="error">正在检查本机会话…</p><p class="fine">关闭网页不会停止后台服务。会话过期后，从菜单重新打开即可。</p></section>
   </div>
 
   <div class="overlay" id="issueOverlay" hidden><section class="dialog"><button class="close" data-close="issueOverlay">关闭</button><p class="eyebrow">MANUAL ISSUE</p><h2>手动生成新一期</h2><p>参数会按当前配置冻结。网络结果不确定时会保守计入调用次数。</p><div class="operation" id="issuePreflight"></div><ul class="checks"><li>不会改变下一次定时计划</li><li>每次调用前先持久化预留</li><li>终检失败保留上一份有效内容</li><li>没有新闻 API 时显示本地每日寄语</li></ul><label class="confirm"><input id="confirmIssue" type="checkbox"><span>我了解该操作可能产生 API 费用</span></label><div class="dialog-actions"><button class="secondary" data-close="issueOverlay">返回</button><button class="primary" id="runIssue" disabled>确认生成</button></div></section></div>

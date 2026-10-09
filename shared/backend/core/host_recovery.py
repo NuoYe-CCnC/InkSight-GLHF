@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import state_store
+from .desktop_service import critical_entry
 
 logger = logging.getLogger(__name__)
 STATE_FILE = state_store.state_path("host_recovery_state.json")
@@ -63,6 +64,7 @@ def _finish(event_id: str, result: dict) -> None:
     state_store.update_json(STATE_FILE, update, default=_default())
 
 
+@critical_entry
 def recover(reason: str, *, now: float | None = None) -> dict:
     if reason not in _REASONS:
         raise ValueError("unsupported host recovery reason")

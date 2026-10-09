@@ -60,8 +60,13 @@ EXACT_FILES = (
     "shared/backend/tests/test_firmware_rollback.py",
     "shared/backend/tests/test_host_runtime.py",
     "shared/backend/tests/test_gold_refresh_reliability.py",
+    "shared/backend/tests/test_gold_unified.py",
+    "docs/GOLD_UNIFIED.zh-CN.md",
     "shared/backend/tests/test_app_data.py",
     "shared/backend/tests/test_app_backend.py",
+    "shared/backend/tests/test_news_issue_status.py",
+    "shared/backend/tests/news_issue_status_host.cpp",
+    "docs/NEWS_ISSUE_STATUS.zh-CN.md",
     "shared/backend/tests/test_phase1_reliable.py",
     "shared/backend/tests/test_phase5_hotfix.py",
     "docs/releases/v0.1.0-test.2.zh-CN.md",
@@ -72,12 +77,27 @@ EXACT_FILES = (
     "docs/releases/v0.1.0-test.4.en.md",
     "docs/releases/v0.1.0-test.5.zh-CN.md",
     "docs/releases/v0.1.0-test.5.en.md",
+    "docs/releases/v0.1.0-test.7.zh-CN.md",
+    "docs/releases/v0.1.0-test.7.en.md",
+    "docs/releases/v0.1.0-test.9.zh-CN.md",
+    "docs/releases/v0.1.0-test.9.en.md",
     "shared/tools/app_data.py", "shared/tools/app_backend.py",
     "shared/tools/app/macos/InkSightApp.swift",
+    "shared/tools/app/macos/MenuMark.swift", "shared/tools/app/macos/LoginItems.swift",
+    "shared/tools/app/macos/MenuQuota.swift",
+    "shared/tools/app/macos/DesktopEntry.swift",
+    "shared/tools/app/macos/BuildIcons.swift",
+    "shared/tools/app/macos/assets/InkSight-B2-1024.png",
+    "shared/tools/app/macos/assets/README.md",
+    "shared/backend/tests/test_desktop_service.py",
+    "shared/backend/tests/test_desktop_browser.py",
+    "shared/backend/tests/test_desktop_quota.py",
+    "shared/backend/tests/desktop_native_test.swift",
     "shared/tools/app/macos/Info.plist", "shared/tools/app/macos/build.sh",
     "shared/tools/app/macos/app_components.py",
     "docs/README.md", "docs/DOWNLOAD.zh-CN.md",
     "docs/APP_DESKTOP.zh-CN.md",
+    "docs/MENU_BAR.zh-CN.md",
     "docs/FIRST_USE.zh-CN.md", "docs/CONFIGURATION.zh-CN.md",
     "docs/UPGRADE.zh-CN.md", "docs/TROUBLESHOOTING.zh-CN.md",
     "docs/FIRMWARE_UPDATE_ROLLBACK.zh-CN.md",
@@ -102,6 +122,10 @@ DAILY_MESSAGE_RELEASE_SOURCE = Path(
     "docs/phase14-content-source-release-2026-09-14/daily-messages-replacement-draft.json"
 )
 PUBLICATION_READY = True
+APPROVED_BINARY = {
+    "shared/tools/app/macos/assets/InkSight-B2-1024.png":
+        "1498ad34fc0c6fb89c79c1e1c31c5420bf9c137661da1a9704c4cd970dc1b0d2",
+}
 TEXT_SUFFIXES = {
     ".py", ".json", ".html", ".css", ".js", ".cpp", ".h", ".ini",
     ".csv", ".md", ".txt", ".sh", ".bat",
@@ -143,6 +167,8 @@ def _allowed(source: Path, root: Path) -> bool:
     rel = rel_path.as_posix()
     if source.is_symlink() or set(rel_path.parts) & FORBIDDEN_PARTS:
         return False
+    if rel in APPROVED_BINARY:
+        return _sha(source) == APPROVED_BINARY[rel]
     if source.name in FORBIDDEN_NAMES or source.suffix.lower() in FORBIDDEN_SUFFIXES:
         return False
     if source.name.startswith("misans_") and source.suffix == ".h":
@@ -179,6 +205,8 @@ def scan(candidate: Path) -> list[dict[str, str]]:
             continue
         if set(path.relative_to(candidate).parts) & FORBIDDEN_PARTS:
             findings.append({"file": rel, "rule": "forbidden directory"})
+            continue
+        if rel in APPROVED_BINARY and _sha(path) == APPROVED_BINARY[rel]:
             continue
         if path.suffix.lower() in FORBIDDEN_SUFFIXES or path.name in FORBIDDEN_NAMES:
             findings.append({"file": rel, "rule": "forbidden artifact type"})

@@ -2,6 +2,7 @@ from .admin_analytics import router as admin_analytics_router
 from .auth import router as auth_router
 from .config import router as config_router
 from .device import router as device_router
+from .desktop import router as desktop_router
 from .discover import router as discover_router
 from .device_ota import router as device_ota_router
 from .gold_admin import router as gold_admin_router
@@ -20,6 +21,7 @@ from .user import router as user_router
 from .voice import router as voice_router
 
 api_routers = [
+    desktop_router,
     render_router,
     admin_analytics_router,
     config_router,

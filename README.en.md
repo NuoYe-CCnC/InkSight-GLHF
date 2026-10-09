@@ -8,7 +8,7 @@ A two-page information panel for an ESP32-S3 and a 4.26-inch monochrome e-paper 
 
 ## Start here
 
-1. [Download test release `v0.1.0-test.5`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.5) and read the [download and checksum guide](docs/DOWNLOAD.zh-CN.md). The Mac app and the source archive are different assets.
+1. [Download test release `v0.1.0-test.9`](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.9) and read the [download and checksum guide](docs/DOWNLOAD.zh-CN.md). The Mac app and the source archive are different assets.
 2. [Mac app first use](docs/APP_DESKTOP.zh-CN.md) (Chinese): the runtime is bundled. The [source setup](docs/FIRST_USE.zh-CN.md) remains available separately.
 3. [Upgrade an existing setup](docs/UPGRADE.zh-CN.md): distinguish a backend-only update from a firmware flash and back up private state first.
 
@@ -26,10 +26,12 @@ For ongoing operation, use the [documentation index](docs/README.md). Contributo
 
 **All remote news sources are disabled** in a fresh install. Without an explicitly enabled source and key, the panel uses four local messages and does not call a paid model automatically. Optional OpenAI `API monthly spend` is the selected organization's cost for a **UTC calendar month**, not an API balance or all personal Codex spending. DeepSeek's daily token figure is not an official whole-account ledger. Unknown values remain `--`, not zero. See [configuration and data semantics](docs/CONFIGURATION.zh-CN.md) and the [support matrix](docs/SUPPORT_MATRIX.md).
 
-The first local web-console visit creates a root account; **there is no default username or password**. Private configuration, API keys, real device identifiers and runtime data are not distributed. A sleeping Mac cannot run the backend scheduler, and an ESP32 wake does not wake the host. See [first use](docs/FIRST_USE.zh-CN.md) and [host publication](docs/HOST_RUNTIME.zh-CN.md).
+The test.9 app starts quietly in the Is menu bar. Use “打开配置” to open a protected local browser session; **no root account or password is needed in desktop mode**. The icon's adjacent integer is the remaining Codex 7D percentage from the existing local cache; missing or expired data shows `-`, without additional upstream probes. Closing the status window leaves services running; quit through the Is menu. Standalone source deployment still creates an administrator and has **no default username or password**. See [app setup](docs/APP_DESKTOP.zh-CN.md) and [menu/session details](docs/MENU_BAR.zh-CN.md).
+
+Private configuration, API keys, real device identifiers and runtime data are not distributed. A sleeping Mac cannot run the backend scheduler, and an ESP32 wake does not wake the host. See [first use](docs/FIRST_USE.zh-CN.md) and [host publication](docs/HOST_RUNTIME.zh-CN.md).
 
 ## License and status
 
 Project-owned code and the four releasable local messages are licensed under [`GPL-3.0-only`](LICENSE). Third-party code, fonts, news content and services keep their own terms. MiSans is not distributed in this repository or the release archive. See [license scope](LICENSE-SCOPE.md), [third-party notices](THIRD_PARTY_NOTICES.md) and [SBOM](SBOM.json).
 
-The [`v0.1.0-test.5` notes](docs/releases/v0.1.0-test.5.en.md) document desktop collection, request queues, wake recovery and data migration; no new firmware binary is included. [Report security issues privately](SECURITY.md), never in a public Issue with credentials or device identifiers.
+The [`v0.1.0-test.9` notes](docs/releases/v0.1.0-test.9.en.md) document menu/session changes, news issue states, unified gold calculations and qualified acceptance. The new gold presentation still awaits physical-screen verification; tests and previews are not hardware acceptance. No firmware binary is included. [test.5](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.5) remains available for controlled rollback. [Report security issues privately](SECURITY.md), never in a public Issue with credentials or device identifiers.

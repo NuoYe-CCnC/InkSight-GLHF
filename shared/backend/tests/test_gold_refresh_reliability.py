@@ -139,7 +139,8 @@ def test_intraday_recovery_uses_same_budget_after_spot(monkeypatch):
     assert gold.refresh(force=True, request_id="spot", now=t)["ok"]
     assert gold.recover_baseline_if_due(now=t + 1)["reason"] == "minimum_interval"
     assert calls == ["spot"]
-    assert gold.recover_baseline_if_due(now=t + 30)["attempted"]
+    assert gold.recover_baseline_if_due(now=t + 59)["reason"] == "minimum_interval"
+    assert gold.recover_baseline_if_due(now=t + 60)["attempted"]
     assert calls == ["spot", "intraday"]
 
 
