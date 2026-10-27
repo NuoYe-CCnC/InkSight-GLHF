@@ -13,6 +13,17 @@ let toastTimer;
 let formDirty = false;
 
 function toast(message, error=false){const node=$("toast");node.textContent=message;node.style.background=error?"#8d3e43":"#263139";node.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>node.hidden=true,3200)}
+$("readAnnouncements").addEventListener("click", async () => {
+  const button = $("readAnnouncements");
+  button.disabled = true;
+  try {
+    const result = await api("/codex-announcements");
+    // Source text/rejection values are untrusted data, never HTML.
+    $("announcementDiagnostics").textContent = JSON.stringify(result, null, 2);
+  } catch (error) {
+    $("announcementDiagnostics").textContent = error.message;
+  } finally { button.disabled = false; }
+});
 function text(value,fallback="--"){return value===null||value===undefined||value===""?fallback:String(value)}
 function html(value){return text(value,"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char])}
 function dateTime(epoch){if(!epoch)return "--";return new Date(Number(epoch)*1000).toLocaleString("zh-CN",{hour12:false})}
@@ -24,7 +35,7 @@ function parseSteps(value,label){const parts=String(value||"").split(",").map(it
 function formatDates(rows){return (rows||[]).join(", ")}
 function parseDates(value,label){const rows=String(value||"").split(",").map(item=>item.trim()).filter(Boolean);for(const item of rows){if(!/^\d{4}-\d{2}-\d{2}$/.test(item)||Number.isNaN(Date.parse(`${item}T00:00:00Z`)))throw new Error(`${label}必须使用 YYYY-MM-DD 格式`)}if(new Set(rows).size!==rows.length)throw new Error(`${label}不能包含重复日期`);return rows}
 function usd2(value){const match=String(value??"").match(/^(-?)(\d+)(?:\.(\d*))?$/);if(!match)return "--";const negative=match[1]==="-";const digits=(match[3]||"")+"000";let cents=BigInt(match[2])*100n+BigInt(digits.slice(0,2));if(digits[2]>="5")cents+=1n;const whole=cents/100n;const fraction=String(cents%100n).padStart(2,"0");return `${negative&&cents!==0n?"-":""}${whole}.${fraction}`}
-async function api(path,options={}){const headers={"Accept":"application/json",...(options.headers||{})};if(options.body)headers["Content-Type"]="application/json";if(options.method&&options.method!=="GET"&&csrf)headers["X-CSRF-Token"]=csrf;const response=await fetch(`/api/local-console${path}`,{credentials:"same-origin",...options,headers});let data={};try{data=await response.json()}catch(_error){data={error:`HTTP ${response.status}`}}if(response.status===401){$("loginOverlay").hidden=false;$("loginError").textContent="会话已过期，请从 InkSight 菜单重新打开配置";throw new Error("请从 InkSight 菜单重新打开配置")}if(!response.ok){const error=new Error((data.details&&data.details.join("；"))||data.detail||data.error||`HTTP ${response.status}`);error.code=data.conflict||data.error;error.reloadRequired=!!data.reload_required;throw error}return data}
+async function api(path,options={}){const headers={"Accept":"application/json",...(options.headers||{})};if(options.body)headers["Content-Type"]="application/json";if(options.method&&options.method!=="GET"&&csrf)headers["X-CSRF-Token"]=csrf;let response;try{response=await fetch(`/api/local-console${path}`,{credentials:"same-origin",...options,headers})}catch(_error){throw new Error("无法连接本机服务，请确认 InkSight 已启动后重试")}let data={};try{data=await response.json()}catch(_error){data={error:`HTTP ${response.status}`}}if(response.status===401){$("loginOverlay").hidden=false;$("loginError").textContent="会话已过期，请从 InkSight 菜单重新打开配置";throw new Error("请从 InkSight 菜单重新打开配置")}if(!response.ok){const error=new Error((data.details&&data.details.join("；"))||data.detail||data.error||`HTTP ${response.status}`);error.code=data.conflict||data.error;error.reloadRequired=!!data.reload_required;throw error}return data}
 
 function showPage(name){document.querySelectorAll("[data-page-panel]").forEach(node=>node.classList.toggle("is-active",node.dataset.pagePanel===name));document.querySelectorAll(".nav").forEach(node=>node.classList.toggle("is-active",node.dataset.page===name));$("pageTitle").textContent=pageNames[name]||name;$("sidebar").classList.remove("open");window.scrollTo({top:0,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})}
 function confirmLeaveDirty(){return !formDirty||confirm("当前页面有尚未保存的修改。确定放弃这些输入并切换页面吗？")}
@@ -57,16 +68,95 @@ function isConfigInput(target){const page=target.closest("[data-page-panel]");re
 document.querySelector("main").addEventListener("input",event=>{if(isConfigInput(event.target))markDirty()});
 document.querySelector("main").addEventListener("change",event=>{if(isConfigInput(event.target))markDirty()});
 
-async function loadPreviewDevices(){const data=await api("/preview/devices");const select=$("previewDevice");select.innerHTML='<option value="">不绑定设备，显示未知值</option>'+data.devices.map(row=>`<option value="${html(row.id)}">${html(row.label)}</option>`).join("")}
-async function loadPreview(){const img=$("previewImage");const button=$("loadPreview");button.disabled=true;button.textContent="正在渲染";try{const params=new URLSearchParams({device_id:$("previewDevice").value,page:$("previewPage").value,_:String(Date.now())});const response=await fetch(`/api/local-console/preview?${params}`,{credentials:"same-origin",headers:{Accept:"image/png"}});if(!response.ok){let message="预览失败";try{const body=await response.json();message=body.error||body.detail||message}catch(_error){}throw new Error(message)}const blob=await response.blob();if(img.dataset.url)URL.revokeObjectURL(img.dataset.url);img.dataset.url=URL.createObjectURL(blob);img.src=img.dataset.url;img.classList.add("ready");button.textContent="重新渲染"}catch(error){button.textContent="重试预览";toast(error.message,true)}finally{button.disabled=false}}
-async function loadFirmware(){try{firmwareCheck=await api("/firmware/preflight");$("firmwareState").textContent=firmwareCheck.ready?"可以构建":"配置不完整";$("firmwareState").className=`pill ${firmwareCheck.ready?"good":"warn"}`;$("buildFirmware").disabled=!firmwareCheck.ready;const saved=localStorage.getItem("inksight_last_build");if(saved){try{const data=await api(`/firmware/builds/${encodeURIComponent(saved)}`);if(data.task.status==="completed"&&!data.task.stale){lastBuild=data.task;$("openFlash").disabled=false;$("firmwareState").textContent="固件已构建"}}catch(_error){localStorage.removeItem("inksight_last_build")}}const flashId=localStorage.getItem("inksight_last_flash");$("prepareRollback").disabled=true;if(flashId){try{const data=await api(`/firmware/flashes/${encodeURIComponent(flashId)}`);lastFlash=data.task;$("prepareRollback").disabled=!(lastFlash.install_mode==="update"&&lastFlash.backup_available&&["completed","network_timeout","failed","waiting_heartbeat"].includes(lastFlash.status))}catch(_error){localStorage.removeItem("inksight_last_flash")}}const rollbackId=localStorage.getItem("inksight_last_rollback");if(rollbackId){try{const data=await api(`/firmware/rollbacks/${encodeURIComponent(rollbackId)}`);if(["written_unconfirmed","completed"].includes(data.task.status)){$("prepareRollback").disabled=true;$("firmwareState").textContent=data.task.status==="completed"?"回退与旧版心跳已验证":"回退已校验，待实体屏确认";if(data.task.status==="completed")localStorage.removeItem("inksight_last_flash")}}catch(_error){localStorage.removeItem("inksight_last_rollback")}}}catch(error){$("firmwareState").textContent="预检失败";$("firmwareState").className="pill warn";$("buildFirmware").disabled=true}}
-async function loadAll(){overview=await api("/overview");view=await api("/config");formDirty=false;renderAll();await loadPreviewDevices();loadFirmware()}
+let previewDevices=[],previewSequence=0,previewRequest=null;
+function previewDateTime(epoch){return epoch?new Date(Number(epoch)*1000).toLocaleString("zh-CN",{hour12:false,timeZone:"Asia/Shanghai"}):"未知"}
+function clearPreview(message){const img=$("previewImage");img.classList.remove("ready");img.removeAttribute("src");if(img.dataset.url){URL.revokeObjectURL(img.dataset.url);delete img.dataset.url}$("exportPreview").hidden=true;$("exportPreview").removeAttribute("href");$("previewMessage").textContent=message;$("previewMessage").hidden=false;$("previewMeta").textContent=""}
+async function loadPreviewDevices(){
+  const sequence=++previewSequence;if(previewRequest)previewRequest.abort();
+  clearPreview("正在读取发布记录");$("previewFrame").setAttribute("aria-busy","false");$("loadPreview").disabled=true;
+  try{const data=await api("/preview/devices");if(sequence!==previewSequence)return;
+    const select=$("previewDevice"),previous=select.value;previewDevices=data.devices;
+    const states={published:"最新成功发布",unpublished:"无发布记录",snapshot_missing:"等待完整快照",snapshot_invalid:"快照校验异常"};
+    select.innerHTML=previewDevices.length?previewDevices.map(row=>`<option value="${html(row.id)}">${html(row.label)} (${html(states[row.state]||"来源不可用")}${row.published_at?` ${html(previewDateTime(row.published_at))}`:""})</option>`).join(""):'<option value="">尚未绑定设备</option>';
+    if(previewDevices.some(row=>row.id===previous))select.value=previous;
+    $("loadPreview").disabled=!previewDevices.length;
+    $("cloudCheck").disabled=!previewDevices.length;
+    if(previewDevices.length)await loadPreview();else clearPreview("尚未绑定设备。请先在 App 中选择实际设备，再等待正常发布。");
+  }catch(error){if(sequence===previewSequence){clearPreview(error.message);$("previewSourceNote").textContent="来源读取失败，请刷新后重试。"}}
+}
+async function loadPreview(source="published"){
+  if(typeof source!=="string")source="published";
+  const sequence=++previewSequence;if(previewRequest)previewRequest.abort();previewRequest=new AbortController();
+  const img=$("previewImage"),button=$("loadPreview"),device=previewDevices.find(row=>row.id===$("previewDevice").value),page=$("previewPage").value;
+  clearPreview("正在渲染所选快照");button.disabled=true;button.textContent="正在渲染";$("previewFrame").setAttribute("aria-busy","true");
+  $("previewSourceNote").textContent=source==="unbound"?"未绑定占位诊断，不对应任何设备或账户。":device?`${device.label}${device.publication_kind==="connection_check"?"（连接验收快照，非设备轮询文件）":""}：${device.published_at?`最近成功发布 ${previewDateTime(device.published_at)} (北京时间)`:"无成功发布记录"}。只读取已保存快照，不刷新数据源。`:"尚未选择设备。";
+  try{
+    if(source==="published"&&!device)throw new Error("尚未绑定设备，无法预览发布内容。");
+    const params=new URLSearchParams({device_id:device?.id||"",page,source});
+    const response=await fetch(`/api/local-console/preview?${params}`,{signal:previewRequest.signal,credentials:"same-origin",headers:{Accept:"image/png"}});
+    if(sequence!==previewSequence)return;
+    if(response.status===401){$("loginOverlay").hidden=false;$("loginError").textContent="会话已过期，请从 InkSight 菜单重新打开配置";throw new Error("会话已过期，请从 InkSight 菜单重新打开配置")}
+    if(!response.ok){let message="预览失败，请重试";try{const body=await response.json();message=body.detail||body.error||message}catch(_error){}throw new Error(message)}
+    if(!(response.headers.get("Content-Type")||"").startsWith("image/png"))throw new Error("预览未返回 PNG，未显示旧图。");
+    const blob=await response.blob();if(sequence!==previewSequence)return;
+    const url=URL.createObjectURL(blob);img.dataset.url=url;img.src=url;await img.decode();
+    if(sequence!==previewSequence){URL.revokeObjectURL(url);return}
+    if(img.naturalWidth!==800||img.naturalHeight!==480)throw new Error("预览尺寸异常，应为 800 × 480。");
+    img.classList.add("ready");$("previewMessage").hidden=true;
+    const published=Number(response.headers.get("X-InkSight-Published-At")),stale=response.headers.get("X-InkSight-Snapshot-Stale")==="1";
+    $("previewMeta").textContent=source==="unbound"?"诊断画面：仅缺数据占位，不是设备最新发布。":`${response.headers.get("X-InkSight-Publication-Kind")==="connection_check"?"连接验收快照，不是设备轮询文件。":""}${stale?"旧快照，超过 30 分钟未成功发布。":""}发布及渲染基准：${previewDateTime(published)} (北京时间)。800 × 480 原始像素；设备显示未确认，当前页面未知。`;
+    const link=$("exportPreview");link.href=url;link.download=`InkSight-${source}-${page}-${published||"diagnostic"}.png`;link.hidden=false;button.textContent="刷新预览";
+  }catch(error){if(sequence!==previewSequence)return;clearPreview(error.name==="AbortError"?"预览已取消":error.message);button.textContent="重试预览"}
+  finally{if(sequence===previewSequence){button.disabled=!previewDevices.length;$("previewFrame").setAttribute("aria-busy","false")}}
+}
+async function loadFirmware(){return firmwareController.refresh()}
+const firmwareController=createFirmwareController({api});
+firmwareController.subscribe(state=>{
+  firmwareCheck=state.data?.preflight||null;
+  lastBuild=state.canFlash?state.build:null;
+  $("buildFirmware").disabled=!state.canBuild;
+  $("buildFirmware").textContent=['queued','running'].includes(state.build?.status)?"构建中…":"构建固件";
+  $("openFlash").disabled=!state.canFlash;
+  $("cancelBuild").hidden=!['queued','running'].includes(state.build?.status);
+  let label=state.error?"准备检查失败，请重试":state.checking?"正在检查准备条件":state.preparing?"正在准备"+(state.preparing.kind==='fonts'?'字体':'构建工具'):state.data?.preflight.ready?"可以构建":"准备条件不完整";
+  if(!state.error&&state.build&&!state.checking)label=state.build.stale?"配置或源码已变化，请重新构建":firmwareStatus(state.build.status);
+  if(!state.error&&['queued','running'].includes(state.build?.status))label=firmwareStatus(state.build.status);
+  $("firmwareState").textContent=label;
+  $("firmwareState").className='pill '+(state.error||!state.data?.preflight.ready?'warn':'good');
+  lastFlash=state.data?.history.flashes?.[0]||null;
+  $("prepareRollback").disabled=state.checking||!lastFlash||!(lastFlash.install_mode==="update"&&lastFlash.backup_available&&["completed","network_timeout","failed","waiting_heartbeat"].includes(lastFlash.status));
+  const rollback=state.data?.history.rollbacks?.[0];
+  if(rollback&&["written_unconfirmed","completed"].includes(rollback.status)){
+    $("prepareRollback").disabled=true;
+    $("firmwareState").textContent=rollback.status==="completed"?"回退与旧版心跳已验证":"回退已校验，待实体屏确认";
+  }
+});
+document.addEventListener('inksight:firmware',()=>loadFirmware());
+window.addEventListener('online',()=>loadFirmware());
+window.addEventListener('focus',()=>loadFirmware());
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadFirmware()});
+const firmwareEvents=typeof BroadcastChannel==='undefined'?null:new BroadcastChannel('inksight-firmware-'+location.port);
+if(firmwareEvents)firmwareEvents.addEventListener('message',()=>firmwareController.refresh({invalidate:true}));
+async function loadAll(){firmwareController.invalidate();try{overview=await api("/overview");view=await api("/config");formDirty=false;renderAll();await loadPreviewDevices();await loadFirmware();document.dispatchEvent(new Event("inksight:loaded"))}catch(error){await loadFirmware();throw error}}
 async function bootstrap(){try{await window.inkSightEntry;const data=await api("/bootstrap");csrf=data.csrf_token;$("loginOverlay").hidden=true;await loadAll()}catch(error){$("loginOverlay").hidden=false;$("loginError").textContent=error.message}}
 
 $("refresh").addEventListener("click",async()=>{try{await loadAll();toast("状态已刷新")}catch(error){toast(error.message,true)}});
 $("loadPreview").addEventListener("click",loadPreview);
-$("previewDevice").addEventListener("change",()=>{$("previewImage").classList.remove("ready")});
-$("previewPage").addEventListener("change",()=>{$("previewImage").classList.remove("ready")});
+$("cloudCheck").addEventListener('click',async()=>{
+  const button=$("cloudCheck");if(button.disabled)return;button.disabled=true;
+  try{
+    const check=await api('/cloud/connection-check');
+    if(!confirm('在当前已应用的 WebDAV 目录创建唯一测试文件并回读？不会覆盖既有文件，不启动自动发布或调用付费模型。临时探针会清理，完整快照保留供预览，不作为设备轮询文件。'))return;
+    $("cloudCheckState").textContent='正在上传、回读并核对内容；这不代表设备已显示。';
+    const result=await api('/cloud/connection-check',{method:'POST',body:JSON.stringify({device_id:$("previewDevice").value,confirmation_token:check.confirmation_token})});
+    $("cloudCheckState").textContent=`上传及 SHA256 回读通过；探针${result.task.probe_cleaned?'已清理':'需清理'}，临时分片${result.task.part_cleaned?'已清理':'需清理'}。保留 1 份完整快照供预览；${result.task.objects[1].move_supported?'服务端 MOVE 成功':'使用直接 PUT 回退，不声称原子替换'}。设备显示未确认。`;
+    await loadPreviewDevices();
+  }catch(error){$("cloudCheckState").textContent='连接验收失败，旧成功快照保留。'+error.message;toast(error.message,true)}
+  finally{button.disabled=!previewDevices.length}
+});
+$("previewDevice").addEventListener("change",()=>loadPreview());
+$("previewPage").addEventListener("change",()=>loadPreview());
+$("previewUnbound").addEventListener("click",()=>loadPreview("unbound"));
 $("addSchedule").addEventListener("click",()=>{$("scheduleEditor").insertAdjacentHTML("beforeend",scheduleRow({id:stableId("issue"),label:"新一期",time:"12:00",cutoff:"",enabled:true,day_types:["all"]}));markDirty()});
 $("scheduleEditor").addEventListener("click",event=>{const button=event.target.closest("[data-remove-schedule]");if(button){button.closest("[data-schedule-id]").remove();markDirty()}});
 document.querySelectorAll("[data-add-window]").forEach(button=>button.addEventListener("click",()=>{const day=button.dataset.addWindow;$(`${day}Windows`).insertAdjacentHTML("beforeend",windowRow(day,{id:stableId(day),start:"09:00",end:"18:00",mode:"active"}));markDirty()}));
@@ -77,7 +167,7 @@ function collectPolicySettings(cfg){const policy=cfg.device_policy;policy.news_c
 async function save(publicConfig,secretUpdates={}){const expectedRevision=view&&view.draft&&view.draft.revision;view=await api("/config/draft",{method:"PUT",body:JSON.stringify({public:publicConfig,secret_updates:secretUpdates,expected_revision:expectedRevision||null})});overview=await api("/overview");formDirty=false;renderAll();toast("草稿已保存，尚未应用")}
 $("saveDraft").addEventListener("click",async()=>{try{await save(collectNewsSourceSettings(collectPolicySettings(collectSettings())))}catch(error){toast(error.message,true)}});
 $("discardDraft").addEventListener("click",async()=>{try{view=await api("/config/draft",{method:"DELETE",body:JSON.stringify({expected_revision:view&&view.draft&&view.draft.revision})});overview=await api("/overview");formDirty=false;renderAll();toast("草稿已放弃")}catch(error){toast(error.message,true)}});
-$("applyDraft").addEventListener("click",async()=>{if(!confirm("确认应用这份草稿？运行时设置会立即供后续任务读取，Wi-Fi 仍需重新构建和刷写。"))return;try{view=await api("/config/apply",{method:"POST",body:JSON.stringify({expected_revision:view&&view.draft&&view.draft.revision})});overview=await api("/overview");formDirty=false;renderAll();toast("配置已经应用，变更的密钥需单独验证")}catch(error){toast(error.message,true)}});
+$("applyDraft").addEventListener("click",async()=>{if(!confirm("确认应用这份草稿？运行时设置供后续任务读取。Wi-Fi 列表仅用于首次安装；兼容升级保留设备原网络，不代替单独配网。"))return;try{firmwareController.invalidate();view=await api("/config/apply",{method:"POST",body:JSON.stringify({expected_revision:view&&view.draft&&view.draft.revision})});overview=await api("/overview");formDirty=false;renderAll();firmwareEvents?.postMessage("changed");await firmwareController.refresh({invalidate:true});toast("配置已经应用，变更的密钥需单独验证")}catch(error){await loadFirmware();toast(error.message,true)}});
 $("saveAccounts").addEventListener("click",async()=>{try{const cfg=activePublic();const plan=$("codexPlan").value;if(plan){cfg.codex_member={plan,renewal_status:$("codexStatus").value,valid_until_date:$("codexDate").value||null,precision:"date",source:"manual"}}else{cfg.codex_member={}}cfg.openai_costs.poll_interval_minutes=Number($("openaiPollMinutes").value);cfg.openai_costs.organization_id=$("openaiOrganization").value.trim()||null;const updates={};const fields=[["news_deepseek_api_key","newsKey","clearNewsKey"],["deepseek_api_key","deepseekKey","clearDeepseekKey"],["goldapi_key","goldKey","clearGoldKey"],["openai_admin_api_key","openaiAdminKey","clearOpenaiKey"]];for(const [name,id,clearId] of fields){if($(clearId).checked&&$(id).value)throw new Error("同一项不能同时替换和清除");if($(clearId).checked)updates[name]="";else if($(id).value)updates[name]=$(id).value}const cloudValues=["cloudUrl","cloudUser","cloudPassword"].map(id=>$(id).value);if($("clearCloud").checked&&cloudValues.some(Boolean))throw new Error("云端凭据不能同时替换和清除");if($("clearCloud").checked){updates.cloud_base_url="";updates.cloud_user="";updates.cloud_password=""}else{[["cloud_base_url","cloudUrl"],["cloud_user","cloudUser"],["cloud_password","cloudPassword"]].forEach(([name,id])=>{if($(id).value)updates[name]=$(id).value})}const networks=Array.from({length:5},(_,index)=>({ssid:document.querySelector(`[data-wifi-ssid="${index}"]`).value.trim(),password:document.querySelector(`[data-wifi-pass="${index}"]`).value})).filter(row=>row.ssid||row.password);if($("clearWifi").checked&&networks.length)throw new Error("Wi-Fi 不能同时替换和清空");if($("clearWifi").checked)updates.wifi_networks=[];else if(networks.length){if(networks.some(row=>!row.ssid))throw new Error("Wi-Fi 密码不能脱离名称单独填写");updates.wifi_networks=networks}await save(cfg,updates);["newsKey","deepseekKey","goldKey","openaiAdminKey","cloudUrl","cloudUser","cloudPassword"].forEach(id=>$(id).value="");document.querySelectorAll("[data-wifi-ssid],[data-wifi-pass]").forEach(input=>input.value="");["clearNewsKey","clearDeepseekKey","clearGoldKey","clearOpenaiKey","clearCloud","clearWifi"].forEach(id=>$(id).checked=false);showPage("settings")}catch(error){toast(error.message,true)}});
 function appliedKeyReady(name){if(formDirty||(view&&view.draft&&(view.draft.changed_secret_fields||[]).includes(name))){toast("这项密钥仍在草稿中。请先保存并应用草稿，再进行验证。",true);return false}return true}
 $("validateNewsKey").addEventListener("click",async()=>{if(!appliedKeyReady("news_deepseek_api_key"))return;if(!confirm("验证当前已经应用的新闻密钥？这会调用 DeepSeek 的余额查询接口，不会生成内容或产生模型费用。"))return;try{await api("/credentials/news/validate",{method:"POST"});await loadAll();toast("新闻密钥验证通过")}catch(error){await loadAll();toast(error.message,true)}});
@@ -89,13 +179,33 @@ $("confirmIssue").addEventListener("change",event=>$("runIssue").disabled=!event
 $("runIssue").addEventListener("click",async()=>{try{$("runIssue").disabled=true;const data=await api("/manual-issues",{method:"POST",body:JSON.stringify({idempotency_key:pendingIssueKey,title:"手动生成"})});localStorage.setItem("inksight_last_issue",data.task.id);$("issueOverlay").hidden=true;toast("任务已记录，正在后台执行");await loadAll();pollTask(data.task.id)}catch(error){toast(error.message,true);$("runIssue").disabled=false}});
 async function pollTask(taskId){for(let i=0;i<30;i+=1){await new Promise(resolve=>setTimeout(resolve,2000));try{const data=await api(`/manual-issues/${encodeURIComponent(taskId)}`);if(!["queued","running"].includes(data.task.status)){await loadAll();toast(data.task.status==="completed"?"新一期任务已完成":"任务未完成，请查看操作记录",data.task.status!=="completed");return}}catch(error){toast(error.message,true);return}}}
 
-$("buildFirmware").addEventListener("click",async()=>{if(!confirm("开始本机固件构建？该步骤不会连接或写入 USB 设备。"))return;try{$("buildFirmware").disabled=true;$("firmwareState").textContent="构建中";const data=await api("/firmware/builds",{method:"POST"});localStorage.setItem("inksight_last_build",data.task.id);toast("固件构建已开始");pollBuild(data.task.id)}catch(error){toast(error.message,true);loadFirmware()}});
-async function pollBuild(taskId){for(let i=0;i<240;i+=1){await new Promise(resolve=>setTimeout(resolve,3000));try{const data=await api(`/firmware/builds/${encodeURIComponent(taskId)}`);$("firmwareState").textContent=data.task.status==="running"?"构建中":data.task.status;if(!["queued","running"].includes(data.task.status)){if(data.task.status==="completed"&&!data.task.stale){lastBuild=data.task;$("openFlash").disabled=false;toast("固件构建完成，写入前仍需识别并确认设备")}else{toast(data.task.error||"固件构建失败",true)}loadFirmware();return}}catch(error){toast(error.message,true);return}}}
+$("buildFirmware").addEventListener("click",async()=>{try{await firmwareController.start(()=>confirm("开始本机固件构建？按刚检查的配置与工具生成，不会连接或写入 USB 设备。"));firmwareEvents?.postMessage("changed")}catch(error){toast(error.message,true)}});
+$("cancelBuild").addEventListener("click",async()=>{try{if(confirm("取消当前固件构建？不会写入设备，已有可用固件保留。"))await firmwareController.stopBuild()}catch(error){toast(error.message,true)}});
+async function pollBuild(){return loadFirmware()}
 $("openFlash").addEventListener("click",async()=>{if(!lastBuild)return;try{const data=await api("/firmware/devices");if(!data.devices.length)throw new Error("没有检测到可用的 USB 串口");$("deviceSelect").innerHTML=data.devices.map(row=>`<option value="${html(row.id)}">${html(row.label)} · ${html(row.path_hint)}</option>`).join("");$("flashSummary").innerHTML=`<div><span>固定目标</span><strong>${html(lastBuild.target)}</strong></div><div><span>芯片</span><strong>${html(lastBuild.chip)}</strong></div><div><span>配置指纹</span><strong>${html(lastBuild.config_fingerprint)}</strong></div><div><span>Wi-Fi</span><strong>${html(lastBuild.wifi_count)} 组</strong></div>`;flashPlan=null;$("flashConfirmBlock").hidden=true;$("identifyActions").hidden=false;$("flashOverlay").hidden=false}catch(error){toast(error.message,true)}});
-$("identifyDevice").addEventListener("click",async()=>{try{$("identifyDevice").disabled=true;const data=await api("/firmware/flash-plans",{method:"POST",body:JSON.stringify({build_id:lastBuild.id,device_id:$("deviceSelect").value,install_mode:$("installMode").value})});flashPlan=data.plan;$("flashSummary").innerHTML+=`<div><span>设备指纹</span><strong>${html(flashPlan.device_fingerprint)}</strong></div><div><span>Flash 容量</span><strong>${html(flashPlan.flash_size)}</strong></div><div><span>分区状态</span><strong>${html(flashPlan.partition_state)}</strong></div><div><span>固件摘要</span><strong>${html(text(flashPlan.artifact_sha256).slice(0,12))}</strong></div>`;$("flashScope").textContent=flashPlan.scope;$("identifyActions").hidden=true;$("flashConfirmBlock").hidden=false;$("confirmFlash").checked=false;$("runFlash").disabled=true}catch(error){toast(error.message,true)}finally{$("identifyDevice").disabled=false}});
+$("identifyDevice").addEventListener("click",async()=>{
+  try {
+    $("identifyDevice").disabled=true;
+    $("installMode").disabled=true;$("deviceSelect").disabled=true;
+    const response=await api("/firmware/flash-plans",{method:"POST",body:JSON.stringify({
+      build_id:lastBuild.id,device_id:$("deviceSelect").value,install_mode:$("installMode").value})});
+    let plan=response.plan;
+    while(["queued","running"].includes(plan.status)){
+      $("identifyDevice").textContent=plan.progress||"只读核对与备份中";
+      await new Promise(resolve=>setTimeout(resolve,1500));
+      plan=(await api(`/firmware/flash-plans/${encodeURIComponent(plan.id)}`)).plan;
+    }
+    if(plan.status!=="ready")throw new Error(plan.error||"核对未完成，未写入设备");
+    flashPlan=plan;
+    $("flashSummary").innerHTML+=`<div><span>设备指纹</span><strong>${html(plan.device_fingerprint)}</strong></div><div><span>Flash 容量</span><strong>${html(plan.flash_size)}</strong></div><div><span>模式与分区</span><strong>${html(plan.install_mode)} / ${html(plan.partition_state)}</strong></div><div><span>固件摘要</span><strong>${html(plan.artifact_sha256.slice(0,12))}</strong></div><div><span>备份</span><strong>已逐项校验，确认后会再备份最新状态</strong></div><div><span>确认期限</span><strong>${dateTime(plan.expires_at)}</strong></div>`;
+    $("flashScope").textContent=plan.scope;$("identifyActions").hidden=true;
+    $("flashConfirmBlock").hidden=false;$("confirmFlash").checked=false;$("runFlash").disabled=true;
+  } catch(error){flashPlan=null;toast(error.message,true)}
+  finally {$("identifyDevice").disabled=false;$("identifyDevice").textContent="核对设备与分区";$("installMode").disabled=false;$("deviceSelect").disabled=false}
+});
 $("confirmFlash").addEventListener("change",event=>$("runFlash").disabled=!event.target.checked);
-$("runFlash").addEventListener("click",async()=>{if(!flashPlan)return;try{$("runFlash").disabled=true;const data=await api("/firmware/flashes",{method:"POST",body:JSON.stringify({plan_id:flashPlan.id,confirmation_token:flashPlan.confirmation_token})});localStorage.setItem("inksight_last_flash",data.task.id);localStorage.removeItem("inksight_last_rollback");$("flashOverlay").hidden=true;$("firmwareState").textContent="正在刷写";toast("刷写已开始，请勿拔出设备");pollFlash(data.task.id)}catch(error){toast(error.message,true);$("runFlash").disabled=false}});
-async function pollFlash(taskId){for(let i=0;i<240;i+=1){await new Promise(resolve=>setTimeout(resolve,3000));try{const data=await api(`/firmware/flashes/${encodeURIComponent(taskId)}`);const status=data.task.status;if(status==="waiting_heartbeat"){$("firmwareState").textContent="写入已校验，等待设备联网";$("prepareRollback").disabled=!(data.task.install_mode==="update"&&data.task.backup_available);continue}if(!["queued","running"].includes(status)){if(status==="completed"){toast("刷写与联网心跳均已确认");$("firmwareState").textContent="刷写已验证"}else if(status==="network_timeout"){toast("写入已校验，但设备未在时限内联网",true);$("firmwareState").textContent="联网待检查"}else{toast(data.task.error||"刷写失败，请先核对备份",true);$("firmwareState").textContent="刷写失败"}await loadFirmware();return}}catch(error){toast(error.message,true);return}}}
+$("runFlash").addEventListener("click",async()=>{if(!flashPlan)return;try{$("runFlash").disabled=true;const data=await api("/firmware/flashes",{method:"POST",body:JSON.stringify({plan_id:flashPlan.id,confirmation_token:flashPlan.confirmation_token})});localStorage.setItem("inksight_last_flash",data.task.id);localStorage.removeItem("inksight_last_rollback");$("flashOverlay").hidden=true;$("firmwareState").textContent="正在刷写";toast("刷写已开始，请勿拔出设备");document.dispatchEvent(new Event('inksight:firmware'));pollFlash(data.task.id)}catch(error){toast(error.message,true);$("runFlash").disabled=false}});
+async function pollFlash(taskId){for(let i=0;i<240;i+=1){await new Promise(resolve=>setTimeout(resolve,3000));try{const data=await api(`/firmware/flashes/${encodeURIComponent(taskId)}`);const status=data.task.status;if(status==="waiting_heartbeat"){$("firmwareState").textContent="写入已校验，等待设备联网";$("prepareRollback").disabled=!(data.task.install_mode==="update"&&data.task.backup_available);continue}if(!["queued","running"].includes(status)){if(status==="completed"){toast("写入校验与设备联网回执均已确认；实体屏仍需人工核对");$("firmwareState").textContent="刷写已验证"}else if(status==="network_timeout"){toast("写入已校验，但设备未在时限内联网",true);$("firmwareState").textContent="联网待检查"}else{toast(data.task.error||"刷写失败，请先核对备份",true);$("firmwareState").textContent="刷写失败"}await loadFirmware();return}}catch(error){toast(error.message,true);return}}}
 
 $("prepareRollback").addEventListener("click",async()=>{if(!lastFlash)return;try{const data=await api("/firmware/devices");if(!data.devices.length)throw new Error("没有检测到可用的 USB 串口");$("rollbackDeviceSelect").innerHTML=data.devices.map(row=>`<option value="${html(row.id)}">${html(row.label)} · ${html(row.path_hint)}</option>`).join("");$("rollbackSummary").innerHTML=`<div><span>上次更新</span><strong>${html(lastFlash.id)}</strong></div><div><span>设备指纹</span><strong>${html(lastFlash.device_fingerprint)}</strong></div>`;rollbackPlan=null;$("rollbackConfirmBlock").hidden=true;$("rollbackIdentifyActions").hidden=false;$("rollbackOverlay").hidden=false}catch(error){toast(error.message,true)}});
 $("identifyRollback").addEventListener("click",async()=>{if(!lastFlash)return;try{$("identifyRollback").disabled=true;const data=await api("/firmware/rollback-plans",{method:"POST",body:JSON.stringify({flash_id:lastFlash.id,device_id:$("rollbackDeviceSelect").value})});rollbackPlan=data.plan;$("rollbackSummary").innerHTML+=`<div><span>已核对设备</span><strong>${html(rollbackPlan.device_fingerprint)} · ${html(rollbackPlan.flash_size)}</strong></div><div><span>原始启动项摘要</span><strong>${html(rollbackPlan.restore_ota_sha256.slice(0,12))}</strong></div>`;$("rollbackScope").textContent=rollbackPlan.scope;$("rollbackIdentifyActions").hidden=true;$("rollbackConfirmBlock").hidden=false;$("confirmRollback").checked=false;$("runRollback").disabled=true}catch(error){toast(error.message,true)}finally{$("identifyRollback").disabled=false}});

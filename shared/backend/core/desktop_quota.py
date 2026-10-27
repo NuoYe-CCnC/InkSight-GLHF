@@ -30,7 +30,7 @@ def _number(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
-def snapshot(*, now: float | None = None) -> dict:
+def quota_snapshot_base(*, now: float | None = None) -> dict:
     now = time.time() if now is None else now
     ttl = ai_source_policy()["codex"]["stale_after_s"]
     result = {"remaining_percent": None, "last_success_at": None,
@@ -74,4 +74,15 @@ def snapshot(*, now: float | None = None) -> dict:
         return result
     # Match the panel's lround convention. Zero is a valid exhausted quota.
     result.update(remaining_percent=math.floor(100 - used + 0.5), reason=None)
+    return result
+
+
+def snapshot(*, now: float | None = None) -> dict:
+    result = quota_snapshot_base(now=now)
+    # Forecast failures cannot corrupt the independent real 7D quota result.
+    try:
+        from .codex_announcements import snapshot as announcement_snapshot
+        result["announcements"] = announcement_snapshot(now=now)
+    except Exception:
+        result["announcements"] = None
     return result

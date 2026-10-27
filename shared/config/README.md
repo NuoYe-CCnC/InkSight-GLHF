@@ -80,6 +80,10 @@ v1 公共配置和秘密文件仍可读取：加载器只在内存中升级为 v
 - `show_weekday`、`show_lunar`、`show_solar_terms`、`show_festivals` 分别控制右上日期栏内容；关闭只删除对应信息，不移动页面骨架。
 
 公开仓库只提交 `*.example.json`。本地配置、秘密、备份已被 `.gitignore` 排除。
+
+## 实验性 Codex 重置预告
+
+`codex_announcements.enabled` 默认 `false`；同一区块包含公开作者/稳定 ID、分时频率、夜间时刻、回看、请求预算及退避设置。省略此区块的旧配置仍关闭，不迁移或修改真实额度。无需新 Key 或 Cookie。完整行为、边界和离线验收见 [预告说明](../../docs/CODEX_ANNOUNCEMENTS.zh-CN.md)。
 # 第三阶段可调项
 
 - `news_digest.schedules`：最多 12 个启用时刻/日，稳定 `id`、标题、时间、适用日型；相邻时刻至少 30 分钟。全部关闭是合法配置。

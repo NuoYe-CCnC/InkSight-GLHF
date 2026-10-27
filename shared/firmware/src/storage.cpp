@@ -86,6 +86,11 @@ static bool promoteCompiledNetwork(const String &ssid, const String &pass) {
 // once per build ID so omitted old networks are removed, while later captive
 // portal edits remain persistent across ordinary reboots of the same build.
 static bool applyCompiledWifiSnapshot(Preferences &p) {
+#if defined(INKSIGHT_PRESERVE_PROVISIONED_WIFI) && INKSIGHT_PRESERVE_PROVISIONED_WIFI
+    // A compatible upgrade must not replace existing network order/passwords
+    // with the host's build snapshot. Blank NVS is seeded in loadConfig above.
+    if (p.getInt("wifi_n", -1) >= 0) return false;
+#endif
     if (strlen(DEFAULT_SSID) == 0) return false;
     String appliedBuild = p.getString("wifi_build", "");
     if (appliedBuild == String(INKSIGHT_BUILD_ID)) return false;
@@ -200,8 +205,10 @@ void loadConfig() {
     cfgPass         = prefs.getString("pass", "");
     cfgServer       = prefs.getString("server", DEFAULT_SERVER);
     // 编译期默认值兜底（NVS 未配置时）
+#if !defined(INKSIGHT_PRESERVE_PROVISIONED_WIFI) || !INKSIGHT_PRESERVE_PROVISIONED_WIFI
     if (cfgSSID.length() == 0) cfgSSID = DEFAULT_SSID;
     if (cfgPass.length() == 0) cfgPass = DEFAULT_PASS;
+#endif
     cfgSleepMin     = prefs.getInt("sleep_min", 60);
     cfgConfigJson   = prefs.getString("config_json", "");
     cfgDeviceToken  = prefs.getString("device_token", "");
@@ -228,15 +235,25 @@ void loadConfig() {
         needMigration = true;
     }
     // 编译期预置 WiFi：列表为空但有默认 SSID 时写入 slot 0
-    if (g_wifiCount == 0 && cfgSSID.length() > 0) {
+    if (g_wifiCount == 0 && cfgSSID.length() > 0
+#if defined(INKSIGHT_PRESERVE_PROVISIONED_WIFI) && INKSIGHT_PRESERVE_PROVISIONED_WIFI
+        && wifiN < 0
+#endif
+    ) {
         g_wifiSsids[0] = cfgSSID;
         g_wifiPass[0]  = cfgPass;
         g_wifiCount = 1;
     }
     if (g_wifiCount == 0) {
+#if !defined(INKSIGHT_PRESERVE_PROVISIONED_WIFI) || !INKSIGHT_PRESERVE_PROVISIONED_WIFI
         seedExtraWifi();  // 连默认 SSID 都没有但带了 EXTRA_WIFI 的情况
+#else
+        if (wifiN < 0) seedExtraWifi();  // never refill a deliberately empty provisioned list
+#endif
     } else if (needMigration) {
+#if !defined(INKSIGHT_PRESERVE_PROVISIONED_WIFI) || !INKSIGHT_PRESERVE_PROVISIONED_WIFI
         seedExtraWifi();  // 旧版单网络迁移：把编译期备用网络一并并入
+#endif
     }
     bool priorityChanged = applyCompiledWifiSnapshot(prefs);
     prefs.end();

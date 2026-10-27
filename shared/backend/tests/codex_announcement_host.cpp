@@ -1,0 +1,18 @@
+#include "codex_announcements.h"
+#include <iostream>
+#include <iterator>
+int main() {
+    const std::string input(std::istreambuf_iterator<char>(std::cin), {});
+    JsonDocument doc;
+    if (deserializeJson(doc, input)) return 2;
+    const time_t now = doc["now"].as<long long>();
+    JsonObjectConst ai = doc["ai"].as<JsonObjectConst>();
+    std::cout << "{\"quota_reset\":" << (long long)codexAnnouncementTarget(ai, "quota_reset", now)
+              << ",\"reset_grant\":" << (long long)codexAnnouncementTarget(ai, "reset_grant", now);
+    if (doc["inspect_nearest"] | false) {
+        const char *kind = nullptr;
+        time_t target = codexNearestAnnouncement(ai,now,doc["show_reset"] | true,&kind);
+        std::cout << ",\"nearest\":" << (long long)target << ",\"kind\":\"" << (kind ? kind : "") << "\"";
+    }
+    std::cout << "}";
+}

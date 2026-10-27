@@ -2,6 +2,8 @@
 
 [中文](INSTALLATION.zh-CN.md) · [Documentation index](README.md) · [Back to README](../README.en.md)
 
+test.17 provides a [graphical preparation center (Chinese)](DEVICE_FIRST_USE.zh-CN.md). App users do not install system Python or create a root account. It requires Apple Silicon/macOS26.5+, actually tested on26.5.2. MiSans is supplied/imported by the user; first tool preparation requires an explicit online download. Existing provisioned Wi-Fi is preserved during compatible updates. Production migration and one existing-board upgrade/screen refresh were verified; fresh-board install, actual rollback, a second Mac/Gatekeeper and next-login startup remain unverified. Source users of this center need Python3.11 plus `requirements-py311-macos-arm64.lock`; the Python3.9 path below is the earlier source-only baseline.
+
 This guide covers only the first test release's verified path: macOS ARM64, Python 3.9, ESP32-S3 N32R16V, and a 4.26-inch SSD1677 800×480 display. Other PlatformIO environments in the tree are not supported-hardware claims.
 
 ## 1. Requirements

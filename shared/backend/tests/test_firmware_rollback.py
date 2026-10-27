@@ -61,13 +61,22 @@ def rollback_lab(tmp_path, monkeypatch):
         if "write_flash" in args:
             index = args.index("write_flash")
             offset, path = args[index + 1:index + 3]
-            device[offset] = Path(path).read_bytes()
+            raw=Path(path).read_bytes()
+            relative=int(offset,16)-int(fw.OTADATA_OFFSET,16)
+            if 0<=relative<int(fw.OTADATA_SIZE,16):
+                old=device[fw.OTADATA_OFFSET]
+                device[fw.OTADATA_OFFSET]=old[:relative]+raw+old[relative+len(raw):]
+            else:device[offset]=raw
             writes.append(offset)
         if "verify_flash" in args:
             index = args.index("verify_flash")
             offset, path = args[index + 1:index + 3]
-            assert device[offset] == Path(path).read_bytes()
-        return subprocess.CompletedProcess(args, 0, "ok", "")
+            raw=Path(path).read_bytes()
+            relative=int(offset,16)-int(fw.OTADATA_OFFSET,16)
+            if 0<=relative<int(fw.OTADATA_SIZE,16):assert device[fw.OTADATA_OFFSET][relative:relative+len(raw)]==raw
+            else:assert device[offset]==raw
+        output='Flash Encryption: Disabled\nSecure Boot: Disabled' if 'get_security_info' in args else 'ok'
+        return subprocess.CompletedProcess(args, 0, output, "")
 
     monkeypatch.setattr(fw, "_read_region", read_region)
     monkeypatch.setattr(fw, "_run_command", command)

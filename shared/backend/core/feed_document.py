@@ -141,6 +141,11 @@ def build_feed_document(write_file: bool = True) -> dict:
         openai_cost = _openai_cost_snapshot()
     except Exception:  # noqa: BLE001
         openai_cost = {"complete": False, "amount": None, "state": "unavailable"}
+    try:
+        from .codex_announcements import snapshot as announcement_snapshot
+        announcements = announcement_snapshot()
+    except Exception:  # noqa: BLE001
+        announcements = None
     feed = {
         "schema": "unified_feed_v1",
         "generated_at": now,
@@ -155,6 +160,7 @@ def build_feed_document(write_file: bool = True) -> dict:
             "gold": gold_feed.effective_cache_status(),
         },
         "ai": {
+            "announcements": announcements,
             "codex": {
                 "seven_day": codex or None,
                 "reset_credits_available": codex.get("reset_credits_available")

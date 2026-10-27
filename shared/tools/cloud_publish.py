@@ -306,13 +306,22 @@ def _strip_sensitive(obj):
     return obj
 
 
+class _NoWebDAVRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, 'WebDAV redirect refused', headers, fp)
+
+
 def _webdav_request(method, url, headers, body=None, timeout=60):
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.status, r.read()
+    with urllib.request.build_opener(_NoWebDAVRedirect()).open(req, timeout=timeout) as r:
+        data = r.read(8 * 1024 * 1024 + 1)
+        if len(data) > 8 * 1024 * 1024:
+            raise RuntimeError('WebDAV 响应过大，停止读取')
+        return r.status, data
 
 
-def publish_one(webdav: str, user: str, password: str, mac: str, payload: dict, dry_run=False):
+def publish_one(webdav: str, user: str, password: str, mac: str, payload: dict, dry_run=False,
+                *, create_only=False, object_name=None, receipt=None):
     """可靠发布（第一阶段）：
       1) 递归剔除敏感字段；
       2) 先 PUT <file>.part → WebDAV MOVE 覆盖（服务端改名，尽可能原子）；
@@ -323,9 +332,16 @@ def publish_one(webdav: str, user: str, password: str, mac: str, payload: dict, 
     import hashlib
     mac = mac.upper().replace(":", "")  # 坚果云拒绝文件名含 ':'：AA:BB:... → AABBCCDDEEFF
     payload = _strip_sensitive(payload)
-    url = f"{webdav.rstrip('/')}/{mac}.json"
+    import re
+    import uuid
+    name = object_name or f'{mac}.json'
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,96}\.json', name):
+        raise ValueError('无效发布文件名')
+    url = f"{webdav.rstrip('/')}/{name}"
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     digest = hashlib.sha256(body).hexdigest()
+    report = receipt if receipt is not None else {}
+    report.update(name=name,bytes=len(body),sha256=digest,verified=False,move_supported=None,part_cleaned=False)
     if dry_run:
         print(f"[dry] PUT {url} {len(body)}B payload_id={payload_id(payload)} sha={digest[:10]}")
         return True
@@ -341,31 +357,43 @@ def publish_one(webdav: str, user: str, password: str, mac: str, payload: dict, 
             st, old = _webdav_request("GET", url, auth)
             if st == 200:
                 backup = old
-        except Exception:  # noqa: BLE001  首次发布无旧文件
-            backup = None
+        except urllib.error.HTTPError as error:
+            if error.code != 404: raise
+        if create_only and backup is not None:
+            raise RuntimeError('目标文件已存在，未覆盖')
         # A) part + MOVE（原子替换意图）
-        part_url = url + ".part"
-        st, _ = _webdav_request("PUT", part_url, {**headers, **auth}, body)
+        part_url = url + '.part-' + uuid.uuid4().hex
+        report['part_name'] = part_url.rsplit('/',1)[1]
+        st, _ = _webdav_request("PUT", part_url, {**headers, **auth, 'If-None-Match':'*'}, body)
         if st not in (200, 201, 204):
             raise RuntimeError(f"PUT .part HTTP {st}")
+        report['part_created'] = True
         moved = False
         try:
             dest = url
             dest_hdr = dict(auth)
             dest_hdr["Destination"] = dest
-            dest_hdr["Overwrite"] = "T"
+            dest_hdr["Overwrite"] = "F" if create_only else "T"
             st, _ = _webdav_request("MOVE", part_url, dest_hdr)
             moved = st in (200, 201, 204)
+            report['move_supported'] = moved
+            report['move_status'] = st
         except Exception as e:  # noqa: BLE001
-            print(f"[pub ] MOVE 不支持({e})，回退直接 PUT")
+            report['move_supported'] = False
+            report['move_status'] = getattr(e,'code',None)
+            print('[pub ] MOVE 未完成，尝试直接 PUT；不声称原子替换')
         if not moved:
-            st, _ = _webdav_request("PUT", url, {**headers, **auth}, body)
+            st, _ = _webdav_request("PUT", url, {**headers, **auth, **({'If-None-Match':'*'} if create_only else {})}, body)
             if st not in (200, 201, 204):
                 raise RuntimeError(f"PUT final HTTP {st}")
             try:  # 回退路径清掉残留 .part
                 _webdav_request("DELETE", part_url, auth)
+                report['part_cleaned'] = True
             except Exception:  # noqa: BLE001
                 pass
+        else:
+            report['part_cleaned'] = True
+        report['final_created'] = True
         # 校验
         st, back = _webdav_request("GET", url, auth)
         if st != 200 or hashlib.sha256(back).hexdigest() != digest:
@@ -376,6 +404,7 @@ def publish_one(webdav: str, user: str, password: str, mac: str, payload: dict, 
                 except Exception:  # noqa: BLE001
                     pass
             raise RuntimeError("远端校验失败（哈希不匹配），已尝试保留旧文件")
+        report['verified'] = True
         return True
     except Exception as e:  # noqa: BLE001
         hint = _hint_for(getattr(e, "code", None), e)
@@ -402,6 +431,8 @@ def ensure_webdav_dir(webdav: str, user: str, password: str):
 
 
 def _hint_for(code, exc):
+    if code in (301,302,303,307,308):
+        return 'WebDAV 重定向已拒绝，请核对服务地址'
     if code == 401:
         return "认证失败：账号或应用密码不对（应用密码 16 位：坚果云→账户信息→安全选项→添加应用密码）"
     if code == 403:
@@ -413,49 +444,52 @@ def _hint_for(code, exc):
     return f"{exc}"
 
 
-def probe_webdav(webdav: str, user: str, password: str):
-    """真连坚果云 WebDAV 做全链路预检：建目录→PUT 探针→GET 回读→DELETE 清理。"""
-    base = webdav.rstrip("/")
-    token = base64.b64encode(f"{user}:{password}".encode()).decode()
-    hdr = {"Authorization": f"Basic {token}"}
-    name = ".inksight_probe"
-    url = f"{base}/{name}"
-    print(f"[probe] 1/4 确保目录存在: {base}")
-    ensure_webdav_dir(webdav, user, password)
-    body = json.dumps({"probe": 1, "ts": time.time()}).encode("utf-8")
-    print(f"[probe] 2/4 PUT 探针: {url}")
+def probe_webdav(webdav: str, user: str, password: str, *, receipt=None):
+    """Unique create-only probe; pass only after verified cleanup. No MKCOL."""
+    import uuid
+    name = '.inksight-probe-' + uuid.uuid4().hex
+    url = webdav.rstrip('/') + '/' + name
+    auth = {'Authorization':'Basic ' + base64.b64encode(f'{user}:{password}'.encode()).decode()}
+    body = json.dumps({'probe':name,'ts':int(time.time())}).encode()
+    report = receipt if receipt is not None else {}
+    report.update(name=name,bytes=len(body),sha256=hashlib.sha256(body).hexdigest(),created=False,verified=False,cleaned=False)
+    created = False
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, data=body, headers=hdr, method="PUT"), timeout=30) as r:
-            if r.status not in (200, 201, 204):
-                raise RuntimeError(f"PUT HTTP {r.status}")
-    except urllib.error.HTTPError as e:
-        print(f"[probe] ❌ FAIL at PUT: {_hint_for(e.code, e)}")
+        try:
+            _webdav_request('GET',url,auth,timeout=30)
+            raise RuntimeError('探针文件名冲突，未覆盖')
+        except urllib.error.HTTPError as error:
+            if error.code != 404: raise
+        status,_ = _webdav_request('PUT',url,{**auth,'If-None-Match':'*'},body,timeout=30)
+        if status not in (200,201,204): raise RuntimeError('探针上传失败')
+        created = True
+        report['created'] = True
+        status,readback = _webdav_request('GET',url,auth,timeout=30)
+        if status != 200 or readback != body: raise RuntimeError('探针回读不一致')
+        report['verified'] = True
+        status,_ = _webdav_request('DELETE',url,auth,timeout=30)
+        if status not in (200,204): raise RuntimeError('探针清理失败')
+        created = False
+        try:
+            _webdav_request('GET',url,auth,timeout=30)
+            raise RuntimeError('清理后探针仍存在')
+        except urllib.error.HTTPError as error:
+            if error.code != 404: raise
+        report['cleaned'] = True
+        print('[probe] PASS: 唯一探针上传、完整回读与清理均已验证')
+        return True
+    except Exception as error:
+        print('[probe] FAIL: ' + _hint_for(getattr(error,'code',None),error))
         return False
-    except Exception as e:  # noqa: BLE001
-        print(f"[probe] ❌ FAIL at PUT: {_hint_for(None, e)}")
-        return False
-    print("[probe] 3/4 GET 回读校验")
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=30) as r:
-            if json.loads(r.read()).get("probe") != 1:
-                raise RuntimeError("内容与上传不符")
-    except urllib.error.HTTPError as e:
-        print(f"[probe] ❌ FAIL at GET: {_hint_for(e.code, e)}")
-        return False
-    except Exception as e:  # noqa: BLE001
-        print(f"[probe] ❌ FAIL at GET: {_hint_for(None, e)}")
-        return False
-    print("[probe] 4/4 DELETE 清理探针")
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=hdr, method="DELETE"), timeout=30) as r:
-            pass
-    except urllib.error.HTTPError as e:
-        if e.code != 404:
-            print(f"[probe] 清理警告 DELETE HTTP {e.code}（可忽略）")
-    except Exception as e:  # noqa: BLE001
-        print(f"[probe] 清理警告: {e}（可忽略）")
-    print("[probe] ✅ PASS：坚果云 WebDAV 建目录/上传/回读/删除 全链路可用")
-    return True
+    finally:
+        if created:
+            # Only our confirmed newly-created object; never list/delete a tree.
+            try:
+                _,current = _webdav_request('GET',url,auth,timeout=30)
+                if current == body:
+                    status,_ = _webdav_request('DELETE',url,auth,timeout=30)
+                    report['cleaned'] = status in (200,204)
+            except Exception:pass
 
 
 def ble_notify(mac: str, broadcast_bin=None):
@@ -509,17 +543,25 @@ def _run_unlocked(config, once=False, dry_run=False, force=False):
         combined["ts"] = int(time.time())  # 上传时刻：设备端活跃/休眠判定的时间源
         ok = publish_one(webdav, user, password, mac, combined, dry_run=dry_run)
         if ok:
+            if dry_run:
+                # A simulated upload is never a successful publication receipt.
+                continue
             state[mac] = pubid
             # Only a completed upload + verified GET advances this timestamp.
             # File mtime alone is not proof: state is also saved on no-change.
+            published = _strip_sensitive(combined)
             state.setdefault('_desktop_publications', {})[mac] = {
-                'last_success_at': combined['ts'], 'publish_id': pubid}
+                'last_success_at': combined['ts'], 'publish_id': pubid,
+                'document': published,
+                'document_sha256': hashlib.sha256(json.dumps(
+                    published, ensure_ascii=False).encode('utf-8')).hexdigest()}
             changed_any = True
             print(f"[pub ] {mac} -> {pid} 模块 {[m['id'] for m in combined['screen']['modules']]} "
                   f"({len(json.dumps(combined, ensure_ascii=False))}B)")
             if not dry_run and config.get("ble_notify", False):
                 ble_notify(mac)  # BLE 模块保留、默认关闭（运行模式=设备 30s 轮询）；将来启用置 true
-    save_state(state)
+    if not dry_run:
+        save_state(state)
     print(f"完成（{'有更新' if changed_any else '无变化'}）")
     return changed_any
 

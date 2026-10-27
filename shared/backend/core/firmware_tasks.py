@@ -20,12 +20,13 @@ import socket
 import subprocess
 import struct
 import threading
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
 from . import operator_config, state_store
-from .desktop_service import critical_entry
+from .desktop_service import critical_entry, gate
 
 TARGET = "epd_426_ssd1677_s3_n32r16"
 CHIP = "esp32s3"
@@ -57,11 +58,45 @@ _FLASH_LOCK = threading.Lock()
 _THREADS: dict[str, threading.Thread] = {}
 _THREADS_LOCK = threading.Lock()
 _DEVICE_CACHE: dict[str, dict[str, Any]] = {}
+_PROBE_CACHE: dict[str, dict[str, Any]] = {}
 _CONFIRM_SECRET = os.urandom(32)
+_BUILD_CANCEL: dict[str, threading.Event] = {}
+
+
+class BuildCancelled(RuntimeError):
+    pass
+
+
+def _build_confirmation(input_hash: str, source_hash: str, state: dict) -> str:
+    # A confirmation is invalid after either inputs OR the job history changes.
+    body = json.dumps([input_hash, source_hash, sorted(state.get('builds', {}))]).encode()
+    return hmac.new(_CONFIRM_SECRET, body, hashlib.sha256).hexdigest()
+
+
+def status_snapshot() -> dict:
+    from . import firmware_setup
+    preparation = firmware_setup.status()
+    flight = preflight()
+    state = _read()
+    _, _, current_input = _input_snapshot()
+    current_source = _source_hash()
+    history = {}
+    for group in ['builds', 'plans', 'flashes', 'rollbacks']:
+        rows = sorted(state.get(group, {}).values(), key=lambda row: (row.get('created_at', 0), row['id']), reverse=True)[:8]
+        history[group] = [_public_job(row) for row in rows]
+        if group == 'builds':
+            for raw, public in zip(rows, history[group]):
+                public['stale'] = raw.get('input_hash') != current_input or raw.get('source_hash') != current_source
+    flight['build_confirmation'] = _build_confirmation(current_input, current_source, state)
+    return {'preparation': preparation, 'preflight': flight, 'history': history}
 
 
 def _device_server_url() -> str:
     """Return the LAN URL an attached device can use for upgrade confirmation."""
+    if os.environ.get('INKSIGHT_DESKTOP_MODE')=='1':
+        # Desktop remains loopback-only. Do not advertise an unreachable LAN
+        # port or silently open a listener. USB receipts confirm cloud mode.
+        return ''
     explicit = str(os.environ.get("INKSIGHT_DEVICE_SERVER_URL") or "").strip().rstrip("/")
     if explicit:
         if not re.match(r"^https?://[A-Za-z0-9._:\[\]-]+$", explicit):
@@ -119,7 +154,7 @@ def _update(updater):
 
 
 def _input_snapshot() -> tuple[dict, dict, str]:
-    effective = operator_config.load_effective()
+    effective = operator_config.load_effective(use_last_known_good=False)
     public = copy.deepcopy(effective.config)
     private = copy.deepcopy(effective._secrets)
     raw = repr((public, private, TARGET)).encode("utf-8")
@@ -133,6 +168,13 @@ def _source_hash() -> str:
             continue
         digest.update(str(path.relative_to(_FIRMWARE)).encode("utf-8"))
         digest.update(path.read_bytes())
+    from . import firmware_setup
+    for value in (firmware_setup.fonts_status(),firmware_setup.tools_status()):
+        digest.update(str(value.get('sha256') or 'missing').encode())
+    for name in ['firmware_pio.py','import_misans.py','misans_raster.py','font_gen_ttf.py']:
+        digest.update((_ROOT/'shared/tools'/name).read_bytes())
+    for name in ['requirements-firmware-py311-macos-arm64.lock','requirements-esptool-py311-macos-arm64.lock']:
+        digest.update((_ROOT/name).read_bytes())
     return digest.hexdigest()
 
 
@@ -151,10 +193,11 @@ def _exclusive_lock(name: str):
 
 
 def _public_job(job: dict) -> dict:
-    hidden = {"port", "mac", "confirmation_token", "input_hash", "input_fingerprint", "private_dir"}
+    hidden = {"port", "mac", "confirmation_token", "input_hash", "input_fingerprint", "private_dir", "build_confirmation"}
     result = {key: copy.deepcopy(value) for key, value in job.items() if key not in hidden}
     for key in ("log", "error"):
         if isinstance(result.get(key), str):
+            result[key]=re.sub(r'(?i)\b[0-9a-f]{2}(?::[0-9a-f]{2}){5}\b','<device-hidden>',result[key])
             for private_value in (job.get("port"), job.get("mac")):
                 if private_value:
                     result[key] = result[key].replace(str(private_value), "<hidden>")
@@ -166,7 +209,9 @@ def _safe_environment(private: dict) -> tuple[dict[str, str], list[str]]:
     primary = networks[0] if networks else {"ssid": "", "password": ""}
     extra = "^".join(f"{row['ssid']}~{row['password']}" for row in networks[1:])
     cloud = private.get("cloud") or {}
-    env = os.environ.copy()
+    from . import firmware_setup
+    paths=firmware_setup.tool_paths()
+    env = firmware_setup._env(paths['generation']) if paths else os.environ.copy()
     injected = {
         "INK_SSID": str(primary.get("ssid") or ""),
         "INK_PASS": str(primary.get("password") or ""),
@@ -179,7 +224,7 @@ def _safe_environment(private: dict) -> tuple[dict[str, str], list[str]]:
         # Keep the build on the repository-pinned PlatformIO packages.  If this
         # is omitted PlatformIO may silently fall back to ~/.platformio, which
         # can supply a different boot_app0.bin than the one preflight verified.
-        "PLATFORMIO_CORE_DIR": str(_ROOT / ".pio-core"),
+        "PLATFORMIO_CORE_DIR": str(paths['core'] if paths else _ROOT / ".pio-core"),
     }
     env.update(injected)
     redactions = [value for value in injected.values() if value]
@@ -226,30 +271,87 @@ def _run_command(args: list[str], *, timeout: int, env: dict[str, str] | None = 
     )
 
 
+def _run_build_command(args: list[str], *, timeout: int, env: dict[str, str],
+                       cwd: Path) -> subprocess.CompletedProcess:
+    """Timeout owns the entire compiler group, never a USB/service process."""
+    import signal
+    with tempfile.TemporaryFile() as output:
+        process = subprocess.Popen(args, cwd=str(cwd), env=env, stdout=output,
+                                   stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+        try:
+            deadline = time.monotonic() + timeout
+            cancellation = _BUILD_CANCEL.get(env.get('INKSIGHT_BUILD_ID', ''))
+            while process.poll() is None:
+                if cancellation and cancellation.is_set():
+                    raise BuildCancelled('构建已取消，原有配置与可用固件保留')
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(args, timeout)
+                try: process.wait(timeout=min(remaining, .2))
+                except subprocess.TimeoutExpired: pass
+        except BaseException:
+            try:os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:pass
+            try:process.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                try:os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:pass
+                process.wait()
+            raise
+        output.seek(0, os.SEEK_END)
+        length=output.tell()
+        # Keep build diagnostics bounded; secrets are redacted by the caller.
+        output.seek(max(0, length - 2 * 1024**2))
+        return subprocess.CompletedProcess(args, process.returncode, output.read().decode('utf-8', errors='replace'), '')
+
+
 def _new_id(prefix: str) -> str:
     return f"{prefix}-{time.strftime('%Y%m%d-%H%M%S')}-{os.urandom(3).hex()}"
 
 
 def preflight() -> dict:
-    public, private, input_hash = _input_snapshot()
-    missing = [str(path) for path in (_PIO_PYTHON, _ESPTOOL, _BOOT_APP0, _FIRMWARE / "platformio.ini") if not path.is_file()]
+    from . import firmware_setup
+    checks={name:getattr(firmware_setup,name+'_status')() for name in ['host','fonts','tools','storage']}
+    try:
+        public, private, input_hash = _input_snapshot()
+        checks['configuration']={'ready':True,'state':'ready','detail':'只使用已应用的生效配置，未应用草稿不会进入构建'}
+    except operator_config.ConfigError:
+        public,private={},{}
+        checks['configuration']={'ready':False,'state':'missing','detail':'请在设备与运行、API与账户中保存并应用配置'}
     networks = list((private.get("wifi") or {}).get("networks") or [])
+    cloud=private.get('cloud') or {}
+    cloud_ready=all(cloud.get(k) for k in ['base_url','user','password'])
+    checks['wifi']={'ready':bool(networks),'state':'ready' if networks else 'missing',
+                    'detail':f'已配置 {len(networks)} 组，首次安装按列表顺序连接' if networks else '请先填写至少一组 Wi-Fi 并应用'}
+    checks['cloud']={'ready':cloud_ready,
+                    'state':'configured' if cloud_ready else 'missing',
+                    'detail':'凭据已填写；联网测试须主动执行，不代表设备已连通' if cloud_ready else
+                             '请填写并应用 WebDAV 地址、用户名和应用密码；尚未完成云端配置'}
+    checks['target']={'ready':(_FIRMWARE/'platformio.ini').is_file(),'state':'fixed',
+                      'detail':'只支持 ESP32-S3 N32R16 与 SSD1677 800×480；不自动适配其他板'}
+    ready=all(row['ready'] for row in checks.values())
+    checks['network']={'ready':False,'state':'on_demand','required_for_build':False,
+        'detail':'工具依赖只在点击准备时下载；云端测试须从运行详情主动执行，不自动调用付费模型'}
+    checks['usb']={'ready':bool(_DEVICE_CACHE),'state':'detected' if _DEVICE_CACHE else 'physical_action',
+        'required_for_build':False,'detail':'构建不要求MAC；连接数据线后可只读识别，再明确确认绑定'}
     return {
-        "ready": not missing and bool(networks),
+        "ready": ready,
         "target": TARGET,
         "chip": "ESP32-S3",
         "flash_size": "32MB",
         "screen": "4.26 英寸 800 x 480 SSD1677",
         "wifi_count": len(networks),
-        "cloud_configured": bool((private.get("cloud") or {}).get("base_url")),
+        "cloud_configured": checks['cloud']['ready'],
         "config_fingerprint": operator_config._public_fingerprint(public),
-        "missing": [Path(item).name for item in missing],
+        "missing": [key for key,row in checks.items() if not row['ready'] and row.get('required_for_build',True)],
+        'checks':checks,
         "writes_device": False,
     }
 
 
 @critical_entry
-def create_build() -> dict:
+def create_build(expected_confirmation: str | None = None) -> dict:
     public, private, input_hash = _input_snapshot()
     check = preflight()
     if not check["ready"]:
@@ -270,9 +372,22 @@ def create_build() -> dict:
         "cloud_configured": bool((private.get("cloud") or {}).get("base_url")),
         "artifacts": {},
         "log": "",
+        "build_confirmation": expected_confirmation,
     }
-    _update(lambda value: value.setdefault("builds", {}).update({task_id: job}))
-    return _public_job(job)
+    holder={}
+    def insert(value):
+        for existing in value.setdefault('builds',{}).values():
+            if existing.get('status') in {'queued','running'} and all(existing.get(k)==job[k] for k in ['input_hash','source_hash']):
+                if expected_confirmation is None or expected_confirmation == existing.get('build_confirmation'):
+                    holder.update(existing);return
+                raise RuntimeError('已有构建正在执行，请刷新状态')
+        if any(row.get('status') in {'queued','running'} for row in value['builds'].values()):
+            raise RuntimeError('已有构建正在执行，请等待结束')
+        if expected_confirmation is not None and not hmac.compare_digest(expected_confirmation, _build_confirmation(input_hash,job['source_hash'],value)):
+            raise RuntimeError('配置、工具或构建状态已变化，请重新检查并确认')
+        value['builds'][task_id]=job;holder.update(job)
+    _update(insert)
+    return _public_job(holder)
 
 
 def _set(group: str, task_id: str, **fields) -> dict:
@@ -287,12 +402,23 @@ def _set(group: str, task_id: str, **fields) -> dict:
 
 
 def run_build(task_id: str) -> dict:
+    try:return _run_build_checked(task_id)
+    except BuildCancelled as error:
+        return _set('builds',task_id,status='cancelled',error=str(error))
+    except Exception as error:
+        return _set('builds',task_id,status='failed',error=str(error) if isinstance(error,RuntimeError) else '构建条件异常，原有配置与字库保留')
+
+
+def _run_build_checked(task_id: str) -> dict:
     job = (_read().get("builds") or {}).get(task_id)
     if not isinstance(job, dict):
         raise KeyError(task_id)
     if job.get("status") == "completed":
         return _public_job(job)
-    with _BUILD_LOCK, _exclusive_lock("build"):
+    from . import firmware_setup
+    with _BUILD_LOCK, _exclusive_lock("build"), firmware_setup.operation_lock(blocking=True):
+        if _BUILD_CANCEL.get(task_id, threading.Event()).is_set():
+            raise BuildCancelled('构建已取消，未写入设备')
         _set("builds", task_id, status="running", started_at=int(time.time()))
         _public, private, current_hash = _input_snapshot()
         if current_hash != job.get("input_hash"):
@@ -302,12 +428,25 @@ def run_build(task_id: str) -> dict:
         private_dir = _PRIVATE / task_id
         private_dir.mkdir(parents=True, exist_ok=False)
         os.chmod(private_dir, 0o700)
+        paths=firmware_setup.tool_paths()
+        if not paths or not preflight()['ready']:
+            return _set('builds',task_id,status='failed',error='准备条件已变化，请返回准备中心')
+        project=private_dir/'project'
+        shutil.copytree(_FIRMWARE,project,ignore=shutil.ignore_patterns('.pio','__pycache__','.git','fonts_gen','fonts_misans_16.h','fonts_misans_24.h'))
+        fonts=firmware_setup.font_source()
+        for name in firmware_setup.FONT_NAMES:
+            destination=project/'src'/name;destination.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(fonts/name,destination)
+        # Library payloads are private to this build. A build never downloads
+        # a different dependency or modifies the signed/public source tree.
+        shutil.copytree(paths['generation']/'project/.pio/libdeps',private_dir/'libdeps')
         env, redactions = _safe_environment(private)
         env["INKSIGHT_BUILD_ID"] = task_id
         env["PLATFORMIO_BUILD_DIR"] = str(private_dir / "build")
-        args = [str(_PIO_PYTHON), "-m", "platformio", "run", "-d", str(_FIRMWARE), "-e", TARGET]
+        env['PLATFORMIO_LIBDEPS_DIR']=str(private_dir/'libdeps')
+        args = [str(paths['python']),str(_ROOT/'shared/tools/firmware_pio.py'),'run', '-d', str(project), '-e', TARGET]
         try:
-            result = _run_command(args, timeout=20 * 60, env=env, cwd=_ROOT)
+            result = _run_build_command(args, timeout=20 * 60, env=env, cwd=_ROOT)
         except subprocess.TimeoutExpired:
             return _set("builds", task_id, status="failed", error="构建超过 20 分钟")
         log = _redact((result.stdout or "") + "\n" + (result.stderr or ""), redactions)
@@ -324,7 +463,7 @@ def run_build(task_id: str) -> dict:
         sources = {name: metadata[name][1] for name in metadata}
         if any(sources[name].resolve() != (source / name).resolve() for name in required):
             return _set("builds", task_id, status="failed", error="构建镜像路径不属于本次隔离目录", log=log)
-        if sources["boot_app0.bin"].resolve() != _BOOT_APP0.resolve():
+        if sources["boot_app0.bin"].resolve() != paths['boot_app0'].resolve():
             return _set("builds", task_id, status="failed", error="OTA 初始化镜像来源异常", log=log)
         manifest = {
             "bootloader.bin": (BOOTLOADER_OFFSET, "bootloader"),
@@ -345,8 +484,15 @@ def run_build(task_id: str) -> dict:
             }
         if artifacts["firmware.bin"]["bytes"] > int(APP_SIZE, 16):
             return _set("builds", task_id, status="failed", error="应用镜像超过分区容量", log=log)
+        try:
+            from .firmware_usb import validate_artifacts
+            validate_artifacts({**job,'artifacts':artifacts,'private_dir':str(private_dir)})
+        except RuntimeError as error:
+            return _set('builds',task_id,status='failed',error=str(error),log=log)
         if _source_hash() != job.get("source_hash"):
             return _set("builds", task_id, status="stale", error="构建期间固件源码发生变化", log=log)
+        if _BUILD_CANCEL.get(task_id, threading.Event()).is_set():
+            raise BuildCancelled('构建已取消，未写入设备')
         return _set(
             "builds", task_id, status="completed", finished_at=int(time.time()),
             artifacts=artifacts, private_dir=str(private_dir), log=log,
@@ -362,9 +508,17 @@ def start_build(task_id: str) -> dict:
             if job.get("status") == "completed":
                 return job
             _set("builds", task_id, status="queued")
+            _BUILD_CANCEL[task_id] = threading.Event()
             worker = threading.Thread(target=run_build, args=(task_id,), daemon=True, name=f"inksight-{task_id}")
             _THREADS[task_id] = worker
             worker.start()
+    return get_build(task_id)
+
+
+def cancel_build(task_id: str) -> dict:
+    job = get_build(task_id)
+    if job['status'] in {'queued', 'running'}:
+        _BUILD_CANCEL.setdefault(task_id, threading.Event()).set()
     return get_build(task_id)
 
 
@@ -386,12 +540,15 @@ def _list_ports():
         from serial.tools import list_ports
         return list(list_ports.comports())
     except ImportError:
+        from .firmware_setup import tool_paths
+        paths=tool_paths()
+        if not paths:return []
         script = (
             "import json; from serial.tools import list_ports; "
             "print(json.dumps([{'device':p.device,'description':p.description,'vid':p.vid,'pid':p.pid} "
             "for p in list_ports.comports()]))"
         )
-        result = _run_command([str(_PIO_PYTHON), "-c", script], timeout=15, cwd=_ROOT)
+        result = _run_command([str(paths['python']), "-c", script], timeout=15, cwd=_ROOT)
         if result.returncode != 0:
             return []
         try:
@@ -421,8 +578,11 @@ def detect_devices() -> list[dict]:
     return candidates
 
 
-def _esptool(port: str, *args: str) -> list[str]:
-    return [str(_PIO_PYTHON), str(_ESPTOOL), "--chip", CHIP, "--port", port, *args]
+def _esptool(port: str, *args: str, after: str = 'no_reset') -> list[str]:
+    from . import firmware_setup
+    paths=firmware_setup.tool_paths()
+    python,esptool=(paths['python'],paths['esptool']) if paths else (_PIO_PYTHON,_ESPTOOL)
+    return [str(python), str(esptool), "--chip", CHIP, "--port", port, '--after',after, *args]
 
 
 def _port_owner(port: str) -> str | None:
@@ -436,6 +596,8 @@ def _port_owner(port: str) -> str | None:
 def _identify(port: str) -> tuple[str, str]:
     if _port_owner(port):
         raise RuntimeError("串口正被其他程序占用，请先正常释放后重试")
+    from .firmware_usb import mark_touched
+    mark_touched()
     mac_result = _run_command(_esptool(port, "read_mac"), timeout=30, cwd=_ROOT)
     output = (mac_result.stdout or "") + "\n" + (mac_result.stderr or "")
     match = _MAC_RE.search(output)
@@ -448,13 +610,46 @@ def _identify(port: str) -> tuple[str, str]:
     return match.group(1).upper(), "32MB"
 
 
+@critical_entry
+def probe_device(device_id: str) -> dict:
+    """Explicit read-only identity before building; no need for an existing MAC."""
+    from . import firmware_setup
+    paths=firmware_setup.tool_paths()
+    if not paths or not firmware_setup.tools_status()['ready']:
+        raise RuntimeError('请先准备构建工具')
+    device=_DEVICE_CACHE.get(device_id)
+    if not device:raise RuntimeError('设备列表已变化，请重新查找')
+    from .firmware_usb import usb_session, _resume, _SESSION
+    with usb_session():
+        try:
+            try:mac,capacity=_identify(device['port'])
+            finally:
+                if getattr(_SESSION,'touched',False):_resume(device['port'])
+        except subprocess.TimeoutExpired:raise RuntimeError('USB识别超时，请检查数据线或启动模式') from None
+        ident=_new_id('probe');token=os.urandom(24).hex()
+        row={'id':ident,'mac':mac.replace(':',''),'chip':'ESP32-S3','flash_size':capacity,
+             'device_fingerprint':hashlib.sha256(mac.encode()).hexdigest()[:12],
+             'confirmation_token':token,'expires_at':int(time.time())+300}
+        _PROBE_CACHE.clear();_PROBE_CACHE[ident]=row
+        return {key:value for key,value in row.items() if key!='mac'}
+
+
+def consume_probe(ident: str, token: str) -> dict:
+    with _THREADS_LOCK:
+        row=_PROBE_CACHE.get(ident)
+        if not row or row['expires_at']<=time.time() or not hmac.compare_digest(row['confirmation_token'],token):
+            raise RuntimeError('设备绑定确认已过期，请重新只读识别')
+        _PROBE_CACHE.pop(ident)
+        return row
+
+
 def _read_region(port: str, offset: str, size: str, path: Path, *, timeout: int = 180) -> bytes:
     try:
         result = _run_command(
             _esptool(port, "--baud", BAUD, "read_flash", offset, size, str(path)),
             timeout=timeout, cwd=_ROOT)
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"读取设备区域 {offset} 超时，未执行写入") from exc
+        raise RuntimeError(f"读取设备区域 {offset} 超时；本步骤未确认，请检查任务与备份记录") from exc
     if result.returncode != 0 or not path.is_file() or path.stat().st_size != int(size, 16):
         raise RuntimeError(f"读取设备区域 {offset} 失败")
     os.chmod(path, 0o600)
@@ -492,63 +687,15 @@ def _require_fresh_blank(port: str, directory: Path, prefix: str) -> None:
 
 @critical_entry
 def prepare_flash(build_id: str, device_id: str, install_mode: str = "update") -> dict:
-    if install_mode not in {"update", "fresh"}:
-        raise RuntimeError("安装模式无效")
-    build = (_read().get("builds") or {}).get(build_id)
-    device = _DEVICE_CACHE.get(device_id)
-    if not isinstance(build, dict) or build.get("status") != "completed":
-        raise RuntimeError("build is not ready")
-    if not device:
-        raise RuntimeError("device list changed; detect again")
-    if get_build(build_id).get("stale"):
-        raise RuntimeError("build is stale")
-    plan_id = _new_id("flash-plan")
-    private_dir = _PRIVATE / plan_id
-    private_dir.mkdir(parents=True, exist_ok=False)
-    os.chmod(private_dir, 0o700)
-    mac, flash_size = _identify(str(device["port"]))
-    partition_raw = _read_region(str(device["port"]), PARTITION_OFFSET, PARTITION_SIZE, private_dir / "partition.bin")
-    expected_partition = _artifact_path(build, "partitions.bin").read_bytes()
-    if len(expected_partition) != int(PARTITION_SIZE, 16):
-        raise RuntimeError("构建分区表长度与目标不一致")
-    partition_state = _partition_state(partition_raw, expected_partition)
-    if install_mode == "update" and partition_state != "matching":
-        raise RuntimeError("已有设备更新要求分区表完全匹配")
-    if install_mode == "fresh" and partition_state != "blank":
-        raise RuntimeError("空白板安装只允许分区表区域完全空白的设备")
-    if install_mode == "fresh":
-        _require_fresh_blank(str(device["port"]), private_dir, "prepare")
-    for name in ("bootloader.bin", "partitions.bin", "boot_app0.bin", "firmware.bin"):
-        _artifact_path(build, name)
-    token = os.urandom(24).hex()
-    now = int(time.time())
-    plan = {
-        "id": plan_id, "build_id": build_id, "device_id": device_id,
-        "status": "ready", "target": TARGET, "chip": "ESP32-S3",
-        "device_fingerprint": hashlib.sha256(mac.encode()).hexdigest()[:12],
-        "artifact_sha256": build["artifacts"]["firmware.bin"]["sha256"],
-        "artifact_manifest": copy.deepcopy(build["artifacts"]),
-        "source_hash": build.get("source_hash"), "install_mode": install_mode,
-        "flash_size": flash_size, "partition_state": partition_state,
-        "port": device["port"], "mac": mac, "confirmation_token": token,
-        "created_at": now, "expires_at": now + 5 * 60,
-        "scope": (
-            "写入未运行的 OTA 应用分区，校验后再切换启动项；NVS 保留并备份"
-            if install_mode == "update" else
-            "仅写入引导程序、分区表、OTA 初始化镜像和 app0；不执行全盘擦除"
-        ),
-    }
-    _update(lambda value: value.setdefault("plans", {}).update({plan_id: plan}))
-    public = _public_job(plan)
-    public["confirmation_token"] = token
-    return public
+    from .firmware_usb import prepare_sync
+    return prepare_sync(build_id, device_id, install_mode)
 
 
 def get_flash_plan_identity(plan_id: str) -> dict:
     plan = (_read().get("plans") or {}).get(plan_id)
     if not isinstance(plan, dict):
         raise KeyError(plan_id)
-    return {"mac": str(plan.get("mac") or "")}
+    return {"mac": str(plan.get("mac") or "").replace(':','').replace('-','').upper()}
 
 
 def bind_previous_build(plan_id: str, heartbeat: dict | None) -> None:
@@ -579,6 +726,8 @@ def create_flash(plan_id: str, confirmation_token: str) -> dict:
     initial_plan = (_read().get("plans") or {}).get(plan_id)
     if not isinstance(initial_plan, dict):
         raise RuntimeError("flash plan is not ready")
+    if initial_plan.get('backup_verified') is not True:
+        raise RuntimeError('备份尚未完成并校验，不能写入')
     if get_build(str(initial_plan.get("build_id") or "")).get("stale"):
         raise RuntimeError("build is stale")
     holder = {}
@@ -647,100 +796,12 @@ def _step(args: list[str], logs: list[str], label: str, timeout: int = 180) -> N
 
 
 def run_flash(flash_id: str) -> dict:
-    state = _read()
-    job = (state.get("flashes") or {}).get(flash_id)
-    if not isinstance(job, dict):
-        raise KeyError(flash_id)
-    build = (state.get("builds") or {}).get(job.get("build_id"))
-    if not isinstance(build, dict) or build.get("status") != "completed":
-        return _set("flashes", flash_id, status="failed", error="构建产物不可用")
-    with _FLASH_LOCK, _exclusive_lock("flash"):
-        _set("flashes", flash_id, status="running", started_at=int(time.time()))
-        backup = _PRIVATE / flash_id / "backup"
-        backup.mkdir(parents=True, exist_ok=True)
-        os.chmod(backup.parent, 0o700)
-        os.chmod(backup, 0o700)
-        logs = []
-        try:
-            build_public = get_build(str(job["build_id"]))
-            if build_public.get("stale") or build.get("source_hash") != job.get("source_hash"):
-                raise RuntimeError("构建快照已变化")
-            for name in ("bootloader.bin", "partitions.bin", "boot_app0.bin", "firmware.bin"):
-                _artifact_path(build, name)
-            mac, _flash_size = _identify(str(job["port"]))
-            if not hmac.compare_digest(mac, str(job["mac"])):
-                raise RuntimeError("执行前检测到设备已更换")
-            partition_raw = _read_region(str(job["port"]), PARTITION_OFFSET, PARTITION_SIZE, backup / "partition.bin")
-            partition_expected = _artifact_path(build, "partitions.bin").read_bytes()
-            state = _partition_state(partition_raw, partition_expected)
-            if state != job.get("partition_state"):
-                raise RuntimeError("执行前分区状态发生变化")
-            base = _esptool(str(job["port"]))
-            if job.get("install_mode") == "update":
-                nvs = _read_region(str(job["port"]), NVS_OFFSET, NVS_SIZE, backup / "nvs.bin")
-                ota = _read_region(str(job["port"]), OTADATA_OFFSET, OTADATA_SIZE, backup / "otadata.bin")
-                if not _valid_ota_records(ota):
-                    if not all(value == 0xFF for value in ota):
-                        raise RuntimeError("OTA 启动记录异常，已拒绝更新")
-                    app0_header = _read_region(str(job["port"]), APP_OFFSET, "0x1000",
-                                               backup / "app0-header.bin")
-                    if not app0_header or app0_header[0] != 0xE9:
-                        raise RuntimeError("空白 OTA 记录下未找到有效 app0，已拒绝更新")
-                next_ota, target_slot = _next_ota_data(ota)
-                app_offset = APP1_OFFSET if target_slot == 1 else APP_OFFSET
-                _read_region(str(job["port"]), app_offset, APP_SIZE, backup / f"app{target_slot}.bin", timeout=8 * 60)
-                previous_slot = 1 - target_slot
-                previous_offset = APP1_OFFSET if previous_slot == 1 else APP_OFFSET
-                previous_app = _read_region(str(job["port"]), previous_offset, APP_SIZE,
-                                            backup / f"app{previous_slot}.bin", timeout=8 * 60)
-                if not previous_app or previous_app[0] != 0xE9:
-                    raise RuntimeError("旧应用镜像头无效，已拒绝更新")
-                backup_manifest = {
-                    name: hashlib.sha256((backup / name).read_bytes()).hexdigest()
-                    for name in ("partition.bin", "nvs.bin", "otadata.bin",
-                                 f"app{target_slot}.bin", f"app{previous_slot}.bin")
-                }
-                _set("flashes", flash_id, backup_manifest=backup_manifest, target_slot=target_slot)
-                firmware = _artifact_path(build, "firmware.bin")
-                _step(base + ["--baud", BAUD, "write_flash", app_offset, str(firmware)], logs, "写入应用", 8 * 60)
-                _step(base + ["verify_flash", app_offset, str(firmware)], logs, "校验应用", 8 * 60)
-                ota_path = backup.parent / "otadata-next.bin"
-                ota_path.write_bytes(next_ota)
-                os.chmod(ota_path, 0o600)
-                _set("flashes", flash_id, next_ota_sha256=hashlib.sha256(next_ota).hexdigest())
-                _step(base + ["--baud", BAUD, "write_flash", OTADATA_OFFSET, str(ota_path)], logs, "切换启动分区")
-                _step(base + ["verify_flash", OTADATA_OFFSET, str(ota_path)], logs, "校验启动分区")
-                # Before reboot, the update itself must not have altered any
-                # Wi-Fi, cloud or device identity bytes in NVS.
-                post_nvs = _read_region(str(job["port"]), NVS_OFFSET, NVS_SIZE,
-                                        backup.parent / "nvs-after.bin")
-                if not hmac.compare_digest(nvs, post_nvs):
-                    raise RuntimeError("更新期间 NVS 发生变化，已停止自动重启；保留备份供人工检查")
-            else:
-                _require_fresh_blank(str(job["port"]), backup, "execute")
-                for name in ("bootloader.bin", "partitions.bin", "boot_app0.bin", "firmware.bin"):
-                    artifact = _artifact_path(build, name)
-                    offset = str(build["artifacts"][name]["offset"])
-                    _step(base + ["--baud", BAUD, "write_flash", offset, str(artifact)], logs, f"写入{name}", 8 * 60)
-                    _step(base + ["verify_flash", offset, str(artifact)], logs, f"校验{name}", 8 * 60)
-            verified_at = int(time.time())
-            _set(
-                "flashes", flash_id, status="waiting_heartbeat", verified_at=verified_at,
-                heartbeat_deadline=verified_at + 10 * 60,
-                verification="flash-verified; rebooting",
-                backup_available=True, log="\n".join(logs)[-12000:],
-            )
-            _step(base + ["run"], logs, "重启设备")
-            return _set(
-                "flashes", flash_id, status="waiting_heartbeat", verified_at=verified_at,
-                heartbeat_deadline=verified_at + 10 * 60, verification="flash-verified; rebooted",
-                backup_available=True, log="\n".join(logs)[-12000:],
-            )
-        except RuntimeError as exc:
-            return _set(
-                "flashes", flash_id, status="failed", error=str(exc),
-                backup_available=any(backup.iterdir()), log="\n".join(logs)[-12000:],
-            )
+    from .firmware_usb import run_flash as guarded_flash
+    with gate.work():
+        try:return guarded_flash(flash_id)
+        except Exception as error:
+            message=str(error) if isinstance(error,RuntimeError) else '设备操作异常，停止自动操作并保留私有备份'
+            return _set('flashes', flash_id, status='failed', error=message,needs_recovery=True)
 
 
 @critical_entry
@@ -751,7 +812,7 @@ def start_flash(flash_id: str) -> dict:
             job = (_read().get("flashes") or {}).get(flash_id)
             if not isinstance(job, dict):
                 raise KeyError(flash_id)
-            if job.get("status") not in {"queued", "failed"}:
+            if job.get("status") != "queued":
                 raise RuntimeError("此写入任务不可重复启动")
             _set("flashes", flash_id, status="queued")
             worker = threading.Thread(target=run_flash, args=(flash_id,), daemon=True, name=f"inksight-{flash_id}")
@@ -786,7 +847,7 @@ def get_flash_identity(flash_id: str) -> dict:
     job = (_read().get("flashes") or {}).get(flash_id)
     if not isinstance(job, dict):
         raise KeyError(flash_id)
-    return {"mac": str(job.get("mac") or ""), "build_id": str(job.get("build_id") or "")}
+    return {"mac": str(job.get("mac") or "").replace(':','').replace('-','').upper(), "build_id": str(job.get("build_id") or "")}
 
 
 def accepts_upgrade_heartbeat(mac: str, build_id: str) -> bool:
@@ -799,7 +860,8 @@ def accepts_upgrade_heartbeat(mac: str, build_id: str) -> bool:
             continue
         if int(job.get("heartbeat_deadline") or 0) < now:
             continue
-        if hmac.compare_digest(str(job.get("mac") or "").upper(), mac.upper()) and hmac.compare_digest(
+        canonical=lambda value:str(value or '').replace(':','').replace('-','').upper()
+        if hmac.compare_digest(canonical(job.get('mac')),canonical(mac)) and hmac.compare_digest(
             str(job.get("build_id") or ""), build_id
         ):
             return True
@@ -829,6 +891,7 @@ def confirm_heartbeat(flash_id: str, heartbeat: dict | None) -> dict:
     return _set(
         "flashes", flash_id, status="completed", finished_at=int(time.time()),
         verification="flash-verified; matching-network-heartbeat",
+        network_verified=True,
         error=None,
     )
 
@@ -858,6 +921,16 @@ def _checked_next_ota(flash: dict) -> bytes:
 
 @critical_entry
 def prepare_rollback(flash_id: str, device_id: str) -> dict:
+    from .firmware_usb import usb_session, _resume, _SESSION
+    device=_DEVICE_CACHE.get(device_id)
+    if not device:raise RuntimeError('设备列表已变化，请重新检测')
+    with usb_session():
+        try:return _prepare_rollback_checked(flash_id,device_id)
+        finally:
+            if getattr(_SESSION,'touched',False):_resume(str(device['port']))
+
+
+def _prepare_rollback_checked(flash_id: str, device_id: str) -> dict:
     """Read-only device verification before offering an OTA-selector rollback."""
     flash = (_read().get("flashes") or {}).get(flash_id)
     device = _DEVICE_CACHE.get(device_id)
@@ -884,6 +957,8 @@ def prepare_rollback(flash_id: str, device_id: str) -> dict:
     mac, flash_size = _identify(str(device["port"]))
     if not hmac.compare_digest(mac, str(flash.get("mac") or "")):
         raise RuntimeError("设备标识与原始更新记录不符")
+    from .firmware_usb import _security
+    _security(str(device['port']))
     plan_id = _new_id("rollback-plan")
     directory = _PRIVATE / plan_id
     directory.mkdir(parents=True, exist_ok=False)
@@ -949,15 +1024,25 @@ def create_rollback(plan_id: str, confirmation_token: str) -> dict:
 
 
 def run_rollback(rollback_id: str) -> dict:
+    with gate.work():
+        try:return _run_rollback_checked(rollback_id)
+        except Exception as error:
+            message=str(error) if isinstance(error,RuntimeError) else '回退未能安全完成，请保留备份并重新检查设备'
+            return _set('rollbacks',rollback_id,status='failed',error=message,needs_recovery=True)
+
+
+def _run_rollback_checked(rollback_id: str) -> dict:
     job = (_read().get("rollbacks") or {}).get(rollback_id)
     if not isinstance(job, dict):
         raise KeyError(rollback_id)
-    with _FLASH_LOCK, _exclusive_lock("flash"):
+    from .firmware_usb import usb_session, _SESSION, _security
+    with usb_session():
         _set("rollbacks", rollback_id, status="running", started_at=int(time.time()))
         directory = _PRIVATE / rollback_id
         directory.mkdir(parents=True, exist_ok=True)
         os.chmod(directory, 0o700)
         logs: list[str] = []
+        selector_attempted=False
         try:
             flash = (_read().get("flashes") or {}).get(job.get("flash_id"))
             if not isinstance(flash, dict) or flash.get("install_mode") != "update":
@@ -973,6 +1058,7 @@ def run_rollback(rollback_id: str) -> dict:
             mac, _flash_size = _identify(str(job["port"]))
             if not hmac.compare_digest(mac, str(job["mac"])):
                 raise RuntimeError("执行前检测到设备已更换")
+            _security(str(job['port']))
             partition = _read_region(str(job["port"]), PARTITION_OFFSET, PARTITION_SIZE,
                                      directory / "partition-before.bin")
             if not hmac.compare_digest(partition, _checked_backup(flash, "partition.bin")):
@@ -996,12 +1082,19 @@ def run_rollback(rollback_id: str) -> dict:
                                       directory / "nvs-before.bin")
             # Restore only the original OTA selector; the previous application
             # has not been overwritten by this update, and NVS is never written.
-            original_path = _PRIVATE / str(flash["id"]) / "backup" / "otadata.bin"
+            from .firmware_usb import _selector_sector
+            changed_sector=_selector_sector(original_ota,expected_next)
+            original_path=directory/'restore-selector-sector.bin'
+            original_path.write_bytes(original_ota[changed_sector:changed_sector+4096])
+            restore_offset=hex(int(OTADATA_OFFSET,16)+changed_sector)
             base = _esptool(str(job["port"]))
-            _step(base + ["--baud", BAUD, "write_flash", OTADATA_OFFSET, str(original_path)],
+            selector_attempted=True
+            _step(base + ["--baud", BAUD, "write_flash", restore_offset, str(original_path)],
                   logs, "恢复旧启动项")
-            _step(base + ["verify_flash", OTADATA_OFFSET, str(original_path)],
+            _step(base + ["verify_flash", restore_offset, str(original_path)],
                   logs, "校验旧启动项")
+            actual_ota=_read_region(str(job['port']),OTADATA_OFFSET,OTADATA_SIZE,directory/'otadata-after.bin')
+            if actual_ota!=original_ota:raise RuntimeError('回退启动项完整回读不符，暂不重启')
             nvs_after = _read_region(str(job["port"]), NVS_OFFSET, NVS_SIZE,
                                      directory / "nvs-after.bin")
             if not hmac.compare_digest(nvs_before, nvs_after):
@@ -1014,8 +1107,25 @@ def run_rollback(rollback_id: str) -> dict:
             return _set("rollbacks", rollback_id, status="written_unconfirmed",
                         verified_at=verified_at, verification="ota-selector-verified; rebooted",
                         log="\n".join(logs)[-12000:])
-        except RuntimeError as exc:
-            return _set("rollbacks", rollback_id, status="failed", error=str(exc),
+        except Exception as exc:
+            recovery=False
+            try:
+                from .firmware_usb import _resume
+                if not selector_attempted:
+                    if getattr(_SESSION,'touched',False):_resume(str(job['port']))
+                else:
+                    recovery=True
+                    rescue=directory/'restore-prior-selector-sector.bin'
+                    rescue.write_bytes(expected_next[changed_sector:changed_sector+4096])
+                    _step(base+['write_flash',restore_offset,str(rescue)],logs,'恢复回退前启动项')
+                    _step(base+['verify_flash',restore_offset,str(rescue)],logs,'校验回退前启动项')
+                    if _read_region(str(job['port']),NVS_OFFSET,NVS_SIZE,directory/'nvs-rescue.bin')!=nvs_before:
+                        raise RuntimeError('回退期间设置改变，停止自动重启')
+                    _resume(str(job['port']));recovery=False
+            except Exception:recovery=True
+            message=str(exc) if isinstance(exc,RuntimeError) else '回退发生异常，已停止；请核对设备与私有备份'
+            return _set("rollbacks", rollback_id, status="failed", error=message,
+                        needs_recovery=recovery,
                         log="\n".join(logs)[-12000:])
 
 
@@ -1027,7 +1137,7 @@ def start_rollback(rollback_id: str) -> dict:
             job = (_read().get("rollbacks") or {}).get(rollback_id)
             if not isinstance(job, dict):
                 raise KeyError(rollback_id)
-            if job.get("status") not in {"queued", "failed"}:
+            if job.get("status") != "queued":
                 raise RuntimeError("此回退任务不可重复启动")
             _set("rollbacks", rollback_id, status="queued")
             worker = threading.Thread(target=run_rollback, args=(rollback_id,), daemon=True,
@@ -1055,7 +1165,7 @@ def get_rollback_identity(rollback_id: str) -> dict:
     if not isinstance(job, dict):
         raise KeyError(rollback_id)
     flash = (_read().get("flashes") or {}).get(job.get("flash_id")) or {}
-    return {"mac": str(job.get("mac") or ""),
+    return {"mac": str(job.get("mac") or "").replace(':','').replace('-','').upper(),
             "previous_build_id": str(flash.get("previous_build_id") or "")}
 
 
@@ -1077,3 +1187,24 @@ def confirm_rollback_heartbeat(rollback_id: str, heartbeat: dict | None) -> dict
         return _public_job(job)
     return _set("rollbacks", rollback_id, status="completed",
                 finished_at=int(time.time()), verification="ota-selector-verified; matching-old-build-heartbeat")
+
+
+def recover_interrupted_jobs():
+    """Startup only, before accepting jobs. Never retry a write automatically."""
+    def update(data):
+        for group in ['builds','plans','flashes','rollback_plans','rollbacks']:
+            for ident,row in data.get(group,{}).items():
+                if row.get('status') in {'queued','running'} and ident not in _THREADS:
+                    row.update(status='interrupted',error='上次任务中断，请重新核对；不会自动重试USB写入')
+    _update(update)
+
+
+def expire_verification_deadlines():
+    now=time.time()
+    if not any(job.get('status')=='waiting_heartbeat' and job.get('heartbeat_deadline',now+1)<now
+               for job in _read().get('flashes',{}).values()):return
+    def update(data):
+        for job in data.get('flashes',{}).values():
+            if job.get('status')=='waiting_heartbeat' and job.get('heartbeat_deadline',now+1)<now:
+                job.update(status='network_timeout',error='写入已校验，尚未取得匹配的设备联网回执')
+    _update(update)

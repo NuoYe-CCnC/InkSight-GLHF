@@ -130,13 +130,19 @@ def activity_key(ai: dict | None) -> str | None:
     return _digest(snap) if snap is not None else None
 
 
-def ai_visual_key(ai: dict | None) -> str:
+def ai_visual_key(ai: dict | None, *, now=None) -> str:
     """Fields visible on the AI page; timestamps/status are intentionally absent."""
     ai = ai if isinstance(ai, dict) else {}
     ds = ai.get("deepseek") if isinstance(ai.get("deepseek"), dict) else {}
     prefs = ai.get("display_preferences") if isinstance(ai.get("display_preferences"), dict) else {}
     show_codex = bool(prefs.get("show_codex_credits", False))
     show_api = bool(prefs.get("show_openai_api_info", False))
+    from .codex_announcement_view import nearest_event
+    selected = nearest_event(ai.get('announcements'),now,
+                             show_reset=bool(prefs.get('show_reset_opportunities',True)))
+    events = {selected['kind']:selected} if selected else {}
+    if events:
+        show_codex = show_api = False
     credits = ai.get("reset_credits_available")
     try:
         credits_number = float(credits)
@@ -147,7 +153,11 @@ def ai_visual_key(ai: dict | None) -> str:
                      and math.isfinite(credits_number)
                      and credits_number == 0.0)
     reset_confirmed = ai.get("reset_credits_confirmed") is True
-    lower_balances = explicit_zero and reset_confirmed and not show_codex and not show_api
+    # Use the actual switches for the old lower fallback, even if the upper
+    # forecast temporarily masks optional rows. Never move masked balances.
+    lower_balances = (explicit_zero and reset_confirmed
+                      and not prefs.get("show_codex_credits", False)
+                      and not prefs.get("show_openai_api_info", False))
     visible = {
         "used": _number(ai.get("codex_7d_used"), 2),
         "resets_at": stable_minute_epoch(ai.get("codex_resets_at")),
@@ -177,6 +187,10 @@ def ai_visual_key(ai: dict | None) -> str:
         "openai_api_month_spend_usd": (_number(ai.get("openai_api_month_spend_usd"), 2)
                                         if show_api or lower_balances else None),
     }
+    if events:
+        visible["announcements"] = {k: {"minute": int(v["target_at"]) // 60,
+                                        "time_relation": v.get('time_relation','before')}
+                                    for k, v in events.items()}
     return _digest(visible)
 
 

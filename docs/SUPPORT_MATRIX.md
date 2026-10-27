@@ -1,22 +1,20 @@
 # Support matrix / 支持矩阵
 
-This is the `v0.1.0-test.9` support boundary, not a roadmap promise. / 本表是 `v0.1.0-test.9` 的支持边界，不是路线图承诺。
+`v0.1.0-test.17`公开测试版边界，不是全平台或所有用户一次成功的承诺。细节见[发布说明](releases/v0.1.0-test.17.zh-CN.md)。
 
-| Area / 项目 | Verified / 已验证 | User-confirmed / 用户确认 | Not qualified / 未完成同级验收 |
-|---|---|---|---|
-| Host / 主机 | Standalone App on Apple Silicon macOS 26.5.2 with bundled CPython 3.11.15 and hash-locked wheels; source backend on macOS ARM64 Python 3.9 / 独立 App 与源码两条路径 | Local web console and current panel presentation / 本机管理端与当前面板呈现 | Other macOS versions, Windows, Linux, Intel Mac; clean-machine PlatformIO CLI bootstrap / 其他 macOS 版本及平台、全新电脑 PlatformIO CLI 引导 |
-| MCU / 控制器 | ESP32-S3-DevKitC-1-N32R16V, 32 MB Octal flash, 16 MB Octal PSRAM | Current physical unit uses this path / 当前实机采用该路径 | Other boards listed in `platformio.ini` / 其他环境 |
-| Display / 屏幕 | Waveshare 4.26-inch monochrome SSD1677, 800×480; candidate cloud payload upload/readback / 候选云端页面上传回读 | Operator observed AI usage reset expiries and Today full token/news display without overlap or repeated switching during the bounded window / 用户观察到两页关键数据、无重叠和反复切页 | Color panels, other resolutions, alternative controllers; no new firmware flash for this release / 彩色屏、其他分辨率、其他控制器；本版未重新刷写固件 |
-| Backend / 后端 | App isolated first-run, lifecycle/port tests, bounded real WebDAV handoff and single-publisher restoration; Python 3.9 source lock and automated regression / App 隔离启动、进程/端口、真实云端短时接管及单发布者恢复，源码测试 | Existing physical setup and candidate page refresh / 既有实机与候选页面刷新 | Second clean Mac, Developer ID signing/notarization, long-running soak, production HA / 第二台全新 Mac、苹果公证、长期运行与高可用 |
-| Local messages / 本地寄语 | Four exact GPL-3.0-only release messages, glyph/layout/rotation tests | Text and licensing choice / 文案与许可选择 | Large corpus or annual non-repeat / 大语料或全年不重复 |
-| Remote news / 远程新闻 | Disabled by default; source/key gates and offline tests | — | No source is promised as legally or operationally ready by default / 不承诺任何来源默认可用 |
-| Desktop menu / 桌面菜单 | Is lifecycle/session security, protected local 7D cache endpoint, expiry and async-generation tests / 生命周期、会话、额度新鲜度与异步测试 | Actual Is configuration entry no root prompt, correct adjacent percent / 真实配置入口不再提示 root，图标旁百分比正确 | Full new-user remote download→install→run, actual next-login startup / 新用户完整下载安装运行、真实下次登录启动 |
-| Gold / 金价 | Unified P/R/G calculations, schema-2 Beijing-day baseline, invalid FX/stale snapshot/budget tests / 统一公式、北京时间基准、陈旧快照与预算测试 | No new physical-screen acceptance / 黄金新版实体屏尚未确认 | Not domestic gold or prior close; physical-screen and long-running qualification pending, provider uptime/off-market freshness not guaranteed / 非国内金价或前收盘，实屏及长期观察待验收，不保证上游可用或休市新鲜度 |
-| OpenAI costs | Organization Costs API integration and UTC-month semantics in tests | One observed `0.00 USD` display | Continuous polling, month rollover, offline carry-forward and backfill on hardware / 持续轮询、跨月、离线沿用和补拉实机验收 |
-| Sleep / 休眠 | Host-wake recovery and device sleep logic covered by code/tests | — | Host cannot publish while asleep; every missed slot is not guaranteed to replay / 主机休眠不能出刊，不保证补全所有错过期次 |
-| Battery / 电池 | No release-quality runtime measurement | — | No claim that 2000 mAh lasts one week / 不宣称 2000mAh 一周续航 |
-| Firmware flash | Controlled fresh/update flow implemented for the supported target; new rollback path covered by offline simulation and read-only checks / 已有更新路径；新回退流程只有模拟与只读检查 | Prior controlled device work exists / 已有受控实机工作 | No new physical write/rollback was performed; the rollback button is not yet a qualified rescue feature / 本版未实机写入或回退，按钮不是已验收的救援功能 |
+| 部分 / Area | 已验证 / Verified | 未验收或限制 / Limits |
+|---|---|---|
+| 主机 | Apple Silicon / macOS26.5.2；App内置CPython3.11.15；最低系统26.5。早期Python3.9源码路径保留，新准备中心源码需Python3.11 | Intel/Windows/Linux及其他系统版本无同级验收；另一台全新Mac/Gatekeeper首次安装未验证 |
+| 控制器 | ESP32-S3-DevKitC-1-N32R16V / WROOM-2-N32R16V，32MB Octal Flash、16MB Octal PSRAM；目标epd_426_ssd1677_s3_n32r16 | 其他历史PlatformIO环境、不同容量/接线不等于支持 |
+| 显示屏 | 微雪4.26英寸黑白SSD1677、800×480；一块现有设备兼容升级后用户确认当前画面正常且刷新 | 两页每个字段逐项、长时切页、其他屏幕/控制器未同级验证 |
+| 图形准备 | 用户合法MiSans静态Regular/Bold导入、原子生成集；首次联网准备固定工具；正式UI配置/构建/取消/重试/恢复和多标签 | MiSans、配置/Wi-Fi/WebDAV由用户提供；工具需明确联网下载；不能称为零配置或任意新电脑一键成功 |
+| 主机正式迁移 | 正常退出/完整App替换、受管数据一致、单实例Is、免root配置、原发布服务及生产GET回读 | 无Apple公证/Developer ID；长期运行/休眠与重新登录自启动未重新实测；配置与启动偏好保留不等于重登验收 |
+| 完整快照预览 | 仅上传及GET-SHA验证后的完整文档，800×480双页/PNG，按文档发布时刻渲染；独立连接验收唯一文件 | 不是设备照片或display-ack；缺数据保持缺项，不把预览代替实屏 |
+| 固件兼容更新 | 实际识别/新鲜保护备份/非活动槽写入完整回读/单OTA扇区切换/启动后保护设置/联网及人工画面分别确认；已验证串口桥恢复应用 | 真正空白板首烧、真实回退、原生USB-JTAG等其他传输路径未同级验收；未知板不擦除或强制续刷 |
+| Codex额度/预告 | 实际7日缓存剩余额度、身份/过期判断；实验预告严格解析与到期过滤、独立于真实额度的视图判断 | 预告默认关闭；实验源、公共通知和估计不是个人账户保证 |
+| 金价 | XAUS美元/盎司与同源汇率折算CNY/g，北京日基准、无效汇率/陈旧状态/预算回归；正式生产预览 | 非国内实盘或前收盘；未逐项黄金字段实屏及长期行情验收，不保证上游可用/休市新鲜度 |
+| API用量 | DeepSeek本项目实际Token与余额变化估算取较高值；OpenAI组织UTC自然月Costs测试 | 不是供应商全账户Token或API余额；持续跨月/离线/补拉实机未全部验证 |
+| 本地寄语/远程新闻 | 四条GPL-3.0-only发行寄语；远程新闻默认关闭，显式源与Key门槛；本机既有去重状态和预算保留 | 四条会重复；不承诺任意来源默认有内容权利/可用性，也不保证主机休眠补全所有漏刊 |
+| 电池 | 尚无规范续航测量 | 不宣称2000 mAh一周续航 |
 
-Automated tests and prior user confirmation are intentionally listed separately. A passing source test is not a substitute for a new-device hardware acceptance run. / 自动测试与用户确认刻意分栏；源码测试通过不能替代新设备实机验收。
-
-The source includes updated firmware semantics, but no binary and no flash in this publication run. Old firmware cannot fully render the new issue-state or gold-baseline labels. / 源码含新版固件语义，但本次发布无固件镜像、未烧录；旧固件无法完整显示新版期刊状态和金价基准标签。
+测试与用户确认分别记录。test.17全量561通过/0跳过是在带合法本地字体、公开ArduinoJson头和私有发布基线的环境完成，私有资产不随包分发。公开环境缺少可选资产的跳过必须如实报告。App ad-hoc签名及签名校验不等于Apple公证或Gatekeeper验收。所有设备写入仍须准确板型与适用确认，兼容固件不为匹配App版本重复烧录。

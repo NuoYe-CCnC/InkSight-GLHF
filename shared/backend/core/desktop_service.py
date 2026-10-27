@@ -59,7 +59,7 @@ critical_entry = lambda function: gate.wrap(function, critical=True)
 
 
 def status():
-    from . import firmware_tasks, manual_issue
+    from . import firmware_tasks, firmware_setup, manual_issue
     with gate._lock:
         # Observe the in-memory admission counter and durable queued jobs in
         # one barrier. Otherwise a creator could enqueue between file reads
@@ -75,10 +75,12 @@ def status():
                     raise ValueError('invalid task state')
                 return sum(job['status'] in {'queued', 'running', 'waiting_heartbeat'}
                            for job in jobs.values())
+            firmware_tasks.expire_verification_deadlines()
             firmware = firmware_tasks._read()
-            for group in ('builds', 'flashes', 'rollbacks'):
+            for group in ('builds', 'flashes', 'rollbacks', 'plans', 'rollback_plans'):
                 critical += count(firmware.get(group, {}))
             critical += count(manual_issue._read().get('tasks', {}))
+            critical += firmware_setup.active_jobs()
         except Exception:
             # Corrupt/unreadable state cannot be interpreted as "no flash".
             error = True

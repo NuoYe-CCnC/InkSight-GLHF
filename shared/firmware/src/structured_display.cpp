@@ -33,6 +33,7 @@ bool structuredLoadCachedDocument(JsonDocument &) { return false; }
 void structuredSaveCachedDocument(const JsonDocument &) {}
 void enterClockMode() {}
 #else
+#include "codex_announcements.h"
 
 // extern 桥（v2 页面选择与渲染）
 extern int panelCurrentPage();
@@ -182,6 +183,20 @@ bool structuredRenderDocument(JsonDocument &doc, bool pending,
     const char *calendarVer = doc["screen"]["versions"]["calendar_key"] | "";
     if (pageVer[0]) snprintf(visualPid, sizeof(visualPid), "%s.%s", pageVer, calendarVer);
     else if (hasPid) snprintf(visualPid, sizeof(visualPid), "%s", pid);
+    // Local expiry also invalidates a cached AI frame when the network is down.
+    // This never enters the activity key or selects a different page.
+    JsonObjectConst forecastAi = doc["screen"]["pages"]["ai"].as<JsonObjectConst>();
+    const bool showResetForecast = doc["screen"]["display_preferences"]["show_reset_opportunities"] | true;
+    if (curPage == 0 && (!forecastAi["announcements"]["quota_reset"].isNull() ||
+                        !forecastAi["announcements"]["reset_unspecified"].isNull() ||
+                        (showResetForecast && !forecastAi["announcements"]["reset_grant"].isNull()))) {
+        const time_t now = time(nullptr);
+        const char *kind = nullptr;
+        const time_t selected = codexNearestAnnouncement(forecastAi,now,showResetForecast,&kind);
+        const size_t used = strlen(visualPid);
+        const char *relation = kind ? (forecastAi["announcements"][kind]["time_relation"] | "before") : "";
+        snprintf(visualPid + used, sizeof(visualPid) - used, ".%lld.%s.%s", (long long)selected,kind ? kind : "",relation);
+    }
     const char *metaPid = visualPid[0] ? visualPid : pid;
 
     // 值未变化且无 pending → 跳过刷屏（含 lv/fv/日期键/状态键；按页）

@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 import ServiceManagement
 
-private let appVersion = "v0.1.0-test.9"
+private let appVersion = "v0.1.0-test.17"
 private let inkBlue = Color.primary
 
 @main
@@ -100,8 +100,8 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate, NSWindowDelegat
         button.imagePosition = .imageLeading
         button.font = NSFont.menuBarFont(ofSize: 0)
         button.title = " -"
-        // Reserve 100% width so normal updates do not move adjacent menu items.
-        item.length = ceil(mark.size.width + (" 100%" as NSString).size(
+        // Reserve 100%* width; the experimental star must not move neighbours.
+        item.length = ceil(mark.size.width + (" 100%*" as NSString).size(
             withAttributes: [.font: button.font!]).width + 16)
         button.setAccessibilityLabel("InkSight 后台服务")
         let menu = NSMenu()
@@ -302,7 +302,7 @@ final class RuntimeManager: ObservableObject {
     @Published var device = "未验证"
     @Published var root = "待检查"
     @Published var detail = "准备本机运行环境"
-    @Published var portText = UserDefaults.standard.string(forKey: "servicePort") ?? "18080"
+    @Published var portText = UserDefaults.standard.string(forKey: "servicePort") ?? ProcessInfo.processInfo.environment["INKSIGHT_APP_PORT"] ?? "18080"
     @Published var macText = UserDefaults.standard.string(forKey: "deviceMac") ?? ""
     @Published var keySummary = "可跳过，默认使用本地寄语"
     @Published var allowNetwork = UserDefaults.standard.bool(forKey: "allowScheduledNetwork")
@@ -320,8 +320,9 @@ final class RuntimeManager: ObservableObject {
 
     var menuQuotaLabel: String { backend == "运行正常" ? (quota?.label() ?? "-") : "-" }
     var menuQuotaDetail: String {
-        let state = menuQuotaLabel == "-" ? (quota?.reason == nil ? "数据已陈旧或尚未就绪" : quota!.detail) : "剩余 " + menuQuotaLabel
+        let state = menuQuotaLabel.hasPrefix("-") ? (quota?.reason == nil ? "数据已陈旧或尚未就绪" : quota!.detail) : "剩余 " + menuQuotaLabel
         var label = "Codex 7D：" + state
+        if let forecast = quota?.announcements?.detail() { label += "；" + forecast + "（实验）" }
         if let stamp = quota?.lastSuccessAt, stamp.isFinite, stamp > 0 {
             let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm:ss"
             label += "（本机采集 " + formatter.string(from: Date(timeIntervalSince1970: stamp)) + "）"
@@ -339,6 +340,16 @@ final class RuntimeManager: ObservableObject {
     func cancelQuit() { quitting = false; quotaGeneration.resume(); quotaNextRead = .distantPast }
 
     func refreshMenuQuota() {
+        // A new user can explicitly bind from the USB preparation center.
+        // Do not replace an existing publisher target or start publishing here.
+        if macText.isEmpty, let runtime = runtimeURL,
+           let data = try? Data(contentsOf: runtime.appendingPathComponent("shared/backend/state/desktop_device_binding.json")),
+           let binding = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+           let mac = binding["mac"] as? String,
+           mac.range(of: "^[0-9A-F]{12}$", options: .regularExpression) != nil {
+            macText = mac
+            UserDefaults.standard.set(mac, forKey: "deviceMac")
+        }
         guard !quitting, backend == "运行正常", backendProcess?.isRunning == true else {
             if quota != nil || quotaTask != nil { invalidateQuota() }
             return
@@ -533,6 +544,7 @@ final class RuntimeManager: ObservableObject {
         var environment = cleanEnvironment()
         environment["INKSIGHT_DESKTOP_TOKEN"] = desktopToken
         environment["INKSIGHT_DESKTOP_PAUSED"] = paused ? "1" : "0"
+        environment["INKSIGHT_FIRMWARE_HOME"] = dataRoot.appendingPathComponent("firmware-private").path
         activeNetwork = allowNetwork
         if !activeNetwork { environment["INKSIGHT_OFFLINE_STARTUP"] = "1" }
         process.environment = environment
