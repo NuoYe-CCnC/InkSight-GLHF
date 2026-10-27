@@ -108,6 +108,12 @@ _load_manual_settings(override=True)
 
 @asynccontextmanager
 async def lifespan(app):
+    from core import firmware_tasks, firmware_setup
+    try:
+        firmware_tasks.recover_interrupted_jobs()
+        firmware_setup.status()  # Local status only; never downloads.
+    except (RuntimeError, ValueError):
+        logger.error('Firmware preparation state needs inspection; no automatic repair or USB retry')
     await init_db()
     await init_stats_db()
     from core.cache import init_cache_db
@@ -122,6 +128,8 @@ async def lifespan(app):
     from core.ai_usage_watcher import start_watcher, stop_watcher
     from core.openai_costs import start_poller as start_openai_costs_poller
     from core.openai_costs import stop_poller as stop_openai_costs_poller
+    from core.codex_announcements import start_poller as start_announcements_poller
+    from core.codex_announcements import stop_poller as stop_announcements_poller
 
     offline_startup = os.getenv("INKSIGHT_OFFLINE_STARTUP", "").strip().lower() in {
         "1", "true", "yes", "on",
@@ -130,13 +138,16 @@ async def lifespan(app):
         logger.info("[Startup] Offline audit mode: background network pollers are disabled")
         app.state.ai_usage_watcher = None
         app.state.openai_costs_poller = None
+        app.state.codex_announcements_poller = None
     else:
         app.state.ai_usage_watcher = start_watcher()
         app.state.openai_costs_poller = start_openai_costs_poller()
+        app.state.codex_announcements_poller = start_announcements_poller()
 
     yield
 
     if not offline_startup:
+        stop_announcements_poller()
         await stop_openai_costs_poller()
         stop_watcher()
     await close_all()

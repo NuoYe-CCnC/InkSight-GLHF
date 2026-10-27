@@ -14,6 +14,14 @@ This file is an engineering inventory, not legal advice. Project-owned material 
 | NimBLE-Arduino | 2.5.1 | Apache-2.0 plus bundled notices | Required directly; upstream tree contains additional component notices. |
 | Arduino-ESP32 | local package snapshot | LGPL-2.1-or-later plus component licenses | Framework fetched by PlatformIO; not included in the source ZIP. |
 
+## Optional firmware preparation tools (local test.13 candidate)
+
+The nested esptool Python dependencies have their own `requirements-esptool-py311-macos-arm64.lock` (9 exact wheels with SHA256). The fixed esptool hook is replaced by this locked wheel installation; other unapproved package lifecycle commands are refused, without modifying downloaded upstream source/notices. The locks cover CPython3.11/macOS ARM64 only, not arbitrary hosts.
+
+These tools are not embedded in the public App or source ZIP. After an explicit user action, the private preparation environment downloads PlatformIO Core6.1.19 using the separate Python3.11/macOS ARM64 SHA256 wheel lock, `requirements-firmware-py311-macos-arm64.lock`. Platform/platform-package/library versions are pinned in `shared/firmware/platformio.ini`; preparation verifies required versions and records local payload SHA256 values. This is not a cross-platform lock or an upstream legal certification.
+
+The fixed baseline is espressif32 7.1.0, Arduino framework3.20017.241212+sha.dcc1105b, esptool package2.41100.260830, Xtensa-S3/RISC-V8.4.0+2021r2-patch5 and SCons4.40801.0, plus the six libraries above. Each downloaded package retains its upstream licenses/notices (compiler/runtime subcomponents may have different licenses or exceptions). No project-wide GPL grant replaces them. A private build containing a font or private configuration is not a public redistribution artifact. Future redistribution of any toolchain or binary requires a new component/license inventory and applicable source/notice review; the earlier `SBOM.json` must not be mistaken for this on-demand environment's manifest.
+
 ## Python date dependency
 
 | Component | Version | SPDX conclusion | Notes |
@@ -26,7 +34,7 @@ MiSans raw fonts, generated headers, glyph data, previews and firmware binaries 
 
 ## Adapted and upstream source
 
-The codebase identifies `datascale-ai/inksight` as its upstream, whose repository is MIT-licensed; that exact upstream notice is retained under `LICENSES/InkSight-upstream-MIT.txt`. At revision `ea73138e8f69b8632d39295afeab32c3560d92c4`, 124 candidate files have exact Git-blob matches, including `epd_wft.h`, `epd4in2_wft.h`, built-in modes and the robot bitmap. The current workspace has no Git metadata, so this file-level evidence does not establish the actual fork point or ownership of later additions.
+The codebase identifies `datascale-ai/inksight` as its upstream, whose repository is MIT-licensed; that exact upstream notice is retained under `LICENSES/InkSight-upstream-MIT.txt`. At revision `ea73138e8f69b8632d39295afeab32c3560d92c4`, 124 candidate files have exact Git-blob matches, including `epd_wft.h`, `epd4in2_wft.h`, built-in modes and the robot bitmap. That original audit snapshot had no Git metadata; the current public repository history does not retroactively establish its upstream fork point or ownership of later additions.
 
 `EPD_4in26.*` and `DEV_Config.*` retain Waveshare's MIT-style file headers. They were compared with Waveshare e-Paper revision `a794fbc39656b0f93938d1ffb3fdc77eaed9e9fc`; local files include ESP32/Arduino adaptation and timeout/configuration changes, so they are not represented as byte-identical upstream copies.
 

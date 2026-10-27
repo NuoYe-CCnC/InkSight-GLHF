@@ -32,3 +32,20 @@ label>span,.status-strip p,.checks li{color:var(--ink)}label>span{font-size:13px
 .close{color:var(--ink)}.dialog>p:not(.eyebrow){font-size:14px;line-height:1.7}
 .form-stack{gap:24px}.form-grid{gap:20px}.credential{gap:18px}.actions{flex-wrap:wrap}
 @media(max-width:680px){.primary,.secondary,.link-button{white-space:normal}.status-strip{grid-template-columns:1fr}.apply-bar{align-items:flex-start;flex-direction:column}.dialog{padding:22px}.panel,fieldset{padding:18px}.heading{flex-wrap:wrap}}
+/* Long public-source diagnostics must wrap, not widen the maintenance page. */
+#announcementDiagnostics { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 32rem; overflow-y: auto; }
+.preview-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.preview-actions a{display:inline-flex;align-items:center;text-decoration:none}
+.preview-actions [hidden]{display:none}
+.preview-frame{min-height:220px;overflow:hidden;padding:12px}
+.preview-frame img{width:100%;height:auto;max-width:800px;aspect-ratio:5/3;image-rendering:pixelated;filter:none}
+.preview-frame img.ready+p[hidden]{display:none}
+#previewMessage{margin:0;padding:24px 10px;color:var(--muted);font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.preview-advanced{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.preview-advanced summary{cursor:pointer;color:var(--muted);font-size:13px}
+.preview-advanced button{margin-top:12px}
+.preparation-entry{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}.preparation-entry p{margin:0;color:var(--muted)}
+.preparation{margin-bottom:28px}.preparation-steps{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:28px}.preparation-steps section{min-width:0}.preparation h3{font-size:16px;margin:0 0 12px}.preparation input[type=file]{width:100%;font-size:12px}.preparation a{color:var(--ink)}
+.preparation-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px}.preparation-checks>div{display:grid;grid-template-columns:1fr auto;align-items:start;gap:6px 12px;padding:12px 0;border-bottom:1px solid var(--line)}.preparation-checks p{grid-column:1/-1;margin:0;font-size:12px;color:var(--muted)}
+.preparation-job{margin:24px 0 16px;padding:14px 16px;background:var(--soft);border-radius:8px;overflow-wrap:anywhere}.preparation .actions select{min-width:0;max-width:100%}.preparation .confirm{margin:16px 0}
+@media(max-width:768px){.preparation-steps,.preparation-checks{grid-template-columns:1fr}.preparation-entry{align-items:flex-start;flex-direction:column}}

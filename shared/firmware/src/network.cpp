@@ -290,7 +290,6 @@ float readBatteryVoltage() {
         readings[i] = analogRead(PIN_BAT_ADC);
         delayMicroseconds(100);
     }
-#endif
 
     // Sort for outlier removal
     for (int i = 0; i < SAMPLES - 1; i++)
@@ -324,6 +323,7 @@ float readBatteryVoltage() {
     Serial.printf("[BAT] raw=%.1f vbat=%.2fV\n", avgRaw, realBatteryVoltage);
     return realBatteryVoltage;
 #endif
+#endif  // battery ADC does not share the display BUSY pin
 }
 
 // ── Stream helper ───────────────────────────────────────────
@@ -1088,6 +1088,19 @@ bool fetchStructured(JsonDocument &doc, String *modeIdOut, bool *pendingRefreshO
         lastHeartbeatAt = millis();
         g_networkFailureStage = NetworkFailureStage::None;
         Serial.printf("[NET][DATA] valid-json elapsed=%lums\n", millis() - g_networkRoundStartedAt);
+        // USB receipt is emitted only after a successful HTTP body/schema
+        // parse in this firmware, not after loading an old local cache.
+        // It confirms network JSON delivery, never physical e-paper output.
+        JsonDocument receipt;
+        receipt["schema"] = 1;
+        receipt["build_id"] = INKSIGHT_BUILD_ID;
+        receipt["compatibility"] = "INKSIGHT_COMPAT_V1_SSD1677_N32R16";
+        receipt["network_json"] = true;
+        receipt["payload_id"] = doc["screen"]["payload_id"] | "";
+        receipt["physical_confirmed"] = false;
+        Serial.print("[INKSIGHT_RECEIPT] ");
+        serializeJson(receipt, Serial);
+        Serial.println();
         return true;
     }
     return false;

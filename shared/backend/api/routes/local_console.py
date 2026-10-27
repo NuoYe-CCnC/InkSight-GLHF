@@ -3,12 +3,14 @@ from __future__ import annotations
 import io
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, Response
 
 from core import (
     codex_collector_health,
     firmware_tasks,
+    firmware_setup,
     local_console_audit,
     local_console_config,
     local_console_preview,
@@ -27,6 +29,12 @@ from core.local_console_security import (
 )
 
 router = APIRouter(prefix="/local-console", tags=["local-console"])
+
+
+@router.get("/codex-announcements")
+async def codex_announcements_status(_user_id: int = Depends(require_local_root)):
+    from core.codex_announcements import diagnostics
+    return {"ok": True, **diagnostics()}
 
 _CREDENTIAL_ERRORS = {
     "missing": "尚未配置密钥。",
@@ -121,19 +129,44 @@ async def overview(_user_id: int = Depends(require_local_root)):
 
 @router.get("/preview/devices")
 async def preview_devices(user_id: int = Depends(require_local_root)):
-    return {"ok": True, "devices": await local_console_preview.list_devices(user_id)}
+    try:
+        return {"ok": True, "devices": await local_console_preview.list_devices(user_id)}
+    except local_console_preview.PreviewError as exc:
+        return JSONResponse({"ok": False, "error": exc.code, "detail": str(exc)},
+                            status_code=exc.status)
+
+
+@router.get('/cloud/connection-check')
+async def cloud_check_status(_user_id: int = Depends(require_local_root)):
+    from core import cloud_connection_check as check
+    return {'ok':True,'confirmation_token':check.ticket(),'task':check.latest()}
+
+
+@router.post('/cloud/connection-check')
+async def cloud_check_run(body: dict, user_id: int = Depends(require_local_root_csrf)):
+    from core import cloud_connection_check as check
+    try:
+        result=await check.run(user_id,body.get('device_id'),body.get('confirmation_token'))
+        local_console_audit.record('cloud.connection_check.completed',user_id,task_id=result['id'])
+        return {'ok':True,'task':result}
+    except (RuntimeError,ValueError) as error:
+        return JSONResponse({'ok':False,'error':str(error)},status_code=409)
 
 
 @router.get("/preview")
 async def console_preview(
     device_id: str = Query(default="", max_length=64),
     page: str = Query(default="ai", pattern="^(ai|news_gold)$"),
+    source: str = Query(default="published", pattern="^(published|unbound)$"),
     user_id: int = Depends(require_local_root),
 ):
     try:
         image, metadata = await local_console_preview.render(
-            user_id, device_id=device_id or None, page=page,
+            user_id, device_id=device_id or None, page=page, source=source,
         )
+    except local_console_preview.PreviewError as exc:
+        return JSONResponse({"ok": False, "error": exc.code, "detail": str(exc)},
+                            status_code=exc.status)
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=422)
     except RuntimeError as exc:
@@ -148,6 +181,12 @@ async def console_preview(
             "X-InkSight-Preview": "document-render",
             "X-InkSight-Device-Bound": "1" if metadata["device_bound"] else "0",
             "X-InkSight-Data-Policy": metadata["data_policy"],
+            "X-InkSight-Published-At": str(metadata.get("published_at") or 0),
+            "X-InkSight-Render-At": str(metadata["render_at"]),
+            "X-InkSight-Snapshot-SHA256": metadata.get("snapshot_sha256", ""),
+            "X-InkSight-Snapshot-Stale": "1" if metadata.get("stale") else "0",
+            "X-InkSight-Publication-Kind": metadata.get('publication_kind','regular'),
+            "X-InkSight-Display-Confirmed": "0",
         },
     )
 
@@ -320,15 +359,100 @@ async def manual_issue_resume(task_id: str, _user_id: int = Depends(require_loca
 @router.get("/firmware/preflight")
 async def firmware_preflight(_user_id: int = Depends(require_local_root)):
     try:
-        return {"ok": True, **firmware_tasks.preflight()}
+        return {"ok": True, **await run_in_threadpool(firmware_tasks.preflight)}
     except (operator_config.ConfigError, RuntimeError) as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
 
 
-@router.post("/firmware/builds")
-async def firmware_build_create(_user_id: int = Depends(require_local_root_csrf)):
+@router.get('/firmware/preparation')
+async def firmware_preparation(_user_id: int = Depends(require_local_root)):
+    try:return {'ok':True, **await run_in_threadpool(firmware_setup.status)}
+    except RuntimeError as error:return JSONResponse({'ok':False,'error':str(error)},status_code=409)
+
+
+@router.get('/firmware/history')
+async def firmware_history(_user_id: int = Depends(require_local_root)):
+    data=firmware_tasks._read()
+    return {'ok':True,**{group:[firmware_tasks._public_job(row) for row in sorted(data.get(group,{}).values(),
+            key=lambda row:row.get('created_at',0),reverse=True)[:8]] for group in ['builds','plans','flashes','rollbacks']}}
+
+
+@router.get('/firmware/status')
+async def firmware_status(_user_id: int = Depends(require_local_root)):
     try:
-        task = firmware_tasks.create_build()
+        return {'ok': True, **await run_in_threadpool(firmware_tasks.status_snapshot)}
+    except (operator_config.ConfigError, RuntimeError) as error:
+        return JSONResponse({'ok': False, 'error': str(error)}, status_code=409)
+
+
+@router.post('/firmware/flashes/{task_id}/display-confirmation')
+async def firmware_display_confirmation(task_id: str, body: dict, _user_id: int = Depends(require_local_root_csrf)):
+    if body.get('confirmed') is not True:return JSONResponse({'ok':False,'error':'需要明确人工确认'},status_code=422)
+    try:
+        row=firmware_tasks.get_flash(task_id)
+        if not row.get('verified_at'):raise RuntimeError('尚未完成写入校验，不能验收实体屏')
+        task=firmware_tasks._set('flashes',task_id,physical_display_confirmed=True,physical_confirmation_at=__import__('time').time())
+        local_console_audit.record('firmware.display.user_confirmed',_user_id,task_id=task_id)
+        return {'ok':True,'task':task}
+    except (KeyError,RuntimeError) as error:return JSONResponse({'ok':False,'error':str(error)},status_code=409)
+
+
+@router.post('/firmware/preparation/tools')
+async def firmware_prepare_tools(_user_id: int = Depends(require_local_root_csrf)):
+    try:
+        job=firmware_setup.start('tools')
+        local_console_audit.record('firmware.tools.started',_user_id,task_id=job['id'])
+        return JSONResponse({'ok':True,'task':job},status_code=202)
+    except (ValueError,RuntimeError) as exc:
+        return JSONResponse({'ok':False,'error':str(exc)},status_code=409)
+
+
+@router.post('/firmware/preparation/fonts')
+async def firmware_import_fonts(request: Request, _user_id: int = Depends(require_local_root_csrf)):
+    # Two bounded font streams joined by a declared regular-file byte count.
+    # No multipart dependency, filenames, archive paths, or arbitrary writes.
+    if request.headers.get('content-type','').split(';')[0]!='application/octet-stream':
+        raise HTTPException(415,'请使用字体导入界面上传两份 OTF/TTF')
+    try:regular_size=int(request.headers.get('x-inksight-regular-bytes','0'))
+    except ValueError:raise HTTPException(422,'字体长度无效') from None
+    regular_type=request.headers.get('x-inksight-regular-type','').lower()
+    bold_type=request.headers.get('x-inksight-bold-type','').lower()
+    if not 0<regular_size<=firmware_setup.FONT_MAX or regular_type not in {'.ttf','.otf'} or bold_type not in {'.ttf','.otf'}:
+        raise HTTPException(422,'请选择独立的 Regular / Bold OTF 或 TTF，每份最多32MiB')
+    if not firmware_setup.FONT_UPLOAD_LOCK.acquire(blocking=False):
+        raise HTTPException(409,'另一份字体正在上传，请等待完成')
+    try:
+        data=bytearray()
+        async for chunk in request.stream():
+            if len(data)+len(chunk)>regular_size+firmware_setup.FONT_MAX:
+                raise HTTPException(413,'字体上传过大；每份最多32MiB')
+            data.extend(chunk)
+        if not regular_size<len(data):
+            raise HTTPException(422,'上传中断或缺少 Bold 字体，旧字库保持不变')
+        uploads={'regular':('regular'+regular_type,bytes(data[:regular_size])),
+                 'bold':('bold'+bold_type,bytes(data[regular_size:]))}
+        job=await run_in_threadpool(firmware_setup.start,'fonts',uploads)
+        local_console_audit.record('firmware.fonts.started',_user_id,task_id=job['id'])
+        return JSONResponse({'ok':True,'task':job},status_code=202)
+    except (ValueError,RuntimeError) as exc:
+        return JSONResponse({'ok':False,'error':str(exc)},status_code=422)
+    finally:
+        firmware_setup.FONT_UPLOAD_LOCK.release()
+
+
+@router.post('/firmware/preparation/{task_id}/cancel')
+async def firmware_cancel_preparation(task_id: str, _user_id: int = Depends(require_local_root_csrf)):
+    try:return {'ok':True,'task':firmware_setup.cancel(task_id)}
+    except KeyError:return JSONResponse({'ok':False,'error':'task_not_found'},status_code=404)
+
+
+@router.post("/firmware/builds")
+async def firmware_build_create(body: Optional[dict] = None, _user_id: int = Depends(require_local_root_csrf)):
+    try:
+        confirmation = (body or {}).get('build_confirmation')
+        if not isinstance(confirmation, str) or len(confirmation) != 64:
+            raise RuntimeError('请先完成准备检查，再确认构建')
+        task = await run_in_threadpool(firmware_tasks.create_build, confirmation)
         task = firmware_tasks.start_build(str(task["id"]))
         local_console_audit.record("firmware.build.started", _user_id, task_id=task["id"], target=task["target"])
         return JSONResponse({"ok": True, "task": task}, status_code=202)
@@ -344,15 +468,50 @@ async def firmware_build_status(task_id: str, _user_id: int = Depends(require_lo
         return JSONResponse({"ok": False, "error": "task_not_found"}, status_code=404)
 
 
+@router.post('/firmware/builds/{task_id}/cancel')
+async def firmware_build_cancel(task_id: str, _user_id: int = Depends(require_local_root_csrf)):
+    try:
+        return {'ok': True, 'task': firmware_tasks.cancel_build(task_id)}
+    except KeyError:
+        return JSONResponse({'ok': False, 'error': '未找到这次构建'}, status_code=404)
+
+
 @router.get("/firmware/devices")
 async def firmware_devices(_user_id: int = Depends(require_local_root)):
     return {"ok": True, "devices": firmware_tasks.detect_devices()}
 
 
+@router.post('/firmware/probe')
+async def firmware_probe(body: dict, _user_id: int = Depends(require_local_root_csrf)):
+    try:
+        probe=await run_in_threadpool(firmware_tasks.probe_device,str(body.get('device_id') or ''))
+        return {'ok':True,'probe':probe}
+    except RuntimeError as exc:return JSONResponse({'ok':False,'error':str(exc)},status_code=409)
+
+
+@router.post('/firmware/bind')
+async def firmware_bind(body: dict, _user_id: int = Depends(require_local_root_csrf)):
+    from core import desktop_browser, state_store, config_store
+    try:
+        row=firmware_tasks.consume_probe(str(body.get('probe_id') or ''),str(body.get('confirmation_token') or ''))
+        if _user_id==0 and desktop_browser.enabled():
+            # Desktop operator is not a synthetic root user. Store a private
+            # local binding, without creating a database user or membership.
+            state_store.write_json(state_store.state_path('desktop_device_binding.json'),
+                {'mac':row['mac'],'nickname':'InkSight 4.26','confirmed_at':__import__('time').time()},meta=False)
+        else:
+            result=await config_store.bind_device(_user_id,row['mac'],'InkSight 4.26')
+            if result['status']=='pending_approval':raise RuntimeError('此设备已有所有者，需要原有配对批准')
+        local_console_audit.record('firmware.device.bound',_user_id,device_fingerprint=row['device_fingerprint'])
+        return {'ok':True,'device_fingerprint':row['device_fingerprint'],'writes_device':False}
+    except RuntimeError as exc:return JSONResponse({'ok':False,'error':str(exc)},status_code=409)
+
+
 @router.post("/firmware/flash-plans")
 async def firmware_flash_plan(body: dict, _user_id: int = Depends(require_local_root_csrf)):
     try:
-        plan = firmware_tasks.prepare_flash(
+        from core.firmware_usb import start_plan
+        plan = start_plan(
             str(body.get("build_id") or ""), str(body.get("device_id") or ""),
             str(body.get("install_mode") or "update"),
         )
@@ -365,19 +524,28 @@ async def firmware_flash_plan(body: dict, _user_id: int = Depends(require_local_
                 pass
         local_console_audit.record(
             "firmware.flash.prepared", _user_id, plan_id=plan["id"],
-            device_fingerprint=plan["device_fingerprint"], target=plan["target"],
+            target=firmware_tasks.TARGET,
         )
-        return {
-            "ok": True,
-            "plan": plan,
-        }
+        return JSONResponse({'ok':True,'plan':plan},status_code=202)
     except RuntimeError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
+
+
+@router.get('/firmware/flash-plans/{plan_id}')
+async def firmware_flash_plan_status(plan_id: str, _user_id: int = Depends(require_local_root)):
+    from core.firmware_usb import get_plan
+    try:return {'ok':True,'plan':get_plan(plan_id)}
+    except KeyError:return JSONResponse({'ok':False,'error':'plan_not_found'},status_code=404)
 
 
 @router.post("/firmware/flashes")
 async def firmware_flash_create(body: dict, _user_id: int = Depends(require_local_root_csrf)):
     try:
+        try:
+            identity=firmware_tasks.get_flash_plan_identity(str(body.get('plan_id') or ''))
+            heartbeat=await stats_store.get_latest_heartbeat(identity['mac'])
+            firmware_tasks.bind_previous_build(str(body.get('plan_id') or ''),heartbeat)
+        except (KeyError,RuntimeError):pass
         task = firmware_tasks.create_flash(
             str(body.get("plan_id") or ""), str(body.get("confirmation_token") or "")
         )
@@ -392,7 +560,7 @@ async def firmware_flash_create(body: dict, _user_id: int = Depends(require_loca
 async def firmware_flash_status(task_id: str, _user_id: int = Depends(require_local_root)):
     try:
         task = firmware_tasks.get_flash(task_id)
-        if task.get("status") == "waiting_heartbeat":
+        if task.get("status") in {"waiting_heartbeat", "network_timeout"}:
             private = firmware_tasks.get_flash_identity(task_id)
             heartbeat = await stats_store.get_latest_heartbeat(private["mac"])
             task = firmware_tasks.confirm_heartbeat(task_id, heartbeat)
@@ -404,7 +572,7 @@ async def firmware_flash_status(task_id: str, _user_id: int = Depends(require_lo
 @router.post("/firmware/rollback-plans")
 async def firmware_rollback_plan(body: dict, _user_id: int = Depends(require_local_root_csrf)):
     try:
-        plan = firmware_tasks.prepare_rollback(
+        plan = await run_in_threadpool(firmware_tasks.prepare_rollback,
             str(body.get("flash_id") or ""), str(body.get("device_id") or "")
         )
         local_console_audit.record(

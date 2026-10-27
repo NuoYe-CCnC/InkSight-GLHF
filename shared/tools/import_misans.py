@@ -29,7 +29,7 @@ class FontImportError(ValueError):
 
 def _name(font: TTFont, name_id: int) -> str:
     table = font["name"]
-    for record in table.names:
+    for record in sorted(table.names,key=lambda item: item.langID not in {0,0x409}):
         if record.nameID == name_id:
             try:
                 value = record.toUnicode().strip()
@@ -67,14 +67,21 @@ def validate_font(path: Path, role: str, required_chars: str) -> dict[str, objec
         version = _name(font, 5)
         if "misans" not in family.lower().replace(" ", ""):
             raise FontImportError(f"{role}字体家族不是 MiSans：{family or '未识别'}")
-        style = subfamily.lower()
-        if role == "常规" and "bold" in style:
-            raise FontImportError("常规字体位置不能选择 Bold 字重。")
-        if role == "粗体" and "bold" not in style:
+        if 'fvar' in font:
+            raise FontImportError('请选择独立静态 Regular / Bold 字体，不支持可变字体。')
+        style = (_name(font, 17) or subfamily).lower()
+        weight = getattr(font.get('OS/2'), 'usWeightClass', 0)
+        # MiSans 4.003 static originals use OS/2 330 / 630, not CSS
+        # normal/bold's conventional 400 / 700. Require the actual named
+        # style as well as a verified weight; never trust the upload name.
+        style_key=style.replace(' ','').replace('-','').replace('_','')
+        if role == "常规" and (weight not in {330,400} or style_key not in {'regular','normal'}):
+            raise FontImportError("常规字体必须是静态 Regular（支持实测330或标准400字重）。")
+        if role == "粗体" and (weight not in {630,700} or style_key!='bold'):
             raise FontImportError(f"粗体字体未识别为 Bold：{subfamily or '未识别'}")
         cmap: set[int] = set()
         for table in font["cmap"].tables:
-            cmap.update(table.cmap)
+            if table.isUnicode():cmap.update(code for code,glyph in table.cmap.items() if glyph!='.notdef')
         missing = sorted({ord(ch) for ch in required_chars if not ch.isspace()} - cmap)
         if missing:
             sample = " ".join(f"U+{code:04X}" for code in missing[:12])
@@ -92,13 +99,17 @@ def validate_font(path: Path, role: str, required_chars: str) -> dict[str, objec
 
 
 def _run(command: list[str]) -> None:
-    result = subprocess.run(command, text=True, capture_output=True)
+    try:
+        result = subprocess.run(command, text=True, capture_output=True, timeout=180,
+                                env={**os.environ, 'PYTHONDONTWRITEBYTECODE':'1'})
+    except subprocess.TimeoutExpired:
+        raise FontImportError('单份字库生成超过 3 分钟，旧字库未被替换。') from None
     if result.returncode:
         message = (result.stderr or result.stdout or "未知错误").strip().splitlines()[-1]
         raise FontImportError(f"生成字库失败：{message}")
 
 
-def generate(project_root: Path, regular: Path, bold: Path, destination: Path) -> None:
+def generate(project_root: Path, regular: Path, bold: Path, destination: Path, *, checkpoint=None) -> None:
     tools_dir = project_root / "shared" / "tools"
     charset = project_root / "shared" / "firmware" / "fonts_full_charset.txt"
     if not charset.is_file():
@@ -114,6 +125,7 @@ def generate(project_root: Path, regular: Path, bold: Path, destination: Path) -
             ("bold", bold, (24, 30, 62, 82)),
         ):
             for size in sizes:
+                if checkpoint:checkpoint()
                 subset = ascii_subset if size >= 62 else charset
                 output = generated / "fonts_gen" / f"misans_{role}_{size}.h"
                 _run([
@@ -126,6 +138,7 @@ def generate(project_root: Path, regular: Path, bold: Path, destination: Path) -
             (regular, 16, "misans_16", "fonts_misans_16.h"),
             (bold, 24, "misans_24", "fonts_misans_24.h"),
         ):
+            if checkpoint:checkpoint()
             _run([
                 sys.executable, str(tools_dir / "font_gen_ttf.py"),
                 "--ttf", str(font_path), "--size", str(size),

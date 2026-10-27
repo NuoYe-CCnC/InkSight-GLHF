@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from . import news_model_limits
+from . import codex_announcement_schedule
 
 try:
     import fcntl  # type: ignore
@@ -97,6 +98,7 @@ DEFAULT_CONFIG = {
         "cloud_password": "cloud.password",
     },
     "codex_member": {},
+    "codex_announcements": copy.deepcopy(codex_announcement_schedule.DEFAULTS),
     "panel_display": {
         "show_codex_credits": False,
         # Deprecated compatibility values are deliberately retained in the
@@ -315,6 +317,7 @@ _CONFIG_ALLOWED = {
     "secret_refs": {key: None for key in DEFAULT_CONFIG["secret_refs"]},
     "codex_member": {"plan": None, "renewal_status": None, "valid_until_date": None,
                      "precision": None, "source": None},
+    "codex_announcements": {key: None for key in codex_announcement_schedule.DEFAULTS},
     "panel_display": {"show_codex_credits": None, "codex_credit_balance": None,
                       "show_openai_api_info": None, "openai_api_balance_usd": None,
                       "show_reset_opportunities": None,
@@ -682,6 +685,7 @@ def _validate_adaptive_steps(rows: Any, path: str, errors: list[str]) -> None:
 def validate_config(config: dict) -> list[str]:
     errors: list[str] = []
     _reject_unknown(config, _CONFIG_ALLOWED, "", errors)
+    codex_announcement_schedule.validate(config, errors)
     if config.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"schema_version: expected {SCHEMA_VERSION}; future/unknown versions are not activated")
     refs = config.get("secret_refs")

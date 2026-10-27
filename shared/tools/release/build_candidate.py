@@ -18,6 +18,8 @@ ROOT_FILES = (
     ".gitignore", "LICENSE", "LICENSE-SCOPE.md", "README.md", "README.en.md", "APP_COMPONENTS.json",
     "CONTRIBUTING.md", "SECURITY.md", "SBOM.json", "THIRD_PARTY_NOTICES.md", "requirements.lock.txt",
     "requirements-py39-macos-arm64.lock", "requirements-py311-macos-arm64.lock",
+    "requirements-firmware-py311-macos-arm64.lock",
+    "requirements-esptool-py311-macos-arm64.lock",
 )
 EXACT_FILES = (
     "shared/backend/.env.example", "shared/backend/pytest.ini",
@@ -37,6 +39,17 @@ EXACT_FILES = (
     "shared/firmware/data/portal_html.h", "shared/firmware/merge_firmware.py",
     "shared/firmware/platformio.ini", "shared/tools/admin_recovery.py",
     "shared/tools/font_gen_ttf.py", "shared/tools/import_misans.py",
+    "shared/tools/firmware_pio.py", "shared/tools/firmware_receipt.py",
+    "shared/backend/tests/test_firmware_setup.py",
+    "shared/backend/tests/test_firmware_usb.py",
+    "shared/backend/tests/test_firmware_setup_api.py",
+    "shared/backend/tests/test_firmware_build_guard.py",
+    "shared/backend/tests/test_cloud_connection_check.py",
+    "shared/backend/tests/firmware_controller_test.cjs",
+    "docs/releases/v0.1.0-test.15.zh-CN.md",
+    "docs/releases/v0.1.0-test.16.zh-CN.md",
+    "docs/releases/v0.1.0-test.17.zh-CN.md",
+    "docs/releases/v0.1.0-test.17.en.md",
     "shared/tools/misans_panel_render.py",
     "shared/tools/inksight_config.py", "shared/tools/misans_raster.py",
     "shared/tools/cloud_publish.py", "shared/tools/codex_quota_probe.py",
@@ -65,6 +78,17 @@ EXACT_FILES = (
     "shared/backend/tests/test_app_data.py",
     "shared/backend/tests/test_app_backend.py",
     "shared/backend/tests/test_news_issue_status.py",
+    "shared/backend/tests/test_codex_announcements.py",
+    "shared/backend/tests/test_codex_announcement_views.py",
+    "shared/backend/tests/codex_announcement_host.cpp",
+    "docs/CODEX_ANNOUNCEMENTS.zh-CN.md",
+    "docs/LOCAL_PREVIEW.zh-CN.md",
+    "docs/CODEX_MULTISOURCE.zh-CN.md",
+    "docs/DEVICE_FIRST_USE.zh-CN.md",
+    "docs/releases/v0.1.0-test.13.zh-CN.md",
+    "shared/backend/tests/test_published_preview.py",
+    "shared/backend/tests/test_codex_multisource.py",
+    "shared/backend/tests/preview_controller_test.cjs",
     "shared/backend/tests/news_issue_status_host.cpp",
     "docs/NEWS_ISSUE_STATUS.zh-CN.md",
     "shared/backend/tests/test_phase1_reliable.py",
@@ -309,7 +333,8 @@ def build(root: Path, destination: Path) -> dict[str, object]:
             "# Engineering release candidate\n\nThis candidate passed the repository's engineering release gates. "
             "Its four bundled daily messages use the publisher-approved GPL-3.0-only release overlay; "
             "the former 12-entry CC0-labelled production corpus is not distributed. "
-            "This status is not legal certification. Publication was separately authorized by the repository owner. "
+            "This status is not legal certification or publication authority for this version. "
+            "This artifact is a local engineering candidate; GitHub publication requires separate current authorization. "
             "Remote content sources remain disabled by default and require separate deployer review before enablement.\n",
             encoding="utf-8")
         findings = scan(staging)
@@ -323,6 +348,7 @@ def build(root: Path, destination: Path) -> dict[str, object]:
                             "it cannot establish copyright ownership or external service terms",
                             "encrypted or novel credential formats may not be recognized"],
             "publication_ready": PUBLICATION_READY,
+            "publication_authorized": False,
         }
         (staging / "PRIVACY-SCAN.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         if findings:
@@ -348,10 +374,11 @@ def build(root: Path, destination: Path) -> dict[str, object]:
             "packaged_file_count": len(inventory), "candidate_tree_sha256": tree_sha,
             "archive_sha256": archive_sha, "archive_verification": verification,
             "publication_ready": PUBLICATION_READY,
+            "publication_authorized": False,
             "blockers": [],
             "qualifications": [
                 "engineering status only; not legal certification",
-                "publication was separately authorized by the repository owner",
+                "GitHub publication requires separate current authorization for this version",
                 "remote content sources require separate deployer review before enablement",
             ],
         }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -377,7 +404,7 @@ def main() -> int:
     print(f"压缩包文件：{report['packaged_files']}")
     print("全新解压复核：通过")
     print(f"压缩包 SHA-256：{report['archive_sha256']}")
-    print("发布状态：工程候选可发布；这不是法律认证。公开发布已由仓库所有者另行授权。")
+    print("发布状态：本地工程候选；不是法律认证或当前版本发布授权。GitHub 发布须另行确认。")
     return 0
 
 

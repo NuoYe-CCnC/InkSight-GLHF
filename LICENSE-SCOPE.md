@@ -15,7 +15,7 @@ font headers, firmware binaries, private configuration, databases, logs, caches,
 or unverified image assets. Users obtain allowed external resources themselves
 and are responsible for the corresponding terms.
 
-The checked workspace has no Git metadata. File-level comparisons can show that
+The original upstream-audit snapshot had no Git metadata; the current public repository has its own commit history. File-level comparisons can show that
 some files match named upstream revisions, but they cannot reconstruct the exact
 fork point or prove ownership of later additions. For this candidate, the
 publisher selected `GPL-3.0-only` for project material and approved four local

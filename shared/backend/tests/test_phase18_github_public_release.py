@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 REPO_URL = "https://github.com/NuoYe-CCnC/InkSight-GLHF"
-VERSION = "v0.1.0-test.9"
+VERSION = "v0.1.0-test.17"
 
 
 def _load_builder():
@@ -32,6 +32,8 @@ def test_final_release_documents_are_allowlisted():
         "docs/releases/v0.1.0-test.5.en.md",
         "docs/releases/v0.1.0-test.9.zh-CN.md",
         "docs/releases/v0.1.0-test.9.en.md",
+        "docs/releases/v0.1.0-test.17.zh-CN.md",
+        "docs/releases/v0.1.0-test.17.en.md",
     ):
         assert relative in collected
 
@@ -42,6 +44,10 @@ def test_public_entrypoints_use_final_repository_and_version():
         assert REPO_URL in text
         assert VERSION in text
         assert "<OWNER>" not in text
+    for relative in ("README.md", "README.en.md", "docs/DOWNLOAD.zh-CN.md"):
+        text = (ROOT / relative).read_text(encoding="utf-8")
+        assert f"{REPO_URL}/releases/download/{VERSION}/InkSight-macOS-arm64.zip" in text
+        assert f"{REPO_URL}/releases/latest" not in text
 
 
 def test_release_notes_preserve_test_and_acceptance_boundaries():

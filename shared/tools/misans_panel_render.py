@@ -825,12 +825,33 @@ def optional_account_rows(ai: dict) -> list[tuple[str, str]]:
 
 
 # ── AI 面板（镜像 panel_pages.cpp 修复版）───────────────────
+def announcement_target(ai: dict, kind: str, now: int) -> int:
+    """Mirror the firmware's fail-closed optional snapshot, no backend I/O."""
+    snapshot = ai.get("announcements")
+    if not isinstance(snapshot, dict) or type(snapshot.get("schema_version")) is not int or snapshot.get("schema_version") != 1 or snapshot.get("enabled") is not True:
+        return 0
+    event = snapshot.get(kind)
+    if not isinstance(event, dict) or event.get("kind") != kind or event.get("status") != "pending" or event.get("confidence") != "explicit":
+        return 0
+    vals = [event.get(k) for k in ("target_at", "expires_at", "valid_until", "published_at")]
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in vals):
+        return 0
+    target, expiry, valid, published = vals
+    return int(target) if 0 < published <= now < valid <= target == expiry <= now + 14 * 86400 else 0
+
+
 def render_ai_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     ai = _pages(doc).get("ai") or {}
     display_prefs = _display_preferences(doc, ai)
     show_codex = bool(display_prefs.get("show_codex_credits", False))
     show_api = bool(display_prefs.get("show_openai_api_info", False))
     show_reset = bool(display_prefs.get("show_reset_opportunities", True))
+    quota_forecast = announcement_target(ai, "quota_reset", now)
+    grant_forecast = announcement_target(ai, "reset_grant", now) if show_reset else 0
+    unspecified_forecast = announcement_target(ai, 'reset_unspecified', now)
+    choices=[(stamp,kind) for stamp,kind in [(quota_forecast,'quota_reset'),
+             (grant_forecast,'reset_grant'),(unspecified_forecast,'reset_unspecified')] if stamp]
+    chosen=min(choices,key=lambda item:(item[0],-ai['announcements'][item[1]]['published_at'],item[1]),default=None)
     F_TITLE, F_LABEL, F_SMALL, F_TINY = fonts["bold30"], fonts["reg24"], fonts["reg21"], fonts["reg16"]
     cny_x0, codex_right, ds_left, page_right = 24, 461, 500, 778
 
@@ -878,6 +899,17 @@ def render_ai_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     account_ai = dict(ai)
     account_ai.update(show_codex_credits=show_codex, show_openai_api_info=show_api)
     account_rows = optional_account_rows(account_ai)
+    if chosen:
+        account_rows = []
+        target,kind=chosen
+        event=ai['announcements'][kind]
+        relation='前' if event.get('time_relation','before')!='at' else ''
+        label='发放' if kind=='reset_grant' else '重置'
+        p.draw_right(F_LABEL, "预计", codex_right, 225)
+        forecast_text=fmt_md_hm(target)+' '+relation+label
+        available=codex_right-(cny_x0+p.ink_width(F_LABEL,'7 日窗口')+16)
+        forecast_font=F_LABEL if p.ink_width(F_LABEL,forecast_text)<=available else F_SMALL
+        p.draw_right(forecast_font,forecast_text,codex_right,256)
     if len(account_rows) == 1:
         # 单额度版与左侧“剩余 / 7 日窗口”形成两行基线，字号也完全一致。
         label, value = account_rows[0]

@@ -2,7 +2,7 @@
   "schema": 2,
   "scope": "allowlisted candidate tree before archive, followed by independent fresh-extract scan",
   "matched_values_included": false,
-  "source_files": 409,
+  "source_files": 446,
   "findings": [],
   "coverage": [
     "filenames and paths",
@@ -18,5 +18,6 @@
     "it cannot establish copyright ownership or external service terms",
     "encrypted or novel credential formats may not be recognized"
   ],
-  "publication_ready": true
+  "publication_ready": true,
+  "publication_authorized": false
 }

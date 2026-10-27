@@ -1698,6 +1698,10 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
     result = dict(fallback)
     mac = str(kwargs.get("mac") or "")
     api_key = str(kwargs.get("api_key") or "").strip() or (os.getenv("DEEPSEEK_API_KEY") or "").strip()
+    if kwargs.get('cache_only'):
+        # Connection checks compose the real cached/unknown document without
+        # balance requests, model calls, CLI probes or bulk upstream fetching.
+        api_key = ''
 
     # ── DeepSeek 余额（官方接口）──────────────────────────────
     _last_ds = _AI_USAGE_LAST_DS  # module-level: {mac: (balance, currency)}
@@ -1977,6 +1981,11 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
             "show_openai_api_info": bool(_display.get("show_openai_api_info", False)),
             "show_reset_opportunities": bool(_display.get("show_reset_opportunities", True)),
         }
+        try:
+            from .codex_announcements import snapshot as _announcement_snapshot
+            result["feed_ai"]["announcements"] = _announcement_snapshot()
+        except Exception:
+            result["feed_ai"]["announcements"] = None
         # Automatic values only. Legacy manual balances remain readable in the
         # configuration document for migration audit but are never displayed or
         # used as a fallback.
@@ -2029,7 +2038,7 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
         logger.debug("[AI_USAGE] feed attach skipped")
 
     # 额度历史（仅发布端无设备上下文时记录；变化才写，相同则 ≥10min 抽样一次）
-    if not mac:
+    if not mac and not kwargs.get('cache_only'):
         try:
             from .quota_history_store import record_if_changed
 

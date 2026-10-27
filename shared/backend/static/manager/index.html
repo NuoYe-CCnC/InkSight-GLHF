@@ -7,7 +7,9 @@
   <title>InkSight 本机管理</title>
   <link rel="stylesheet" href="/static/manager/manager.css">
   <script src="/static/manager/desktop-entry.js" defer></script>
+  <script src="/static/manager/firmware-controller.js" defer></script>
   <script src="/static/manager/manager.js" defer></script>
+  <script src="/static/manager/firmware-setup.js" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -30,13 +32,19 @@
       </header>
 
       <section class="page is-active" data-page-panel="overview">
+        <div class="preparation-entry"><p>第一次连接屏幕，或准备更新设备？</p><button class="secondary" data-go="maintenance">设备首次使用 / 固件</button></div>
         <div class="status-strip" id="systemStatus"><div><i></i><strong>正在读取本机状态</strong></div><p>请稍候</p></div>
         <div class="two-col">
           <article class="panel preview-panel">
             <div class="heading"><div><p class="eyebrow">屏幕</p><h2>真实渲染预览</h2></div><span class="pill">800 x 480</span></div>
-            <div class="preview-controls"><label><span>数据来源</span><select id="previewDevice"><option value="">不绑定设备，显示未知值</option></select></label><label><span>页面</span><select id="previewPage"><option value="ai">AI 用量</option><option value="news_gold">今日关注</option></select></label></div>
-            <div class="preview-frame"><img id="previewImage" alt="InkSight 墨水屏真实渲染预览"><button class="secondary" id="loadPreview">加载当前渲染</button></div>
-            <p class="fine">这是持久化数据文档的按需渲染，不是设备实时截图。未选择设备时不会借用其他设备数据，也不会调用余额、行情或模型接口。</p>
+            <div class="preview-controls"><label><span>数据来源</span><select id="previewDevice" aria-describedby="previewSourceNote"><option value="">正在读取设备</option></select></label><label><span>页面</span><select id="previewPage"><option value="ai">AI 用量</option><option value="news_gold">今日关注</option></select></label></div>
+            <p class="fine" id="previewSourceNote">使用所选设备最近一次上传并回读校验成功的完整数据，不拼接当前缓存。</p>
+            <div class="preview-actions"><button class="secondary" id="loadPreview">刷新预览</button><a id="exportPreview" class="secondary" hidden download="InkSight-preview.png">导出 PNG</a><button class="secondary" id="cloudCheck" disabled>测试云端并预览</button></div>
+            <p class="fine" id="cloudCheckState">连接验收只生成当前缓存或缺数据状态，上传到已应用云端目录的独立新文件并回读，不启动自动发布或调用付费模型。临时探针会清理，完整快照保留供预览；不是设备轮询文件。</p>
+            <div class="preview-frame" id="previewFrame" aria-busy="false"><img id="previewImage" width="800" height="480" alt="所选设备最新发布数据的模拟渲染，非实屏截图"><p id="previewMessage" role="status" aria-live="polite">正在读取发布记录</p></div>
+            <p class="fine" id="previewMeta" aria-live="polite"></p>
+            <p class="fine">最新发布预览，不是设备截图。尚无设备最后显示画面与页面的回执，设备休眠时可能仍显示旧内容；默认先看 AI 用量，可切换今日关注。预览使用发布时刻判断日期、数据陈旧和预告到期，不会用现在时钟改写历史画面。</p>
+            <details class="preview-advanced"><summary>高级诊断</summary><p class="fine">旧选项“不绑定设备”用于检查缺数据时的占位排版，不是你的设备；不会读取账户或发布数据。设备名称来自已有绑定记录，名称为 test 的记录也不代表系统测试图。</p><button class="secondary" id="previewUnbound">查看未绑定占位诊断</button></details>
           </article>
           <div class="stack">
             <article class="panel"><div class="heading"><div><p class="eyebrow">当前内容</p><h2 id="currentTitle">尚未读取</h2></div><span class="pill" id="freshness">未知</span></div><p class="issue-text" id="currentText">--</p><dl class="details"><div><dt>来源</dt><dd id="currentOrigin">--</dd></div><div><dt>生成时间</dt><dd id="currentTime">--</dd></div></dl></article>
@@ -55,7 +63,7 @@
       </section>
 
       <section class="page" data-page-panel="settings">
-        <div class="intro"><div><p class="eyebrow">DEVICE</p><h2>设备与运行</h2><p>先保存草稿，再确认应用。新闻参数从下一期生效，Wi-Fi 需要重新编译并刷写。</p></div><div class="actions"><button class="secondary" id="discardDraft">放弃草稿</button><button class="primary" id="saveDraft">保存草稿</button></div></div>
+        <div class="intro"><div><p class="eyebrow">DEVICE</p><h2>设备与运行</h2><p>先保存草稿，再确认应用。新闻参数从下一期生效；Wi-Fi 列表供首次安装使用，兼容升级会保留设备原网络。</p></div><div class="actions"><button class="secondary" id="discardDraft">放弃草稿</button><button class="primary" id="saveDraft">保存草稿</button></div></div>
         <form id="settingsForm" class="form-stack">
           <fieldset>
             <legend>新闻生成</legend>
@@ -84,14 +92,31 @@
           <article class="panel credential"><div class="heading"><div><p class="eyebrow">同步</p><h2>坚果云或兼容服务</h2></div><span class="pill" data-secret="cloud_password">--</span></div><label><span>服务地址</span><input id="cloudUrl" autocomplete="off"></label><label><span>账户</span><input id="cloudUser" autocomplete="off"></label><label><span>替换密码</span><input id="cloudPassword" type="password" autocomplete="new-password"></label></article>
           <article class="panel credential"><div class="heading"><div><p class="eyebrow">手动资料</p><h2>Codex 账户</h2></div><span class="pill">手动</span></div><label><span>套餐</span><select id="codexPlan"><option value="">不填写</option><option>FREE</option><option>PLUS</option><option>PRO</option><option>BUSINESS</option><option>ENTERPRISE</option></select></label><label><span>状态</span><select id="codexStatus"><option value="active">有效</option><option value="cancelled">已取消续订</option><option value="expired">已过期</option><option value="unknown">未知</option></select></label><label><span>有效期</span><input id="codexDate" type="date"></label></article>
           <article class="panel credential openai-cost-card"><div class="heading"><div><p class="eyebrow">OPENAI 费用</p><h2>API 本月消费</h2></div><span class="pill" id="openaiCostState">未配置</span></div><p class="metric" id="openaiCostValue">-- USD</p><p class="fine" id="openaiCostNote">按 UTC 自然月统计整个所选组织。只有完整翻页成功后才显示数值。</p><label><span>OpenAI 费用查询密钥（Admin API Key）</span><input id="openaiAdminKey" type="password" autocomplete="new-password"><small>留空保持原值。仅 Organization Owner 可创建；密钥不会回显。</small></label><div class="form-grid"><label><span>自动刷新间隔（分钟）</span><input id="openaiPollMinutes" type="number" min="5" max="1440" step="1"></label><label><span>组织 ID（可选）</span><input id="openaiOrganization" autocomplete="off"><small>留空使用当前密钥所选组织</small></label></div><div class="actions"><a class="secondary link-button compact" href="https://platform.openai.com/settings/organization/admin-keys" target="_blank" rel="noreferrer">创建 Admin API Key</a><button class="secondary" id="verifyOpenaiCosts" type="button">验证并首次查询</button><button class="secondary" id="refreshOpenaiCosts" type="button">刷新月消费</button></div></article>
-          <article class="panel wifi-card"><div class="heading"><div><p class="eyebrow">设备网络</p><h2>Wi-Fi 列表</h2></div><span class="pill" data-secret="wifi_networks">--</span></div><p class="fine">最多 5 组。填写任意一行会完整替换现有列表，顺序就是连接优先级。空密码用于开放网络。</p><div id="wifiRows" class="wifi-rows"></div><label class="confirm clear-choice"><input id="clearWifi" type="checkbox"><span>明确清空全部已保存 Wi-Fi</span></label></article>
+          <article class="panel wifi-card"><div class="heading"><div><p class="eyebrow">设备网络</p><h2>Wi-Fi 列表</h2></div><span class="pill" data-secret="wifi_networks">--</span></div><p class="fine">最多 5 组。填写任意一行会完整替换现有列表，顺序就是连接优先级。空密码用于开放网络。此处修改供首次安装使用；兼容升级不会覆盖设备原有 Wi-Fi，更换网络需单独配网。</p><div id="wifiRows" class="wifi-rows"></div><label class="confirm clear-choice"><input id="clearWifi" type="checkbox"><span>明确清空全部已保存 Wi-Fi</span></label></article>
           <article class="panel wifi-card"><div class="heading"><div><p class="eyebrow">清除凭据</p><h2>明确删除</h2></div></div><p class="fine">勾选后会在保存草稿时清除对应内容。未勾选且输入框为空仍表示保留。</p><div class="toggle-grid"><label><input id="clearNewsKey" type="checkbox"><span><strong>新闻密钥</strong></span></label><label><input id="clearDeepseekKey" type="checkbox"><span><strong>余额密钥</strong></span></label><label><input id="clearGoldKey" type="checkbox"><span><strong>金价密钥</strong></span></label><label><input id="clearOpenaiKey" type="checkbox"><span><strong>OpenAI 费用密钥</strong></span></label><label><input id="clearCloud" type="checkbox"><span><strong>云端凭据</strong></span></label></div></article>
         </div>
       </section>
 
       <section class="page" data-page-panel="maintenance">
+        <section class="panel preparation" aria-labelledby="preparationTitle">
+          <div class="heading"><div><h2 id="preparationTitle">设备首次使用 / 固件准备</h2><p class="fine">准备环境、填写配置、构建固件，再识别目标。所有 USB 写入均有单独确认。</p></div><button class="secondary" id="checkPreparation">检查准备状态</button></div>
+          <div id="preparationChecks" class="preparation-checks" aria-live="polite">正在读取，不会自动下载</div>
+          <div class="preparation-steps">
+            <section><h3>导入 MiSans</h3><p class="fine">从<a href="https://hyperos.mi.com/font/en/download/" target="_blank" rel="noreferrer noopener">小米官方字体下载页</a>自行下载并阅读许可，解压后选择简体中文静态 Regular / Bold。文件名不限，实际校验格式、字重和全部必需字形。字体不随开源包分发。</p>
+              <form id="fontImportForm"><div class="form-grid"><label><span>MiSans Regular</span><input type="file" id="regularFont" accept=".otf,.ttf" required><small>单独 OTF / TTF，最多32MiB</small></label><label><span>MiSans Bold</span><input type="file" id="boldFont" accept=".otf,.ttf" required><small>不支持 TTC、可变字体或缺字精简版</small></label></div><label class="confirm"><input type="checkbox" id="fontPermission" required><span>我已阅读字体许可，确认有权在本机使用所选字体</span></label><button class="secondary" type="submit" id="importFonts">校验并导入字体</button></form>
+            </section>
+            <section><h3>准备构建工具</h3><p class="fine">使用 App 自带 Python 创建独立环境，按固定版本安装 PlatformIO、ESP32-S3 编译器及依赖。首次下载可能较慢；至少预留4GiB。不修改系统 Python、Homebrew，不需要 sudo。</p><div class="actions"><button class="secondary" id="prepareTools">下载并准备工具</button><button class="secondary" id="cancelPreparation" hidden>取消准备</button></div></section>
+            <section><h3>填写并应用配置</h3><p class="fine">在 API 与账户中填写 Wi-Fi 和坚果云，在设备与运行中应用草稿。密钥可跳过，工具和字体准备不会调用付费模型。凭据已填写不等于联网成功。</p><button class="secondary" data-go="accounts">填写 Wi-Fi 与云端</button></section>
+            <section><h3>识别 USB 与绑定</h3><p class="fine">用数据线连接已支持的 ESP32-S3 N32R16 板。识别会短暂重启板卡，只读芯片和MAC、不写 Flash。屏型号、接线及16MB PSRAM仍需你核对实物；未知板不会自动清空。</p><div class="actions"><button class="secondary" id="detectPreparationUsb">查找 USB 设备</button><select id="preparationUsb" aria-label="待识别的 USB 设备"><option value="">尚未查找</option></select><button class="secondary" id="probePreparationUsb" disabled>只读识别</button></div><p id="usbIdentity" class="fine" aria-live="polite"></p><button class="secondary" id="bindPreparationUsb" hidden>确认绑定此设备</button></section>
+          </div>
+          <div id="preparationJob" class="preparation-job" role="status" aria-live="polite">尚无准备任务</div>
+          <dl id="firmwareEvidence" class="details wide" aria-live="polite"></dl>
+          <button class="secondary" id="confirmPhysical" hidden>记录实体屏人工确认</button>
+          <p class="fine">构建完成、写入校验、联网回执、人工实屏确认是四个独立验收结果，不能互相替代。</p>
+        </section>
         <div class="intro"><div><p class="eyebrow">MAINTENANCE</p><h2>维护</h2><p>构建和烧录分开执行，烧录前必须识别目标设备并再次确认。</p></div></div>
-        <div class="two-col"><article class="panel"><div class="heading"><div><p class="eyebrow">配置</p><h2>当前状态</h2></div><span class="pill" id="configState">--</span></div><dl class="details wide"><div><dt>配置指纹</dt><dd id="fingerprint">--</dd></div><div><dt>草稿</dt><dd id="draftState">--</dd></div><div><dt>后台版本</dt><dd id="backendVersion">--</dd></div></dl><a class="secondary link-button" href="/admin/analytics">打开旧统计页</a></article><article class="panel"><div class="heading"><div><p class="eyebrow">固件</p><h2>构建、更新与回退</h2></div><span class="pill" id="firmwareState">待接入</span></div><p class="fine">仅支持 32MB ESP32-S3 与 4.26 英寸 SSD1677。已有设备更新保留 NVS、Wi-Fi 与文件系统；回退只恢复此前备份的启动项。两种写入都须先识别设备并再次确认。</p><div class="actions"><button class="secondary" id="buildFirmware" disabled>构建固件</button><button class="primary" id="openFlash" disabled>识别并刷写</button><button class="secondary" id="prepareRollback" disabled>核对并回退上次更新</button></div></article></div>
+        <article class="panel"><div class="heading"><div><p class="eyebrow">EXPERIMENTAL</p><h2>Codex 重置预告</h2></div><button class="secondary" id="readAnnouncements">读取本地诊断</button></div><p class="fine">默认关闭。仅读取本地预告、采集状态与未采用原因；此按钮不会请求第三方、调用模型或修改配置。启用及频率在用户配置 codex_announcements 中设置。</p><pre id="announcementDiagnostics" class="fine" aria-live="polite">尚未读取</pre></article>
+        <div class="two-col"><article class="panel"><div class="heading"><div><p class="eyebrow">配置</p><h2>当前状态</h2></div><span class="pill" id="configState">--</span></div><dl class="details wide"><div><dt>配置指纹</dt><dd id="fingerprint">--</dd></div><div><dt>草稿</dt><dd id="draftState">--</dd></div><div><dt>后台版本</dt><dd id="backendVersion">--</dd></div></dl><a class="secondary link-button" href="/admin/analytics">打开旧统计页</a></article><article class="panel"><div class="heading"><div><p class="eyebrow">固件</p><h2>构建、更新与回退</h2></div><span class="pill" id="firmwareState">待接入</span></div><p class="fine">仅支持 32MB ESP32-S3 与 4.26 英寸 SSD1677。已有设备更新保留 NVS、Wi-Fi 与文件系统；回退只恢复此前备份的启动项。两种写入都须先识别设备并再次确认。</p><div class="actions"><button class="secondary" id="buildFirmware" disabled>构建固件</button><button class="secondary" id="cancelBuild" hidden>取消构建</button><button class="primary" id="openFlash" disabled>识别并刷写</button><button class="secondary" id="prepareRollback" disabled>核对并回退上次更新</button></div></article></div>
       </section>
     </main>
   </div>

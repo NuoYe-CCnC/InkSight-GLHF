@@ -2,15 +2,21 @@
 
 [English](INSTALLATION.en.md) · [文档目录](README.md) · [首次使用简版](FIRST_USE.zh-CN.md)
 
-本文只描述首个测试版已验证的 macOS ARM64 + Python 3.9 + ESP32-S3 N32R16V + 4.26 英寸 SSD1677 800×480 路径。仓库中的其他 PlatformIO 环境不代表已支持硬件。
+## 先选择 App 或源码路径
+
+test.17 提供[图形化设备准备中心](DEVICE_FIRST_USE.zh-CN.md)：App 用户从 Is →“打开配置”→“设备首次使用 / 固件”开始，不需要安装系统 Python、Homebrew 或创建 root。App 内置运行时不等于内置固件工具链；MiSans 由用户合法取得并导入，首次工具下载需联网并明确点击。最低 Apple Silicon / macOS26.5，实际测试26.5.2。本机迁移、现有兼容板升级与实屏刷新已验证；空白板首烧、真实回退、另一台Mac/Gatekeeper和重新登录自启动仍未验证。
+
+本文第2节的 Python3.9 命令保留为早期源码后端路径。要从源码使用新准备中心，请改用 Python3.11 创建同一后端虚拟环境，并使用 `requirements-py311-macos-arm64.lock`；其余配置初始化和源码管理员流程相同。不要在 App 路径操作 root、系统 Python 或签名包内部文件。
+
+硬件仅支持 ESP32-S3 N32R16V + 4.26 英寸 SSD1677 800×480。仓库中的其他 PlatformIO 环境不代表已支持硬件。
 
 ## 1. 准备
 
-- macOS ARM64 主机、Python 3.9。
+- macOS ARM64 主机；App 已内置 Python3.11，源码高级路径另行准备解释器。
 - ESP32-S3-DevKitC-1-N32R16V（32 MB Octal Flash、16 MB Octal PSRAM）。
 - 微雪 4.26 英寸黑白 800×480 SSD1677 墨水屏。
 - 可传数据的 USB 线和短杜邦线。
-- 构建固件时需要 PlatformIO Core；版本化平台由 `platform = espressif32@7.1.0` 固定，PlatformIO CLI 本身尚未提供跨平台哈希锁。
+- 图形准备固定 PlatformIO Core6.1.19 / espressif32 7.1.0，Python工具使用独立的 `requirements-firmware-py311-macos-arm64.lock`；仅覆盖声明的 macOS ARM64 / Python3.11，不是跨平台锁。
 
 发行包不包含任何生产数据库、状态、缓存、Wi-Fi、API Key、账号、真实 MAC、字体或固件二进制。
 
@@ -89,7 +95,7 @@ shared/backend/.venv/bin/python shared/tools/import_misans.py \
   --bold /path/to/MiSans-Bold.otf
 ```
 
-第一次只校验；第二次在本机 `.local/fonts/misans/` 保存私有副本，并生成被 `.gitignore` 排除的固件字库头文件。不要提交或分享原字体、生成头、字形缓存、预览和构建出的固件；软件按 GPL 开源不代表第三方字体获得再分发许可。
+这段命令仅供高级源码手动构建：第一次只校验；第二次在本机 `.local/fonts/misans/` 保存私有副本，并生成被 `.gitignore` 排除的固件字库头文件。它不等同于准备中心的原子生成集，不能替代图形准备中心的字体导入状态。App 与新准备中心用户应通过界面选择静态 Regular/Bold OTF/TTF。不要提交或分享原字体、生成头、字形缓存、预览和构建出的固件；软件按 GPL 开源不代表第三方字体获得再分发许可。
 
 ## 5. 接线
 
@@ -109,9 +115,12 @@ shared/backend/.venv/bin/python shared/tools/import_misans.py \
 
 ## 6. 安装 PlatformIO 并构建
 
+推荐使用[准备中心](DEVICE_FIRST_USE.zh-CN.md)的固定依赖和私有 workspace。下列命令是历史高级源码自行构建示例，不是新用户图形路径，也没有新准备中心的完整校验与锁定保证。不要借这条路径绕过准备中心拒绝条件。
+
 ```bash
-python3.9 -m venv .pio-venv
-.pio-venv/bin/python -m pip install platformio
+python3.11 -m venv .pio-venv
+.pio-venv/bin/python -m pip install --only-binary=:all: --require-hashes \
+  --index-url https://pypi.org/simple -r requirements-firmware-py311-macos-arm64.lock
 export PLATFORMIO_CORE_DIR="$PWD/.pio-core"
 export INK_SSID=""
 export INK_PASS=""
@@ -121,11 +130,11 @@ export CLOUD_BASE_URL=""
 export CLOUD_USER=""
 export CLOUD_PASS=""
 export INKSIGHT_BUILD_ID="local-test"
-.pio-venv/bin/python -m platformio run -d shared/firmware \
+.pio-venv/bin/python shared/tools/firmware_pio.py run -d shared/firmware \
   -e epd_426_ssd1677_s3_n32r16
 ```
 
-若已按上文确认只有 `python3` 3.9.x，创建 `.pio-venv` 的第一行也相应改用 `python3`。`platformio.ini` 的默认环境是历史目标；构建和上传必须显式指定 `-e epd_426_ssd1677_s3_n32r16`。
+这一手动工具路径也要求 Python3.11；不要用上文旧后端的3.9解释器替代。`platformio.ini` 的默认环境是历史目标；构建必须显式指定 `-e epd_426_ssd1677_s3_n32r16`。受控入口也约束esptool附加依赖；不要改回裸 `platformio` 绕过安装钩子约束。
 
 首次运行会从上游下载 PlatformIO 平台和依赖，不应假设新电脑已有本机缓存。将 Wi-Fi 或云端密钥作为真实构建输入前，优先在网页管理端的私密配置中填写，避免把秘密写进文档、Issue 或 shell 历史。
 
@@ -133,18 +142,10 @@ export INKSIGHT_BUILD_ID="local-test"
 
 推荐在本机管理端使用“固件”流程。它只接受固定目标，构建时快照配置，刷写前重新识别 ESP32-S3 与 32 MB Flash，并要求一次性确认：
 
-- `fresh`：只接受关键区域确实为空白的新板；写入 bootloader、分区表、OTA 初始化与 app0，不执行全盘擦除。
-- `update`：只接受分区表完全匹配的已有设备；先备份 NVS/OTA/目标应用区，只写未运行的 OTA 应用分区，校验后切换启动项，保留 NVS。
+- test.17 `fresh`：读取全部32MiB确认真正空白；写入 bootloader、分区表、OTA 初始化与 app0，不执行全盘擦除。厂家预置或未知固件不视为空白。
+- test.17 `update`：匹配本项目分区、兼容应用与NVS配置，备份引导/NVS/OTA/双应用/文件系统；动态写入非活动应用并完整回读，仅切换一个OTA扇区，保留原活动应用与设置。首次启动也不以编译快照覆盖已有Wi-Fi。旧公开版的行为以其随包文档为准。
 
-USB 写入是高风险操作。不要凭设备名称猜串口，也不要对未知板运行擦除。开发者如明确理解 PlatformIO 直接上传与受控流程的差异，可使用：
-
-```bash
-.pio-venv/bin/python -m platformio run -d shared/firmware \
-  -e epd_426_ssd1677_s3_n32r16 -t upload \
-  --upload-port /dev/cu.YOUR_DEVICE
-```
-
-这条直接上传命令不提供网页受控流程的空白板检查、备份和心跳确认。
+USB 写入是高风险操作。不要凭设备名称猜串口，也不要对未知板运行擦除；本指南不再将 PlatformIO 直接上传作为普通用户步骤。正式界面必须先识别、备份并取得一次性最终确认。编译、写入回读、联网回执与人工实屏确认是四个独立状态。只读检查或离线测试不能代替实机验收。
 
 ## 8. 运行、休眠与恢复
 

@@ -2,6 +2,7 @@
 Shared pytest fixtures for InkSight unit tests.
 """
 import os
+import asyncio
 import shutil
 import socket
 import subprocess
@@ -29,6 +30,7 @@ if not os.environ.get("INK_STATE_DIR"):
 _OWN_TEST_DB_DIR = tempfile.mkdtemp(prefix="inksight-pytest-db-")
 os.environ["INKSIGHT_DB_PATH"] = str(Path(_OWN_TEST_DB_DIR) / "inksight.db")
 os.environ["INKSIGHT_CACHE_DB_PATH"] = str(Path(_OWN_TEST_DB_DIR) / "cache.db")
+os.environ['INKSIGHT_FIRMWARE_HOME'] = str(Path(_OWN_TEST_DB_DIR) / 'firmware-private')
 
 # Set dummy env vars so modules can import without real keys
 os.environ.setdefault("DEEPSEEK_API_KEY", "unit-test-placeholder-deepseek")
@@ -49,6 +51,27 @@ def pytest_sessionfinish(session, exitstatus):
     if _OWN_TEST_STATE_DIR:
         shutil.rmtree(_OWN_TEST_STATE_DIR, ignore_errors=True)
     shutil.rmtree(_OWN_TEST_DB_DIR, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def current_event_loop_for_sync_tests():
+    """Older sync helpers preserve get_event_loop(); Python 3.11 no longer
+    recreates it after an earlier asyncio.run(). Keep tests order-independent.
+    This is test setup only, not a production event-loop policy change.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        created = loop.is_closed()
+    except RuntimeError:
+        created = True
+    if created:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    yield
+    if created:
+        if not loop.is_closed():
+            loop.close()
+        asyncio.set_event_loop(None)
 
 
 @pytest.fixture(autouse=True)
