@@ -14,5 +14,11 @@ int main() {
         time_t target = codexNearestAnnouncement(ai,now,doc["show_reset"] | true,&kind);
         std::cout << ",\"nearest\":" << (long long)target << ",\"kind\":\"" << (kind ? kind : "") << "\"";
     }
+    if (doc["inspect_selected"] | false) {
+        JsonObjectConst selected=codexSelectedAnnouncement(ai,now,doc["show_reset"] | true);
+        std::cout << ",\"selected\":";
+        if (selected.isNull()) std::cout << "null";
+        else { std::string json;serializeJson(selected,json);std::cout << json; }
+    }
     std::cout << "}";
 }

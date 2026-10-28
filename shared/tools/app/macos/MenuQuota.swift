@@ -69,29 +69,51 @@ struct MenuAnnouncements: Decodable {
     let quotaReset: MenuAnnouncement?
     let resetGrant: MenuAnnouncement?
     let resetUnspecified: MenuAnnouncement?
+    let selectedEvent: MenuAnnouncement?
+    let canonicalSourceURL: String?
+    let targetAuthor: String?
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version", enabled
-        case quotaReset = "quota_reset", resetGrant = "reset_grant"
-        case resetUnspecified = "reset_unspecified"
+        case quotaReset = "quota_reset", resetGrant = "reset_grant", resetUnspecified = "reset_unspecified"
+        case selectedEvent = "selected_event", canonicalSourceURL = "canonical_source_url", targetAuthor = "target_author"
     }
-    func isActive(at now: Date) -> Bool {
-        schemaVersion == 1 && enabled &&
-        (quotaReset?.isActive(kind: "quota_reset", at: now) == true ||
-         resetGrant?.isActive(kind: "reset_grant", at: now) == true ||
-         resetUnspecified?.isActive(kind: "reset_unspecified", at: now) == true)
+    func selected(at now: Date) -> MenuAnnouncement? {
+        guard enabled, [1,2].contains(schemaVersion) else { return nil }
+        let values = [("quota_reset",quotaReset),("reset_grant",resetGrant),("reset_unspecified",resetUnspecified)]
+        if schemaVersion == 2 {
+            guard let event = selectedEvent, event.isActive(kind: event.kind, at: now, schema: 2),
+                  values.contains(where: { $0.0 == event.kind && $0.1 == event }),
+                  canonicalSourceURL == event.canonicalSourceURL, targetAuthor == event.sourceAuthor else { return nil }
+            return event
+        }
+        return values.compactMap { kind, value -> MenuAnnouncement? in
+            guard let value, value.isActive(kind: kind, at: now, schema: 1) else { return nil }; return value
+        }.sorted {
+            if $0.targetAt != $1.targetAt { return $0.targetAt! < $1.targetAt! }
+            if $0.publishedAt != $1.publishedAt { return $0.publishedAt > $1.publishedAt }
+            return $0.kind < $1.kind
+        }.first
+    }
+    func isActive(at now: Date) -> Bool { selected(at: now) != nil }
+    func link(at now: Date = Date()) -> ForecastLink? {
+        guard schemaVersion == 2, let event = selected(at: now),
+              let id = event.eventID, let revision = event.revision,
+              let url = event.checkedURL else { return nil }
+        return ForecastLink(eventID: id, revision: revision, url: url)
     }
     func detail(at now: Date = Date()) -> String? {
-        guard schemaVersion == 1 && enabled else { return nil }
-        let active = [("quota_reset",quotaReset),("reset_grant",resetGrant),("reset_unspecified",resetUnspecified)]
-            .compactMap { kind, value -> MenuAnnouncement? in
-                guard let value, value.isActive(kind: kind, at: now) else { return nil }; return value
-            }.sorted { $0.targetAt == $1.targetAt ? $0.publishedAt > $1.publishedAt : $0.targetAt < $1.targetAt }
-        guard let event = active.first else { return nil }
-        let formatter = DateFormatter(); formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
-        formatter.dateFormat = "MM-dd HH:mm"
-        var text = "预计 " + formatter.string(from: Date(timeIntervalSince1970: event.targetAt))
-        text += event.timeRelation == "at" ? " " : " 前"
-        text += event.kind == "reset_grant" ? "发放" : "重置"
+        guard let event = selected(at: now) else { return nil }
+        let verb = event.kind == "reset_grant" ? "发放" : "重置"
+        var text: String
+        if let target = event.targetAt {
+            let formatter = DateFormatter(); formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+            formatter.dateFormat = "MM-dd HH:mm"
+            text = "预计 " + formatter.string(from: Date(timeIntervalSince1970: target))
+            text += event.timeRelation == "at" ? " " : " 前"
+            text += verb
+        } else {
+            text = "预计" + verb + "；" + (event.displayDate.map { String($0.suffix(5)) + "，" } ?? "") + "时间待定"
+        }
         if event.planScope == "unspecified" { text += "；适用套餐未说明" }
         if let zone = event.sourceTimeZone, ["PST","PDT","PT","UTC","GMT","EST","EDT"].contains(zone.uppercased()) {
             text += "（原文 " + zone.uppercased() + "）"
@@ -100,20 +122,62 @@ struct MenuAnnouncements: Decodable {
     }
 }
 
-struct MenuAnnouncement: Decodable {
+struct ForecastLink: Equatable {
+    let eventID: String
+    let revision: String
+    let url: URL
+}
+
+struct MenuAnnouncement: Decodable, Equatable {
     let kind: String, status: String, confidence: String
-    let targetAt: Double, expiresAt: Double, validUntil: Double, publishedAt: Double
+    let targetAt: Double?
+    let expiresAt: Double, validUntil: Double, publishedAt: Double
     let timeRelation: String?, planScope: String?, sourceTimeZone: String?
+    let eventID: String?, revision: String?, timeType: String?
+    let canonicalSourceURL: String?, sourceAuthor: String?, postID: String?
+    let rangeStartAt: Double?, rangeEndAt: Double?, displayDate: String?, expiryOriginAt: Double?
     enum CodingKeys: String, CodingKey {
         case kind, status, confidence, targetAt = "target_at", expiresAt = "expires_at"
         case validUntil = "valid_until", publishedAt = "published_at"
         case timeRelation = "time_relation", planScope = "plan_scope", sourceTimeZone = "source_time_zone"
+        case eventID = "event_id", revision, timeType = "time_type"
+        case canonicalSourceURL = "canonical_source_url", sourceAuthor = "source_author", postID = "post_id"
+        case rangeStartAt = "range_start_at", rangeEndAt = "range_end_at", displayDate = "display_date", expiryOriginAt = "expiry_origin_at"
     }
-    func isActive(kind expected: String, at now: Date) -> Bool {
+    var checkedURL: URL? {
+        guard let text = canonicalSourceURL, let author = sourceAuthor, let id = postID,
+              author.range(of: "^[A-Za-z0-9_]{1,15}$", options: .regularExpression) != nil,
+              id.range(of: "^[0-9]{5,24}$", options: .regularExpression) != nil,
+              ["https://x.com/\(author)/status/\(id)","https://twitter.com/\(author)/status/\(id)"].contains(text)
+        else { return nil }
+        return URL(string: text)
+    }
+    func isActive(kind expected: String, at now: Date, schema: Int = 1) -> Bool {
         let stamp = now.timeIntervalSince1970
-        return kind == expected && status == "pending" && confidence == "explicit" &&
-        [targetAt, expiresAt, validUntil, publishedAt].allSatisfy { $0.isFinite } &&
-        publishedAt > 0 && publishedAt <= stamp && stamp < validUntil &&
-        validUntil <= targetAt && targetAt == expiresAt && targetAt <= stamp + 14 * 86400
+        guard ["quota_reset","reset_grant","reset_unspecified"].contains(kind), kind == expected,
+              status == "pending", confidence == "explicit",
+              [expiresAt, validUntil, publishedAt].allSatisfy({ $0.isFinite }),
+              0 < publishedAt, publishedAt <= stamp, stamp < validUntil,
+              validUntil <= expiresAt, expiresAt <= publishedAt + 14 * 86400 else { return false }
+        if schema == 1 { return targetAt.map { $0.isFinite && validUntil <= $0 && $0 == expiresAt } ?? false }
+        guard schema == 2, checkedURL != nil,
+              eventID?.range(of: "^[A-Za-z0-9:_-]{1,100}$", options: .regularExpression) != nil,
+              revision?.range(of: "^[a-f0-9]{24}$", options: .regularExpression) != nil else { return false }
+        if timeType == "exact" {
+            return targetAt.map { $0.isFinite && validUntil <= $0 && $0 == expiresAt } == true && ["at","before"].contains(timeRelation)
+        }
+        guard targetAt == nil else { return false }
+        if timeType == "unknown" {
+            return expiryOriginAt.map { $0.isFinite && 0 < $0 && $0 <= publishedAt && expiresAt <= $0 + 86400 } ?? false
+        }
+        if timeType == "date_range", let lo = rangeStartAt, let hi = rangeEndAt,
+           lo.isFinite, hi.isFinite, 0 < lo, lo < hi, hi == expiresAt, hi-lo <= 25*3600 {
+            if let date = displayDate {
+                let f = DateFormatter(); f.timeZone = TimeZone(identifier: "Asia/Shanghai"); f.dateFormat = "yyyy-MM-dd"
+                return f.string(from: Date(timeIntervalSince1970: lo)) == date && f.string(from: Date(timeIntervalSince1970: hi-1)) == date
+            }
+            return true
+        }
+        return false
     }
 }

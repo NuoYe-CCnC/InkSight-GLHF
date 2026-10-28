@@ -48,6 +48,7 @@ swiftc -parse-as-library -target arm64-apple-macosx26.0 -O \
   -framework SwiftUI -framework AppKit -framework ServiceManagement \
   "$REPO_ROOT/shared/tools/app/macos/MenuMark.swift" \
   "$REPO_ROOT/shared/tools/app/macos/MenuQuota.swift" \
+  "$REPO_ROOT/shared/tools/app/macos/ForecastMenu.swift" \
   "$REPO_ROOT/shared/tools/app/macos/DesktopEntry.swift" \
   "$REPO_ROOT/shared/tools/app/macos/LoginItems.swift" \
   "$REPO_ROOT/shared/tools/app/macos/InkSightApp.swift" \

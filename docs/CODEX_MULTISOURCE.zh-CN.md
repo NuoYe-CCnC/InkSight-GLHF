@@ -1,5 +1,7 @@
 # 多源线索与精简预告
 
+> 下文保留 test.17 已发布契约。test.18 隔离候选已加入时间待定、持久系列、独立辅助重试及原文菜单，当前实现以 [可信预告 v2](CODEX_FORECAST_V2.zh-CN.md) 为准；候选尚未部署或发布。
+
 此功能仍为实验性，开源默认 `codex_announcements.enabled=false`。
 `whenreset_enabled`、`nextreset_enabled` 也分别默认 false。
 需要明确开启才尝试读取固定来源，不支持用户任意填入外部 URL。

@@ -1,18 +1,19 @@
 """Conservative, deterministic public-post parsing. Text is data, never commands.
 
-Only explicit Codex event context + future time can create a forecast. No LLM,
+Only verified Codex event context + a credible plan can create a forecast. No LLM,
 translation service, X credential, account mutation, or inferred author timezone.
-Unknown wording is deliberately omitted and recorded with a reason.
+Unknown time stays nullable with a bounded TTL; unsupported intent is rejected.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import math
+import hashlib
+import html
+from .codex_announcement_time import parse_time
 import re
 from urllib.parse import urlsplit
-from zoneinfo import ZoneInfo
 
-PARSER_VERSION = 2
+PARSER_VERSION = 3
 PLANS = {"free", "plus", "pro", "business", "team", "enterprise", "edu"}
 _ID = re.compile(r"^[0-9]{5,24}$")
 _USER = re.compile(r"^[A-Za-z0-9_]{1,15}$")
@@ -22,15 +23,6 @@ _FUTURE = re.compile(r"\b(?:will|going to|plan(?:ning)? to|scheduled|expect|land
 _COMPLETE = re.compile(r"\b(?:already|just reset|have reset|has been reset|were reset|delivered|granted|completed|done|shipped|landed|propagated)\b|已完成|已发放|已重置")
 _GRANT = re.compile(r"(?:manual|extra|additional|rate.limit|reset)[ -]*(?:reset[ -]*)?(?:credits?|opportunities|cards?)|\b(?:extra|additional|more) resets?\b|手动重置|重置次数|重置卡", re.I)
 _RESET = re.compile(r"(?:reset|replenish|refill|refresh)\w*.{0,70}(?:limits?|quota|usage|windows?)|(?:limits?|quota|usage).{0,70}(?:reset|replenish|refill)|重置.{0,20}(?:额度|用量)|补充额度", re.I | re.S)
-_ZONES = {
-    "UTC": timezone.utc, "GMT": timezone.utc,
-    "PST": timezone(timedelta(hours=-8)), "PDT": timezone(timedelta(hours=-7)),
-    "EST": timezone(timedelta(hours=-5)), "EDT": timezone(timedelta(hours=-4)),
-    "北京时间": timezone(timedelta(hours=8)),
-}
-_NUMBERS = {"one": 1, "two": 2, "three": 3, "four": 4, "six": 6,
-            "eight": 8, "ten": 10, "twelve": 12, "twenty-four": 24}
-_MONTHS = {name: i for i, name in enumerate(("january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"), 1)}
 
 
 def finite(value) -> bool:
@@ -73,7 +65,7 @@ def normalize_posts(payload, target: str, now: float, *, max_posts=100,
         try:
             url = urlsplit(str(row.get("url") or ""))
             if (url.scheme != "https" or url.hostname not in {"x.com", "twitter.com"}
-                    or url.username or url.password or url.port
+                    or url.username or url.password or url.port or url.query or url.fragment
                     or url.path.lower() != f"/{target}/status/{ident}".lower()):
                 raise ValueError("url")
         except ValueError:
@@ -82,7 +74,7 @@ def normalize_posts(payload, target: str, now: float, *, max_posts=100,
         reply = row.get("replying_to") if isinstance(row.get("replying_to"), dict) else {}
         parent = str(reply.get("status") or "")
         own_parent = str(reply.get("screen_name") or "").lower() == target.lower()
-        posts.append({"id": ident, "text": body.strip(), "published_at": int(stamp),
+        posts.append({"id": ident, "text": html.unescape(body).strip(), "published_at": int(stamp),
                       "url": f"https://x.com/{target}/status/{ident}",
                       "author": target.lower(), "author_id": str(author.get("id") or "")[:32],
                       "parent_id": parent if own_parent and _ID.fullmatch(parent) else None})
@@ -117,158 +109,171 @@ def _kinds(text: str) -> list[str]:
     return result
 
 
-def explicit_deadline(text: str, published_at: int) -> tuple[int | None, str]:
-    """Relative dates use publication time in the explicitly stated zone."""
-    durations = list(re.finditer(r"\b(?:in|within|over the next)\s+(\d{1,3}|" + "|".join(_NUMBERS) + r")\s+(minutes?|hours?|days?)\b", text, re.I))
-    # Never assign the first of several deadlines to the wrong event.
-    if len(durations) > 1 or (durations and re.search(r"\d{1,2}:\d{2}|\d\s*(?:am|pm)\b|\btomorrow\b|\btoday\b", text, re.I)):
-        return None, "multiple_times"
-    duration = durations[0] if durations else None
-    if duration:
-        raw = duration.group(1).lower()
-        number = int(raw) if raw.isdigit() else _NUMBERS[raw]
-        unit = duration.group(2).lower()
-        seconds = number * (60 if unit.startswith("minute") else 3600 if unit.startswith("hour") else 86400)
-        return (published_at + seconds, "publication_relative_duration") if 0 < seconds <= 7 * 86400 else (None, "time_out_of_range")
-    iso = re.findall(r"\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})\b", text)
-    if len(iso) == 1:
-        try:
-            return int(datetime.fromisoformat(iso[0].replace("Z", "+00:00")).timestamp()), "explicit_iso_time"
-        except ValueError:
-            return None, "invalid_time"
-    if len(iso) > 1:
-        return None, "multiple_times"
-    zones = re.findall(r"(?<![A-Za-z])(?:PT|PST|PDT|EST|EDT|UTC|GMT)(?![A-Za-z])|北京时间", text, re.I)
-    zones = list(dict.fromkeys(z.upper() if z != "北京时间" else z for z in zones))
-    if len(zones) != 1:
-        return None, "timezone_missing_or_ambiguous"
-    zone = ZoneInfo("America/Los_Angeles") if zones[0] == "PT" else _ZONES[zones[0]]
-    base = datetime.fromtimestamp(published_at, zone)
-    lowered = text.lower()
-    day = None
-    if len(re.findall(r"\btomorrow\b|\btoday\b|明天|今天|今日", lowered)) > 1:
-        return None, "multiple_dates"
-    if re.search(r"\btomorrow\b|明天", lowered):
-        day = base.date() + timedelta(days=1)
-    elif re.search(r"\btoday\b|今天|今日", lowered):
-        day = base.date()
-    else:
-        date_match = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", text)
-        month_match = re.search(r"\b(" + "|".join(_MONTHS) + r")\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b", lowered)
-        try:
-            if date_match:
-                day = datetime(*(int(x) for x in date_match.groups())).date()
-            elif month_match:
-                day = datetime(int(month_match.group(3) or base.year), _MONTHS[month_match.group(1)], int(month_match.group(2))).date()
-        except ValueError:
-            return None, "invalid_date"
-    if day is None:
-        return None, "date_missing"
-    if re.search(r"\bend of (?:today|tomorrow|the day)\b|当天结束前|今天结束前|明天结束前", lowered):
-        return int(datetime.combine(day + timedelta(days=1), datetime.min.time(), zone).timestamp()), "explicit_day_end"
-    clocks = re.findall(r"(?<![\d:-])(\d{1,2})(?::([0-5]\d))?\s*(am|pm)\b", lowered)
-    if not clocks:
-        clocks = [(m.group(1), m.group(2), "") for m in re.finditer(r"(?<![\d:-])([01]?\d|2[0-3]):([0-5]\d)(?![\d:+-])", lowered)]
-    if len(clocks) != 1:
-        return None, "clock_missing_or_ambiguous"
-    hour, minute, meridiem = clocks[0]
-    hour, minute = int(hour), int(minute or 0)
-    if meridiem:
-        if not 1 <= hour <= 12:
-            return None, "invalid_clock"
-        hour = hour % 12 + (12 if meridiem == "pm" else 0)
+def canonical_source_url(value, author, post_id=None):
+    """Exact public author/status URL; no query, fragment, credentials or port."""
+    if not isinstance(value,str) or not isinstance(author,str) or not _USER.fullmatch(author):return None
+    if any(ord(c)<33 or ord(c)>126 for c in value):return None
     try:
-        local = datetime(day.year, day.month, day.day, hour, minute, tzinfo=zone)
-        # Reject nonexistent/ambiguous wall times around PT DST transitions.
-        if local.replace(fold=0).utcoffset() != local.replace(fold=1).utcoffset():
-            return None, "ambiguous_dst_clock"
-        return int(local.timestamp()), "explicit_zone_and_publication_date"
-    except ValueError:
-        return None, "invalid_clock"
+        url=urlsplit(value)
+        match=re.fullmatch(r'/([A-Za-z0-9_]{1,15})/status/([0-9]{5,24})',url.path)
+        if (url.scheme!='https' or url.netloc not in {'x.com','twitter.com'} or url.query or url.fragment
+                or not match or match[1].lower()!=author.lower() or (post_id and match[2]!=post_id)):return None
+        return f'https://x.com/{author.lower()}/status/{match[2]}'
+    except ValueError:return None
 
 
-def parse_posts(posts: list[dict], *, now: float, max_horizon_seconds=7 * 86400) -> tuple[list[dict], list[dict]]:
-    """Produce revisions; scope can only be inherited along the author's replies."""
-    by_id = {p["id"]: p for p in posts}
-    revisions, rejected = [], []
-    for post in sorted(posts, key=lambda p: (p["published_at"], int(p["id"]))):
-        chain, seen, parent = [], set(), post
-        while parent and parent["id"] not in seen and len(chain) < 5:
-            chain.append(parent); seen.add(parent["id"])
-            ancestor = by_id.get(parent.get("parent_id"))
-            parent = ancestor if (ancestor and ancestor["author"] == post["author"]
-                                  and 0 <= post["published_at"] - ancestor["published_at"] <= 7 * 86400) else None
-        chain.reverse()
-        text = post["text"]
-        context = "\n".join(p["text"] for p in chain)
-        # A numbered own-author reset series can supply product context to its
-        # adjacent instalment, never to arbitrary standalone reset jokes.
-        series_anchor = None
-        day = re.search(r'\bday\s+(\d{1,2})\s*[/：:]', context, re.I)
-        if day and re.search(r'\breset\b', context, re.I):
-            for candidate in posts:
-                other_day = re.search(r'\bday\s+(\d{1,2})\s*[/：:]', candidate['text'], re.I)
-                if (other_day and candidate['author'] == post['author']
-                        and candidate.get('author_id') == post.get('author_id')
-                        and abs(int(other_day[1])-int(day[1])) <= 1
-                        and abs(candidate['published_at']-post['published_at']) <= 3*86400
-                        and re.search(r'\bcodex\b', candidate['text'], re.I)
-                        and re.search(r'\breset\b', candidate['text'], re.I)):
-                    series_anchor = candidate
-                    break
-        lower = text.lower()
-        kinds = _kinds(text) or next((_kinds(p["text"]) for p in reversed(chain[:-1]) if _kinds(p["text"])), [])
-        if not kinds and day and series_anchor and re.search(r'\breset\b', context, re.I):
-            kinds = ['reset_unspecified']
-        plans = _plans(text) or next((_plans(p["text"]) for p in reversed(chain[:-1]) if _plans(p["text"])), [])
-        excluded = sorted(set(normalize_plan(m[1]) for m in re.finditer(
-            r'\b(?:except|excluding|not for)\s+(free|plus|pro|business|team|enterprise|edu)\b', context, re.I)))
-        evidence_ids = [p['id'] for p in chain]
-        if series_anchor and series_anchor['id'] not in evidence_ids:
-            evidence_ids.append(series_anchor['id'])
-        base = {"post_id": post["id"], "root_id": chain[0]["id"], "source_url": post["url"],
-                "published_at": post["published_at"], "plans": plans, "parser_version": PARSER_VERSION,
-                'excluded_plans': excluded, 'plan_scope': 'explicit' if plans else 'unspecified',
-                'time_relation': 'before' if re.search(r'\b(?:before|by|within|over the next)\b|之前|前发|前补', text, re.I) else 'at',
-                'source_time_zone': next(iter(re.findall(r'\b(?:PST|PDT|PT|UTC|GMT|EST|EDT)\b',text,re.I)),None),
-                'field_sources': {'time': post['url'], 'scope': [p['url'] for p in chain],
-                                 'product_context': series_anchor['url'] if series_anchor else chain[0]['url']},
-                "evidence": {"post_ids": evidence_ids, "text": text[:4000]},
-                "confidence": "explicit"}
-        reason = None
-        if not re.search(r"\bcodex\b", context, re.I) and not series_anchor: reason = "codex_scope_missing"
-        elif not kinds: reason = "event_kind_missing"
-        elif "quota_reset" in kinds and re.search(r"\b(?:5[ -]?hours?|five[ -]hours?)\b", context, re.I) and not re.search(r"\b(?:weekly|7[ -]?days?|seven[ -]days?|all (?:usage )?(?:limits|windows))\b", context, re.I):
-            reason = "unsupported_quota_window"
-        elif _CONDITIONAL.search(lower): reason = "conditional_or_uncertain"
-        elif len(chain) > 1 and any(_CONDITIONAL.search(p["text"].lower()) for p in chain[:-1]):
-            reason = "uncertain_parent_context"
-        elif len(chain) > 1 and any(_NEGATIVE.search(p["text"].lower()) or
-                (_completed(p['text']) and not _FUTURE.search(p["text"].lower())) for p in chain[:-1]):
-            reason = "retired_parent_context"
-        if reason:
-            if reason == "conditional_or_uncertain" and len(chain) > 1 and kinds and re.search(r"\b(?:correction|update|instead|postpon\w*)\b|更正|延期|改为", lower):
-                revisions.extend(dict(base, kind=k, status="uncertain", target_at=None, time_basis=reason) for k in kinds)
-            rejected.append({"post_id": post["id"], "reason": reason}); continue
-        terminal = "retracted" if _NEGATIVE.search(lower) else "fulfilled" if _completed(text) and not _FUTURE.search(lower) else None
-        if terminal:
-            # A terminal statement can only retire its own known reply chain.
-            if len(chain) > 1:
-                revisions.extend(dict(base, kind=k, status=terminal, target_at=None, time_basis=terminal) for k in kinds)
-            else:
-                rejected.append({"post_id": post["id"], "reason": "negative_or_past_not_a_forecast"})
+def explicit_deadline(text, published_at):
+    result=parse_time(text,published_at)
+    return result['target_at'],result['time_basis']
+
+
+def _semantic(text):
+    # In "Just kidding, today is a reset", the correction overrides the joke
+    # before it. "a reset ... just kidding" instead retires that statement.
+    text=html.unescape(text)
+    pivot=list(re.finditer(r"\bjust kidding\b[,!.:—\s]*",text,re.I))
+    if pivot:
+        tail=text[pivot[-1].end():].strip()
+        if re.search(r"\b(?:today|tomorrow|reset|will|plan|land)\b",tail,re.I):return tail
+        return 'joking'
+    text=re.sub(r"\bnot today\s*[,;]?\s*but\s+(tomorrow)\b",r"\1",text,flags=re.I)
+    return text
+
+
+def _day(text):
+    m=re.search(r'\bday\s+(\d{1,3})\s*[/：:]',text,re.I)
+    return int(m[1]) if m and 0<int(m[1])<=366 else None
+
+
+def _series_product(text):
+    number=_day(text);text=_semantic(text)
+    return bool(number is not None and re.search(r'\bcodex\b',text,re.I) and re.search(r'\breset\w*\b',text,re.I)
+                and not _CONDITIONAL.search(text.lower()) and not re.search(r'\bnot (?:about |for )?codex\b|\b(?:joke|haha)\b',text,re.I))
+
+
+def series_state(posts, previous=None):
+    """Bounded Day series: 14d initial/rolling window, 90d absolute cap.
+
+    A gap can inherit background while the record is alive, but only observed
+    consecutive numbers extend its rolling expiry. Explicit end or an explicit
+    different reset product stops the series. Records never carry event time.
+    """
+    records={}
+    for row in (previous or []):
+        if (isinstance(row,dict) and row.get('version')==1 and row.get('anchor_post_id')
+                and finite(row.get('created_at')) and finite(row.get('expires_at'))
+                and row['expires_at']<=row['created_at']+90*86400
+                and isinstance(row.get('anchor_text'),str) and _series_product(row['anchor_text'])
+                and canonical_source_url(row.get('anchor_url'),row.get('author'),row.get('anchor_post_id'))):
+            records[(row['author'],row['author_id'])]=dict(row)
+    contexts={}
+    for post in sorted(posts,key=lambda x:(x['published_at'],int(x['id']))):
+        number=_day(post['text'])
+        if number is None:continue
+        key=(post['author'],post.get('author_id',''));stamp=post['published_at'];text=_semantic(post['text'])
+        row=records.get(key)
+        if row and stamp<row['created_at']:continue
+        end=re.search(r'\b(?:series (?:ends?|over)|last day|no more (?:codex )?resets|end of (?:the )?series)\b',text,re.I)
+        other=re.search(r'\b(?:password|router|database|iphone|calendar)\b.{0,24}\breset|\breset.{0,24}\b(?:password|router|database|iphone|calendar)\b',text,re.I)
+        if row and row['anchor_post_id']==post['id'] and not _series_product(post['text']):
+            row.update(expires_at=min(row['expires_at'],stamp),ended_at=stamp,termination_reason='anchor_revised')
             continue
-        if not _FUTURE.search(lower):
-            rejected.append({"post_id": post["id"], "reason": "future_intent_missing"}); continue
-        target_at, basis = explicit_deadline(text, post["published_at"])
-        if target_at is None or not now < target_at <= post["published_at"] + max_horizon_seconds:
-            if target_at is not None and target_at <= now:
-                revisions.extend(dict(base, kind=k, status="expired", target_at=target_at, time_basis=basis) for k in kinds)
-            elif len(chain) > 1 and re.search(r"\b(?:correction|update|instead|reschedul\w*|postpon\w*)\b|更正|延期|改为", lower):
-                revisions.extend(dict(base, kind=k, status="uncertain", target_at=None, time_basis=basis) for k in kinds)
-            rejected.append({"post_id": post["id"], "reason": basis if target_at is None else "expired_or_far_future"}); continue
-        revisions.extend(dict(base, kind=k, status="pending", target_at=target_at, expires_at=target_at, time_basis=basis) for k in kinds)
-    return revisions, rejected
+        if row and (end or (other and not re.search(r'\bcodex\b',text,re.I))):
+            row.update(expires_at=min(row['expires_at'],stamp),ended_at=stamp,termination_reason='explicit_end' if end else 'topic_changed')
+            continue
+        if _series_product(post['text']):
+            if row is None or stamp>=row['expires_at'] or number<=row['last_number']:
+                row=dict(version=1,series_id=f"{post['author_id']}:day:{post['id']}",author=post['author'],author_id=post.get('author_id',''),
+                    anchor_post_id=post['id'],anchor_url=post['url'],anchor_text=post['text'][:4000],created_at=stamp,
+                    expires_at=stamp+14*86400,last_number=number,last_published_at=stamp,termination_reason=None)
+                records[key]=row
+        if row and not row.get('termination_reason') and row['created_at']<=stamp<row['expires_at'] and number>=row['last_number']:
+            if number==row['last_number']+1:
+                row['expires_at']=min(stamp+14*86400,row['created_at']+90*86400)
+            contexts[post['id']]=dict(row)
+            row.update(last_number=number,last_published_at=stamp)
+    # Retrospective product-only context is allowed for an older numbered
+    # installment in the initial 14d corpus; never borrow its deadline or plan.
+    anchors=[p for p in posts if _series_product(p['text'])]
+    for post in posts:
+        if post['id'] in contexts or _day(post['text']) is None:continue
+        for anchor in sorted(anchors,key=lambda p:abs(p['published_at']-post['published_at'])):
+            if (post['author']==anchor['author'] and post.get('author_id')==anchor.get('author_id')
+                    and 0<anchor['published_at']-post['published_at']<=14*86400 and _day(post['text'])<_day(anchor['text'])):
+                if any(post['published_at']<p['published_at']<anchor['published_at'] and p['author']==post['author']
+                    and re.search(r'\b(?:series (?:ends?|over)|last day|no more resets)\b',p['text'],re.I) for p in posts):continue
+                contexts[post['id']]=dict(series_id=f"{anchor.get('author_id','')}:day:{anchor['id']}",
+                    anchor_post_id=anchor['id'],anchor_url=anchor['url'])
+                break
+    return list(records.values())[-8:],contexts
+
+
+def parse_posts(posts, *, now, max_horizon_seconds=7*86400, series_records=None):
+    by_id={p['id']:p for p in posts};revisions=[];rejected=[]
+    _,series=series_state(posts,series_records)
+    for post in sorted(posts,key=lambda p:(p['published_at'],int(p['id']))):
+        chain=[];seen=set();parent=post;chain_error=None
+        while parent:
+            if parent['id'] in seen:chain_error='reply_cycle';break
+            if len(chain)>=5:chain_error='reply_chain_too_long';break
+            chain.append(parent);seen.add(parent['id'])
+            ancestor=by_id.get(parent.get('parent_id'))
+            if ancestor and (ancestor['author']!=post['author'] or ancestor.get('author_id')!=post.get('author_id')
+                    or not 0<=parent['published_at']-ancestor['published_at']<=7*86400):
+                chain_error='invalid_reply_identity_or_order';break
+            parent=ancestor
+        if chain_error:
+            rejected.append(dict(post_id=post['id'],reason=chain_error));continue
+        chain.reverse();text=_semantic(post['text']);context='\n'.join(_semantic(p['text']) for p in chain)
+        anchor=next((series[p['id']] for p in reversed(chain) if p['id'] in series),None)
+        kinds=_kinds(text) or next((_kinds(_semantic(p['text'])) for p in reversed(chain[:-1]) if _kinds(_semantic(p['text']))),[])
+        reset_plan=re.search(r"\b(?:today is a reset|reset day (?:today|tomorrow)|that[’']?s a reset|reset (?:is )?(?:scheduled|planned)|(?:codex|we).{0,35}(?:will|plan).{0,30}reset)\b",context,re.I)
+        if not kinds and reset_plan:kinds=['reset_unspecified']
+        plans=next((_plans(re.sub(r'\b(?:except|excluding|not for)\s+(?:free|plus|pro|business|team|enterprise|edu)(?: users?)?', '',_semantic(p['text']),flags=re.I)) for p in reversed(chain)
+                    if _plans(re.sub(r'\b(?:except|excluding|not for)\s+(?:free|plus|pro|business|team|enterprise|edu)(?: users?)?', '',_semantic(p['text']),flags=re.I))),[])
+        excluded=sorted(set(normalize_plan(m[1]) for m in re.finditer(r'\b(?:except|excluding|not for)\s+(free|plus|pro|business|team|enterprise|edu)\b',context,re.I)))
+        evidence=[p['id'] for p in chain]
+        if anchor and anchor['anchor_post_id'] not in evidence:evidence.append(anchor['anchor_post_id'])
+        correction=bool(re.search(r'\b(?:correction|update|instead|reschedul\w*|postpon\w*|delayed)\b|更正|延期|改为',text,re.I))
+        terminal='retracted' if re.search(r"\b(?:cancelled|canceled|withdrawn|no longer|won[’']t|not happening)\b|取消|撤回|不会",text,re.I) else 'fulfilled' if _completed(text) and not _FUTURE.search(text.lower()) else None
+        if not terminal and _NEGATIVE.search(text.lower()) and not re.search(r'\b(?:except|excluding|not for)\b',text,re.I):terminal='retracted'
+        reason=None
+        if not re.search(r'\bcodex\b',context,re.I) and not anchor:reason='codex_scope_missing'
+        elif not kinds:reason='event_kind_missing'
+        elif 'quota_reset' in kinds and re.search(r'\b(?:5[ -]?hours?|five[ -]hours?)\b',context,re.I) and not re.search(r'\b(?:weekly|7[ -]?days?|seven[ -]days?|all (?:usage )?(?:limits|windows))\b',context,re.I):reason='unsupported_quota_window'
+        elif re.search(r'\b(?:please|can you|could you|when will|haha|joke)\b',text,re.I):reason='request_or_joke'
+        elif _CONDITIONAL.search(text.lower()):reason='conditional_or_uncertain'
+        elif any(_CONDITIONAL.search(_semantic(p['text']).lower()) for p in chain[:-1]):reason='uncertain_parent_context'
+        elif any(re.search(r'\b(?:cancelled|canceled|withdrawn)\b',_semantic(p['text']),re.I) or (_completed(_semantic(p['text'])) and not _FUTURE.search(_semantic(p['text']))) for p in chain[:-1]) and not correction:reason='retired_parent_context'
+        base=dict(post_id=post['id'],root_id=chain[0]['id'],event_id=f"{post.get('author_id','')}:{chain[0]['id']}",
+            revision=hashlib.sha256((post['id']+'\n'+context).encode()).hexdigest()[:24],source_url=post['url'],source_author=post['author'],
+            published_at=post['published_at'],original_published_at=chain[0]['published_at'],plans=plans,excluded_plans=excluded,
+            parser_version=PARSER_VERSION,plan_scope='explicit' if plans else 'unspecified',confidence='explicit',
+            series_id=anchor['series_id'] if anchor else None,
+            field_sources=dict(time=post['url'],scope=[p['url'] for p in chain],product_context=anchor['anchor_url'] if anchor else chain[0]['url']),
+            evidence=dict(post_ids=evidence,text=post['text'][:4000]))
+        if reason:
+            if correction and len(chain)>1 and kinds:revisions.extend(dict(base,kind=k,status='uncertain',target_at=None,time_basis=reason) for k in kinds)
+            rejected.append(dict(post_id=post['id'],reason=reason));continue
+        if terminal:
+            if len(chain)>1:revisions.extend(dict(base,kind=k,status=terminal,target_at=None,time_basis=terminal) for k in kinds)
+            else:rejected.append(dict(post_id=post['id'],reason='negative_or_past_not_a_forecast'))
+            continue
+        intent=bool(_FUTURE.search(text.lower()) or reset_plan or (len(chain)>1 and correction) or re.search(r'\b(?:today|tomorrow|tonight)\b.{0,25}reset|\breset.{0,25}\b(?:today|tomorrow|tonight)\b',text,re.I))
+        if not intent:
+            rejected.append(dict(post_id=post['id'],reason='future_intent_missing'));continue
+        origin=post['published_at'] if correction else chain[0]['published_at']
+        timing=parse_time(text,post['published_at'],parents=chain[:-1],original_at=origin,horizon=max_horizon_seconds)
+        if correction and re.search(r'\b(?:share|announce) (?:a )?new time\b',text,re.I):
+            revisions.extend(dict(base,kind=k,status='uncertain',target_at=None,time_basis='schedule_withdrawn') for k in kinds)
+            continue
+        if timing['time_basis']=='time_out_of_range':
+            rejected.append(dict(post_id=post['id'],reason='time_out_of_range'));continue
+        timing['expiry_origin_at']=origin
+        status='pending' if timing['expires_at']>now else 'expired'
+        revisions.extend(dict(base,kind=k,status=status,**timing) for k in kinds)
+        if timing['time_type']=='unknown' or status=='expired':rejected.append(dict(post_id=post['id'],reason=timing['time_basis'] if status=='pending' else 'expired_or_far_future',accepted=status=='pending'))
+    return revisions,rejected
 
 
 def _completed(text):
@@ -281,21 +286,24 @@ def _completed(text):
     return _COMPLETE.search(text.lower())
 
 
-def select_events(revisions: list[dict], *, now: float, plan: str | None) -> dict:
-    """Newest revision per root/kind first, then earliest future event per kind."""
-    latest = {}
-    for row in sorted(revisions, key=lambda r: (r["published_at"], int(r["post_id"]))):
-        key = row['root_id']
-        if key not in latest or latest[key][0]['post_id'] != row['post_id']:
-            latest[key] = []
+def event_sort_key(row):
+    exact=finite(row.get('target_at')) and row.get('time_type','exact')=='exact'
+    return (0 if exact else 1,row['target_at'] if exact else -row['published_at'],
+            -row['published_at'],row.get('event_id',row.get('root_id','')),row['kind'])
+
+
+def select_events(revisions, *, now, plan):
+    latest={}
+    for row in sorted(revisions,key=lambda r:(r['published_at'],int(r['post_id']))):
+        key=row.get('event_id',row.get('root_id',''))
+        if key not in latest or latest[key][0]['post_id']!=row['post_id']:latest[key]=[]
         latest[key].append(row)
-    result = {}
+    result={}
     for row in (item for group in latest.values() for item in group):
-        if (row.get("status") != "pending" or not finite(row.get("target_at"))
-                or row["target_at"] <= now or (plan and plan in row.get('excluded_plans', []))
-                or (row['plans'] and not ("all" in row["plans"] or plan in row["plans"]))):
-            continue
-        old = result.get(row["kind"])
-        if old is None or (row["target_at"], -row["published_at"]) < (old["target_at"], -old["published_at"]):
-            result[row["kind"]] = row
+        expiry=row.get('expires_at',row.get('target_at'))
+        if (row.get('status')!='pending' or not finite(expiry) or expiry<=now
+                or (plan and plan in row.get('excluded_plans',[]))
+                or (row['plans'] and 'all' not in row['plans'] and plan not in row['plans'])):continue
+        old=result.get(row['kind'])
+        if old is None or event_sort_key(row)<event_sort_key(old):result[row['kind']]=row
     return result

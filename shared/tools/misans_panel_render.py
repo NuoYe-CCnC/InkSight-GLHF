@@ -19,6 +19,7 @@ panel_ui.cpp（ink 边界量宽右对齐）。字形来自固件实际编译的 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import hashlib
 import json
 import math
@@ -825,19 +826,19 @@ def optional_account_rows(ai: dict) -> list[tuple[str, str]]:
 
 
 # ── AI 面板（镜像 panel_pages.cpp 修复版）───────────────────
-def announcement_target(ai: dict, kind: str, now: int) -> int:
-    """Mirror the firmware's fail-closed optional snapshot, no backend I/O."""
-    snapshot = ai.get("announcements")
-    if not isinstance(snapshot, dict) or type(snapshot.get("schema_version")) is not int or snapshot.get("schema_version") != 1 or snapshot.get("enabled") is not True:
-        return 0
-    event = snapshot.get(kind)
-    if not isinstance(event, dict) or event.get("kind") != kind or event.get("status") != "pending" or event.get("confidence") != "explicit":
-        return 0
-    vals = [event.get(k) for k in ("target_at", "expires_at", "valid_until", "published_at")]
-    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in vals):
-        return 0
-    target, expiry, valid, published = vals
-    return int(target) if 0 < published <= now < valid <= target == expiry <= now + 14 * 86400 else 0
+def _announcement_view():
+    global _ANNOUNCEMENT_VIEW
+    if '_ANNOUNCEMENT_VIEW' not in globals():
+        path=Path(__file__).resolve().parents[1]/'backend/core/codex_announcement_view.py'
+        spec=importlib.util.spec_from_file_location('panel_announcement_contract',path)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        _ANNOUNCEMENT_VIEW=module
+    return _ANNOUNCEMENT_VIEW
+
+
+def announcement_target(ai,kind,now):
+    event=_announcement_view().visible_events(ai.get('announcements'),now).get(kind)
+    return int(event['target_at']) if event and event.get('target_at') is not None else 0
 
 
 def render_ai_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
@@ -846,12 +847,7 @@ def render_ai_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     show_codex = bool(display_prefs.get("show_codex_credits", False))
     show_api = bool(display_prefs.get("show_openai_api_info", False))
     show_reset = bool(display_prefs.get("show_reset_opportunities", True))
-    quota_forecast = announcement_target(ai, "quota_reset", now)
-    grant_forecast = announcement_target(ai, "reset_grant", now) if show_reset else 0
-    unspecified_forecast = announcement_target(ai, 'reset_unspecified', now)
-    choices=[(stamp,kind) for stamp,kind in [(quota_forecast,'quota_reset'),
-             (grant_forecast,'reset_grant'),(unspecified_forecast,'reset_unspecified')] if stamp]
-    chosen=min(choices,key=lambda item:(item[0],-ai['announcements'][item[1]]['published_at'],item[1]),default=None)
+    chosen=_announcement_view().nearest_event(ai.get('announcements'),now,show_reset=show_reset)
     F_TITLE, F_LABEL, F_SMALL, F_TINY = fonts["bold30"], fonts["reg24"], fonts["reg21"], fonts["reg16"]
     cny_x0, codex_right, ds_left, page_right = 24, 461, 500, 778
 
@@ -901,12 +897,8 @@ def render_ai_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     account_rows = optional_account_rows(account_ai)
     if chosen:
         account_rows = []
-        target,kind=chosen
-        event=ai['announcements'][kind]
-        relation='前' if event.get('time_relation','before')!='at' else ''
-        label='发放' if kind=='reset_grant' else '重置'
-        p.draw_right(F_LABEL, "预计", codex_right, 225)
-        forecast_text=fmt_md_hm(target)+' '+relation+label
+        forecast_title,forecast_text=_announcement_view().display_lines(chosen)
+        p.draw_right(F_LABEL,forecast_title,codex_right,225)
         available=codex_right-(cny_x0+p.ink_width(F_LABEL,'7 日窗口')+16)
         forecast_font=F_LABEL if p.ink_width(F_LABEL,forecast_text)<=available else F_SMALL
         p.draw_right(forecast_font,forecast_text,codex_right,256)

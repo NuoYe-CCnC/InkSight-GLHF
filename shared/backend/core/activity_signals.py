@@ -188,7 +188,8 @@ def ai_visual_key(ai: dict | None, *, now=None) -> str:
                                         if show_api or lower_balances else None),
     }
     if events:
-        visible["announcements"] = {k: {"minute": int(v["target_at"]) // 60,
+        visible["announcements"] = {k: {"minute": int(v["target_at"]) // 60 if v.get("target_at") is not None else None,
+                                        "time_type": v.get("time_type","exact"), "display_date": v.get("display_date"),
                                         "time_relation": v.get('time_relation','before')}
                                     for k, v in events.items()}
     return _digest(visible)
