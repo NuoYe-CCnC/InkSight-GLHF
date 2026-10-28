@@ -2,7 +2,7 @@
 
 [文档目录](README.md) · [下载说明](DOWNLOAD.zh-CN.md) · [完整安装/接线/刷写](INSTALLATION.zh-CN.md)
 
-本页保留早期 Python3.9 源码后端路径。普通用户先[下载test.17 App](DOWNLOAD.zh-CN.md)，不需执行源码命令或创建 root；设备准备走[图形中心](DEVICE_FIRST_USE.zh-CN.md)。源码使用新中心须用 Python3.11 和 `requirements-py311-macos-arm64.lock` 创建后端环境，独立工具锁不替代后端锁。空白板实机验收仍未完成。
+本页保留早期 Python3.9 源码后端路径。普通用户先[下载test.18 App](DOWNLOAD.zh-CN.md)，不需执行源码命令或创建 root；设备准备走[图形中心](DEVICE_FIRST_USE.zh-CN.md)。源码使用新中心须用 Python3.11 和 `requirements-py311-macos-arm64.lock` 创建后端环境，独立工具锁不替代后端锁。空白板实机验收仍未完成。
 
 本页是**源码部署**的最短可验证路径，不是一键安装承诺。已验证主机是 macOS ARM64、Python 3.9。先按[下载说明](DOWNLOAD.zh-CN.md)校验并解压 `InkSight-Source.zip`，再在解压所得 `InkSight-Source` 目录执行下列命令。首次安装依赖需要网络，过程可能花几分钟。
 
