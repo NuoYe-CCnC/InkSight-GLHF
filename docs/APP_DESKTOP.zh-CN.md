@@ -1,18 +1,18 @@
 # InkSight Mac 应用：安装与首次使用
 
-> test.17 静默驻留 Is 菜单栏，从本机受保护会话免root进入配置，读取真实Codex七日剩余额度；缺失或过期为 `Is -`。见[菜单栏与免密码入口](MENU_BAR.zh-CN.md)。
+> test.18 静默驻留 Is 菜单栏，从本机受保护会话免root进入配置，读取真实Codex七日剩余额度；缺失或过期为 `Is -`。见[菜单栏与免密码入口](MENU_BAR.zh-CN.md)。
 
-> test.17 已包含[设备首次使用 / 固件准备中心](DEVICE_FIRST_USE.zh-CN.md)：用户本地导入 MiSans、明确下载工具、检查并构建。已有兼容设备不为匹配App版本号重复烧录；首次空白板、真实回退和另一台Mac仍未验收。首次工具下载需要联网，不能称为零配置一键成功。
+> test.18 已包含[设备首次使用 / 固件准备中心](DEVICE_FIRST_USE.zh-CN.md)：用户本地导入 MiSans、明确下载工具、检查并构建。普通更新不为匹配App版本号重复烧录；完整启用 v2 预告须兼容固件，见[升级说明](UPGRADE.zh-CN.md)；首次空白板、真实回退和另一台Mac仍未验收。首次工具下载需要联网，不能称为零配置一键成功。
 
 [下载文件](DOWNLOAD.zh-CN.md) · [升级和回退](UPGRADE.zh-CN.md) · [源码安装](FIRST_USE.zh-CN.md)
 
-`v0.1.0-test.17` 提供独立的 `InkSight.app` 测试包。已在 **Apple Silicon、macOS 26.5.2** 上验证隔离启动、隐藏/重开、退出、单实例与后端意外退出恢复；同主机已受控升级并恢复真实云端发布。用户确认实际 Is 菜单打开配置不再提示 root，菜单栏百分比显示正常。中文和空格路径、只读应用目录由此前隔离测试覆盖。App 内含 Python 3.11.15 和锁定依赖；运行时不要求另外安装 Python、Homebrew 或克隆源码。其他 macOS 版本、Intel Mac、Windows 与 Linux 未完成同级验收。
+`v0.1.0-test.18` 提供独立的 `InkSight.app` 测试包。已在 **Apple Silicon、macOS 26.5.2** 上验证隔离启动、隐藏/重开、退出、单实例与后端意外退出恢复；同主机已受控升级并恢复真实云端发布。用户确认实际 Is 菜单打开配置不再提示 root，菜单栏百分比显示正常。中文和空格路径、只读应用目录由此前隔离测试覆盖。App 内含 Python 3.11.15 和锁定依赖；运行时不要求另外安装 Python、Homebrew 或克隆源码。其他 macOS 版本、Intel Mac、Windows 与 Linux 未完成同级验收。
 
 这版只有**临时 ad-hoc 签名，没有 Apple Developer ID 签名或公证**。从网络下载后，macOS 可能阻止首次打开。请先核对下载来源和 SHA-256；若仍决定试用，仅按 [Apple 官方安全说明](https://support.apple.com/en-gb/102445)自行在“系统设置 → 隐私与安全性”处理提示。不要在终端全局关闭 Gatekeeper，也不要为本项目关闭系统安全功能。若需要无需安全例外的常规安装体验，应等待以后完成 Developer ID 签名和 Apple 公证的版本。
 
 ## 安装
 
-1. 从 [本版本 Release](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.17)下载 `InkSight-macOS-arm64.zip` 和同名 `.sha256`。在下载目录运行 `shasum -a 256 -c InkSight-macOS-arm64.zip.sha256`，确认报告 `OK`。校验失败不要打开。
+1. 从 [本版本 Release](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.18)下载 `InkSight-macOS-arm64.zip` 和同名 `.sha256`。在下载目录运行 `shasum -a 256 -c InkSight-macOS-arm64.zip.sha256`，确认报告 `OK`。校验失败不要打开。
 2. 解压 ZIP，把 `InkSight.app` 拖到“应用程序”文件夹。应用体积较大，是因为 Python 与依赖均已包含。不要在 `.app` 内填写配置或保存数据。
 3. 打开 InkSight。首次运行会在 `~/Library/Application Support/InkSight-GLHF/` 建立**当前用户独有**的配置、数据库与运行目录；应用目录保持只读。App 自动启动仅监听 `127.0.0.1` 的本机后端，静默驻留 Is 菜单栏，不自动弹窗口或浏览器。默认端口为 `18080`，可在“运行详情”改端口并重启。端口被占用时不会接管别的进程。菜单创建失败才保留状态窗口作为备用入口。
 4. 从 Is 菜单选择“打开配置”，一次性票据自动换取本机短会话，**不创建 root、不输入默认密码**。直接输入旧书签地址不等于受信任登录，票据/会话过期后从菜单重新打开。旧账号与数据库保留，但桌面模式不接受旧登录会话。独立源码部署仍按[源码首次使用](FIRST_USE.zh-CN.md)创建管理员。不要公开密钥、票据或配置。

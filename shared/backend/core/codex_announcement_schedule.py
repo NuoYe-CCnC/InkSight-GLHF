@@ -89,7 +89,7 @@ def interval_seconds(cfg: dict, mode: str, remaining, events: dict, now: float) 
         return None
     low = type(remaining) in (int, float) and 0 <= remaining <= cfg["low_remaining_percent"]
     base = cfg[("low_" if low else "") + mode + "_minutes"] * 60
-    nearest = min((e["target_at"] - now for e in events.values() if e.get("target_at", 0) > now), default=None)
+    nearest = min((e["target_at"] - now for e in events.values() if type(e.get("target_at")) in (int,float) and e["target_at"] > now), default=None)
     if nearest is not None:
         if nearest <= cfg["urgent_window_minutes"] * 60:
             base = min(base, cfg["urgent_interval_minutes"] * 60)

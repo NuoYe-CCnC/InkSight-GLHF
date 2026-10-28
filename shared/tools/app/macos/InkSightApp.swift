@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 import ServiceManagement
 
-private let appVersion = "v0.1.0-test.17"
+private let appVersion = "v0.1.0-test.18"
 private let inkBlue = Color.primary
 
 @main
@@ -15,6 +15,12 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate, NSWindowDelegat
     private var stateItem = NSMenuItem(title: "服务：准备中", action: nil, keyEquivalent: "")
     private var publishItem = NSMenuItem(title: "最近成功发布：尚无验证记录", action: nil, keyEquivalent: "")
     private var quotaItem = NSMenuItem(title: "Codex：尚无有效采集", action: nil, keyEquivalent: "")
+    private lazy var forecastMenu = ForecastMenu(resolve: { [weak self] expected, completion in
+        RuntimeManager.shared.validateForecastLink(expected: expected) { url in
+            self?.refreshMenu()
+            completion(url)
+        }
+    })
     private var pauseItem = NSMenuItem(title: "暂停自动服务", action: nil, keyEquivalent: "")
     private var loginItem = NSMenuItem(title: "登录时启动：检查中", action: nil, keyEquivalent: "")
     private var menuTimer: Timer?
@@ -109,10 +115,10 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate, NSWindowDelegat
         menu.autoenablesItems = false
         for entry in [NSMenuItem(title: "打开配置", action: #selector(openConsole), keyEquivalent: ""),
                       NSMenuItem(title: "运行详情", action: #selector(showWindow), keyEquivalent: ""),
-                      .separator(), stateItem, quotaItem, publishItem, .separator(), pauseItem, loginItem,
+                      .separator(), stateItem, quotaItem, forecastMenu.item, publishItem, .separator(), pauseItem, loginItem,
                       NSMenuItem(title: "系统登录项设置", action: #selector(openLoginSettings), keyEquivalent: ""),
                       .separator(), NSMenuItem(title: "退出 InkSight", action: #selector(quit), keyEquivalent: "q")] {
-            entry.target = self
+            if entry !== forecastMenu.item { entry.target = self }
             menu.addItem(entry)
         }
         pauseItem.action = #selector(togglePause)
@@ -139,6 +145,7 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        RuntimeManager.shared.refreshMenuQuota(force: true)
         refreshMenu()
         LoginItems.refresh { status, label in
             self.loginItem.title = label
@@ -155,6 +162,7 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate, NSWindowDelegat
         statusItem?.button?.setAccessibilityLabel("InkSight，Codex 七日剩余 " + quota)
         quotaItem.title = runtime.menuQuotaDetail
         quotaItem.isEnabled = false
+        forecastMenu.refresh(link: runtime.menuForecastLink)
         stateItem.title = "服务：\(runtime.serviceStatus)"
         stateItem.isEnabled = false
         publishItem.title = "最近成功发布：\(runtime.lastPublicationLabel)"
@@ -330,6 +338,28 @@ final class RuntimeManager: ObservableObject {
         return label
     }
 
+    var menuForecastLink: ForecastLink? {
+        backend == "运行正常" ? quota?.announcements?.link() : nil
+    }
+
+    func validateForecastLink(expected: ForecastLink, completion: @escaping (URL?) -> Void) {
+        guard !quitting, menuForecastLink == expected, backendProcess?.isRunning == true else { completion(nil); return }
+        let process = backendProcess
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/desktop/quota"), cachePolicy: .reloadIgnoringLocalCacheData)
+        request.timeoutInterval = 4
+        request.setValue(desktopToken, forHTTPHeaderField: "X-InkSight-Desktop-Token")
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            DispatchQueue.main.async {
+                guard let self, !self.quitting, self.backendProcess === process, self.backend == "运行正常" else { completion(nil); return }
+                guard (response as? HTTPURLResponse)?.statusCode == 200, let data,
+                      let fresh = try? JSONDecoder().decode(MenuQuota.self, from: data) else { completion(nil); return }
+                self.quotaGeneration.invalidate(); self.quotaTask?.cancel(); self.quotaTask = nil
+                self.quota = fresh
+                completion(self.menuForecastLink == expected ? expected.url : nil)
+            }
+        }.resume()
+    }
+
     private func invalidateQuota() {
         quotaGeneration.invalidate()
         quotaTask?.cancel(); quotaTask = nil
@@ -339,7 +369,7 @@ final class RuntimeManager: ObservableObject {
     func beginQuit() { quitting = true; quotaGeneration.stop(); invalidateQuota() }
     func cancelQuit() { quitting = false; quotaGeneration.resume(); quotaNextRead = .distantPast }
 
-    func refreshMenuQuota() {
+    func refreshMenuQuota(force: Bool = false) {
         // A new user can explicitly bind from the USB preparation center.
         // Do not replace an existing publisher target or start publishing here.
         if macText.isEmpty, let runtime = runtimeURL,
@@ -354,7 +384,7 @@ final class RuntimeManager: ObservableObject {
             if quota != nil || quotaTask != nil { invalidateQuota() }
             return
         }
-        guard quotaTask == nil, Date() >= quotaNextRead else { return }
+        guard quotaTask == nil, force || Date() >= quotaNextRead else { return }
         guard let generation = quotaGeneration.begin() else { return }
         let process = backendProcess
         let url = baseURL.appendingPathComponent("api/desktop/quota")

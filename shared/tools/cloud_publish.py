@@ -54,6 +54,24 @@ STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cloud_pu
 STATE_LOCK_FILE = STATE_FILE + ".lock"
 
 
+def record_announcement_snapshot(state,document,*,now,success=False):
+    """Local publication history is evidence of preparation/readback, not ACK."""
+    try:
+        event=document['screen']['pages']['ai']['announcements']['selected_event']
+        if not isinstance(event,dict):return
+        ident,revision=event.get('event_id'),event.get('revision')
+        import re
+        if not isinstance(ident,str) or not re.fullmatch(r'[A-Za-z0-9:_-]{1,100}',ident) or not isinstance(revision,str) or not re.fullmatch(r'[a-f0-9]{24}',revision):return
+        history=state.setdefault('_announcement_history',{})
+        key=ident+':'+revision
+        row=history.setdefault(key,dict(event_id=ident,revision=revision,first_snapshot_at=now,first_published_at=None))
+        if success:
+            if row['first_published_at'] is None:row['first_published_at']=now
+            row['last_published_at']=now
+        state['_announcement_history']=dict(list(history.items())[-100:])
+    except (KeyError,TypeError):return
+
+
 def load_state():
     try:
         with open(STATE_FILE, encoding="utf-8") as handle:
@@ -535,6 +553,7 @@ def _run_unlocked(config, once=False, dry_run=False, force=False):
         if combined is None:
             print(f"[skip] {mac} 无可用内容")
             continue
+        record_announcement_snapshot(state,combined,now=int(time.time()))
         pid = payload_id(combined)
         pubid = publication_id(combined)
         if not force and state.get(mac) == pubid:
@@ -549,6 +568,7 @@ def _run_unlocked(config, once=False, dry_run=False, force=False):
             state[mac] = pubid
             # Only a completed upload + verified GET advances this timestamp.
             # File mtime alone is not proof: state is also saved on no-change.
+            record_announcement_snapshot(state,combined,now=combined["ts"],success=True)
             published = _strip_sensitive(combined)
             state.setdefault('_desktop_publications', {})[mac] = {
                 'last_success_at': combined['ts'], 'publish_id': pubid,

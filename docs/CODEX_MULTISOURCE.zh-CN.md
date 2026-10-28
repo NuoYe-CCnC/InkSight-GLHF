@@ -1,5 +1,7 @@
 # 多源线索与精简预告
 
+> 下文保留 test.17 已发布契约。test.18 已加入时间待定、持久系列、独立辅助重试及原文菜单，当前实现以 [可信预告 v2](CODEX_FORECAST_V2.zh-CN.md) 为准；历史 v1 契约只用于溯源，不代表旧固件支持 v2。
+
 此功能仍为实验性，开源默认 `codex_announcements.enabled=false`。
 `whenreset_enabled`、`nextreset_enabled` 也分别默认 false。
 需要明确开启才尝试读取固定来源，不支持用户任意填入外部 URL。

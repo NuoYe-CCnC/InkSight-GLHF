@@ -58,7 +58,9 @@ def test_explicit_two_kinds_and_no_account_mutation():
 ])
 def test_uncertain_negative_past_or_unscoped_posts_not_displayed(body, reason):
     events, rejected = parsed([post(body)])
-    assert not events
+    if reason in {'timezone_missing_or_ambiguous','date_missing'}:
+        assert events and all(e['target_at'] is None and e['time_type']=='unknown' for e in events.values())
+    else:assert not events
     assert reason in [r["reason"] for r in rejected]
 
 
@@ -269,7 +271,8 @@ def test_forecast_config_validated_and_does_not_change_other_defaults():
     'All Codex Plus users will reset weekly quota today or tomorrow before 10am PT.',
 ])
 def test_multiple_deadlines_never_pick_first(body):
-    assert not parsed([post(body)])[0]
+    events=parsed([post(body)])[0]
+    assert events and all(e['time_type']=='unknown' and e['target_at'] is None for e in events.values())
 
 
 def test_uncertain_parent_and_conditional_correction_do_not_create_or_revive():
@@ -311,7 +314,8 @@ def test_total_budget_cursor_and_overlap_bounded(isolated):
     assert result['ok'] and result['requests']<=4
     assert len([path for path,_ in calls if '/status/' in path])==2
     assert calls[0][1]['since']==NOW-61
-    assert len(a.snapshot(now=NOW+3600))==4
+    assert a.snapshot(now=NOW+3600)['schema_version']==2
+    assert a.snapshot(now=NOW+3600)['selected_event']['kind']=='quota_reset'
 
 
 def test_http_date_retry_header():

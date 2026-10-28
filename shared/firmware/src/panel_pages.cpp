@@ -497,7 +497,10 @@ bool renderAiPanel(const JsonDocument &doc) {
     bool showApi = displayPrefs.isNull() ? false : (displayPrefs["show_openai_api_info"] | false);
     const time_t forecastNow = time(nullptr);
     const char *forecastKind = nullptr;
-    const time_t forecastTarget = codexNearestAnnouncement(ai, forecastNow, showReset, &forecastKind);
+    const JsonObjectConst forecast = codexSelectedAnnouncement(ai, forecastNow, showReset);
+    const bool hasForecast = !forecast.isNull();
+    forecastKind = forecast["kind"] | "";
+    const double forecastNumber = announcementNumber(forecast["target_at"]);
 
     char s[160];
     const int cnyX0 = 24, codexRight = 461, dsLeft = 500, pageRight = 778;
@@ -556,7 +559,7 @@ bool renderAiPanel(const JsonDocument &doc) {
     const char *accountLabels[2] = {nullptr, nullptr};
     char accountValues[2][64] = {{0}, {0}};
     int accountCount = 0;
-    if (showApi && !forecastTarget) {
+    if (showApi && !hasForecast) {
         accountLabels[accountCount] = "API 本月消费";
         fmtApiBalance(ai["openai_api_month_spend_usd"], accountValues[accountCount],
                       sizeof(accountValues[accountCount]));
@@ -564,7 +567,7 @@ bool renderAiPanel(const JsonDocument &doc) {
             snprintf(accountValues[accountCount], sizeof(accountValues[accountCount]), "-- USD");
         accountCount++;
     }
-    if (showCodex && !forecastTarget) {
+    if (showCodex && !hasForecast) {
         accountLabels[accountCount] = "点数余额";
         char points[48];
         if (ai["codex_credit_unlimited"] | false)
@@ -577,13 +580,20 @@ bool renderAiPanel(const JsonDocument &doc) {
             snprintf(accountValues[accountCount], sizeof(accountValues[accountCount]), "%s", points);
         accountCount++;
     }
-    if (forecastTarget) {
-        char md[24];
-        fmtMdHm(forecastTarget, md, sizeof(md));
-        const char *relation = ai["announcements"][forecastKind]["time_relation"] | "before";
-        snprintf(s, sizeof(s), "%s %s%s", md, strcmp(relation,"at") ? "前" : "",
-                 !strcmp(forecastKind,"reset_grant") ? "发放" : "重置");
-        panelDrawTextRight(F_LABEL(), "预计", codexRight, 225);
+    if (hasForecast) {
+        const char *verb = !strcmp(forecastKind,"reset_grant") ? "发放" : "重置";
+        if (isfinite(forecastNumber)) {
+            char md[24]; fmtMdHm((time_t)forecastNumber, md, sizeof(md));
+            const char *relation = forecast["time_relation"] | "before";
+            snprintf(s, sizeof(s), "%s %s%s", md, strcmp(relation,"at") ? "前" : "", verb);
+            panelDrawTextRight(F_LABEL(), "预计", codexRight, 225);
+        } else {
+            char title[32]; snprintf(title,sizeof(title),"预计%s",verb);
+            panelDrawTextRight(F_LABEL(),title,codexRight,225);
+            const char *date=forecast["display_date"] | "";
+            if (strlen(date)==10) snprintf(s,sizeof(s),"%s，时间待定",date+5);
+            else snprintf(s,sizeof(s),"时间待定");
+        }
         drawRightFit(s,codexRight,256,codexRight-cnyX0-panelTextInkWidth(F_LABEL(),"7 日窗口")-16,F_LABEL());
     } else if (accountCount == 1) {
         panelDrawTextRight(F_LABEL(), accountLabels[0], codexRight, 225);

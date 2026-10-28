@@ -1095,6 +1095,7 @@ bool fetchStructured(JsonDocument &doc, String *modeIdOut, bool *pendingRefreshO
         receipt["schema"] = 1;
         receipt["build_id"] = INKSIGHT_BUILD_ID;
         receipt["compatibility"] = "INKSIGHT_COMPAT_V1_SSD1677_N32R16";
+        receipt["announcement_schema_max"] = 2;
         receipt["network_json"] = true;
         receipt["payload_id"] = doc["screen"]["payload_id"] | "";
         receipt["physical_confirmed"] = false;

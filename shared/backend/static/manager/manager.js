@@ -19,6 +19,7 @@ $("readAnnouncements").addEventListener("click", async () => {
   try {
     const result = await api("/codex-announcements");
     // Source text/rejection values are untrusted data, never HTML.
+    renderAnnouncementDiagnostics(result);
     $("announcementDiagnostics").textContent = JSON.stringify(result, null, 2);
   } catch (error) {
     $("announcementDiagnostics").textContent = error.message;
@@ -214,3 +215,38 @@ $("runRollback").addEventListener("click",async()=>{if(!rollbackPlan)return;try{
 async function pollRollback(taskId){for(let i=0;i<240;i+=1){await new Promise(resolve=>setTimeout(resolve,3000));try{const data=await api(`/firmware/rollbacks/${encodeURIComponent(taskId)}`);const status=data.task.status;if(["queued","running"].includes(status))continue;if(status==="written_unconfirmed"){$("firmwareState").textContent="回退已校验，等待旧版心跳或实体屏确认";$("prepareRollback").disabled=true;continue}if(status==="completed"){$("firmwareState").textContent="回退与旧版心跳已验证";toast("回退与旧版设备心跳均已确认");localStorage.removeItem("inksight_last_flash");$("prepareRollback").disabled=true;return}toast(data.task.error||"回退未完成，备份仍保留",true);$("firmwareState").textContent="回退需检查";return}catch(error){toast(error.message,true);return}}toast("尚未收到旧版心跳，请确认设备实际联网与上屏",true)}
 
 bootstrap();
+
+// Public post text is always textContent. Links have an exact author/status
+// allowlist, independent of the general-purpose URL helper above.
+function renderAnnouncementDiagnostics(result){
+  const root=$("announcementSummary");root.replaceChildren();
+  const stamp=value=>value?new Date(Number(value)*1000).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}):"未知";
+  const sourceStates={current:"正常",no_links:"页面可读，未发现原帖链接",disabled:"未启用",not_checked:"尚未查询",dns:"域名解析失败",connection:"连接失败",connect_timeout:"连接超时",read_timeout:"读取超时",timeout:"请求超时",tls_certificate:"证书校验失败",tls_handshake:"TLS 握手失败",decode:"文本解码失败",invalid_json:"响应格式不符",http_error:"HTTP 请求失败",robots_disallowed:"站点不允许抓取",robots_cooldown:"等待站点要求的间隔",unknown_network:"网络故障，具体原因未知"};
+  const reasons={selected:"当前预告",expired:"已过期",fulfilled:"已完成公告",retracted:"已撤回",uncertain:"时间已撤下",pending:"可信计划",
+    codex_scope_missing:"缺少可核验的 Codex 系列背景",future_intent_missing:"未明确说明未来计划",event_kind_missing:"未识别重置计划",
+    timezone_missing_or_ambiguous:"时区未说明或冲突，保留时间待定",date_missing:"日期未说明，保留时间待定",request_or_joke:"请求或玩笑，不采用",
+    conditional_or_uncertain:"假设或不确定表述，不采用",negative_or_past_not_a_forecast:"取消或事后说明，不作未来预告",
+    parent_date_crosses_day:"回复跨日，未借用父帖日期",first_seen_unknown:"旧记录缺少首次发现时间，无法追溯",collected_after_deadline:"首次记录已晚于截止时间"};
+  const node=(tag,text)=>{const el=document.createElement(tag);el.textContent=text;return el};
+  const section=(title,rows)=>{const box=node("section","");box.append(node("h3",title));const dl=node("dl","");
+    for(const [label,value] of rows){const pair=node("div","");pair.append(node("dt",label),node("dd",String(value??"--")));dl.append(pair)}box.append(dl);root.append(box)};
+  section("采集状态（北京时间）",[["状态",result.enabled?(sourceStates[result.state]||result.state||"尚未查询"):"未启用"],["最后尝试",stamp(result.last_attempt_at)],
+    ["最后成功",stamp(result.last_success_at)],["下次查询（当前计划）",stamp(result.next_query_at)],
+    ["最近失败",result.last_error?`${result.last_error.stage} · ${result.last_error.reason}${result.last_error.status?` · HTTP ${result.last_error.status}`:""}`:"无已记录失败"]]);
+  for(const [name,source] of Object.entries(result.auxiliary_sources||{}))section(name==="whenreset"?"whenreset 辅助来源":"nextreset 辅助来源",
+    [["状态",source.enabled?(sourceStates[source.state]||source.state):"未启用"],["最后尝试",stamp(source.last_attempt_at)],["最后成功",stamp(source.last_success_at)],
+     ["下次允许查询",stamp(source.next_allowed_at)],["最近失败",source.last_error?`${source.last_error.stage} · ${source.last_error.reason}${source.last_http_status?` · HTTP ${source.last_http_status}`:""}`:"无已记录失败"]]);
+  const publication=result.publication||{};
+  root.append(node("p",publication.matching_verified_publications?.length?"当前预告已进入云端回读成功的快照；没有设备实屏送达回执。":"尚无当前预告的云端回读记录；后台识别和设备显示分别验收。"));
+  for(const row of (result.recent_candidates||[]).slice(0,12)){
+    const item=node("article","");item.append(node("h3",reasons[row.outcome]||reasons[row.reason]||row.reason||"未采用"));
+    if(row.display_label)item.append(node("p",row.display_label));
+    item.append(node("p",row.text||""),node("p",`原帖 ${stamp(row.published_at)} · 首次发现 ${stamp(row.first_seen_at)} · 最近发现 ${stamp(row.last_seen_at)} · 首次识别 ${stamp(row.first_recognized_at)}`));
+    if(reasons[row.reason])item.append(node("p",reasons[row.reason]));
+    if(row.timing_evidence)item.append(node("p",reasons[row.timing_evidence]||"已记录抓取时间；账户额度变动不能单独证明该公告兑现。"));
+    const author=result.target_handle||"thsottiaux", url=row.source_url;
+    if(/^[A-Za-z0-9_]{1,15}$/.test(author)&&/^[0-9]{5,24}$/.test(row.post_id||"")&&["x.com","twitter.com"].some(host=>url===`https://${host}/${author}/status/${row.post_id}`)){
+      const link=node("a","查看作者原文");link.href=url;link.target="_blank";link.rel="noopener noreferrer";item.append(link)
+    }root.append(item)
+  }
+}

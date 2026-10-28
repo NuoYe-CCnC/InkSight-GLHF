@@ -22,6 +22,8 @@ from . import codex_announcement_parser as parser
 from . import codex_announcement_schedule as policy
 from . import codex_announcement_sources as sources
 from . import desktop_service, state_store
+from . import codex_announcement_view as view
+from .codex_announcement_network import failure_reason, summary
 
 STATE_FILE = state_store.state_path("codex_announcements.json")
 HOST = "api.fxtwitter.com"
@@ -48,7 +50,7 @@ def _default(cfg):
     return {"schema": 1, "target": cfg["target_handle"].lower(), "author_id": cfg["target_user_id"],
             "posts": {}, "tombstones": {}, "slot_success": {}, "pending_slots": [], "last_success_at": 0,
             "last_attempt_at": 0, "next_allowed_at": 0, "failures": 0, "inflight_until": 0,
-            "last_overlap_at": 0, "watermark": 0, "diagnostics": []}
+            "last_overlap_at": 0, "watermark": 0, "diagnostics": [], "series_records": [], "event_history": {}}
 
 
 def _state(cfg):
@@ -71,6 +73,10 @@ def _state(cfg):
         for key in ("last_attempt_at", "next_allowed_at", "failures", "inflight_until"):
             fresh[key] = value.get(key, fresh[key])
         return fresh
+    if value.get('history_schema_version')!=1:
+        value['_legacy_recognized_post_ids']=list(dict.fromkeys(row.get('post_id') for row in value.get('analysis',[])
+            if isinstance(row,dict) and row.get('status') in {'pending','expired','fulfilled','retracted'}))[-MAX_POSTS:]
+        value['history_schema_version']=1
     return value
 
 
@@ -105,9 +111,10 @@ def _events(state, cfg, now, context):
         return {}, [{"reason": "current_account_unknown"}]
     posts = [p for p in (state.get("posts") or {}).values()
              if isinstance(p, dict) and parser.finite(p.get("published_at"))
-             and 0 <= now - p["published_at"] <= cfg["max_post_age_days"] * 86400]
+             and 0 <= now - p["published_at"] <= max(14,cfg["max_post_age_days"]) * 86400
+             and p.get("author")==cfg["target_handle"].lower() and p.get("author_id")==cfg["target_user_id"]]
     revisions, rejected = parser.parse_posts(posts, now=now,
-        max_horizon_seconds=cfg["max_forecast_days"] * 86400)
+        max_horizon_seconds=cfg["max_forecast_days"] * 86400, series_records=state.get("series_records"))
     revisions.extend(_retirements(state,revisions,now,cfg))
     # An explicit tombstone or unavailable active source cannot revive from a
     # later cached/overlap timeline. A successful targeted recheck can recover it.
@@ -120,35 +127,38 @@ def _events(state, cfg, now, context):
     return parser.select_events(revisions, now=now, plan=context.get("plan")), rejected
 
 
-def _snapshot(state, cfg, now, context):
-    events, rejected = _events(state, cfg, now, context)
-    result = {"schema_version": 1, "enabled": True, "quota_reset": None, "reset_grant": None}
-    for kind, row in events.items():
-        valid_until = row["target_at"]
-        if row['plans'] and "all" not in row["plans"]:
-            if not parser.finite(context.get("plan_valid_until")):
-                continue
-            valid_until = min(valid_until, context["plan_valid_until"])
-        if valid_until <= now:
-            continue
-        result[kind] = {k: row[k] for k in ("kind", "status", "target_at", "expires_at", "post_id", "published_at", "source_url", "confidence")}
-        result[kind]["valid_until"] = valid_until
-        result[kind].update(time_relation=row.get('time_relation','before'),
-                            source_time_zone=row.get('source_time_zone'),
-                            plan_scope=row.get('plan_scope','unspecified'),
-                            field_sources=row.get('field_sources',{}),
-                            evidence_post_ids=row['evidence']['post_ids'])
-    return result, rejected
+def _snapshot(state, cfg, now, context, *, show_reset=True):
+    events,rejected=_events(state,cfg,now,context)
+    result=dict(schema_version=2,enabled=True,quota_reset=None,reset_grant=None,reset_unspecified=None,
+                selected_event=None,canonical_source_url=None,target_author=cfg['target_handle'].lower(),capabilities=['exact','date_range','unknown','canonical_source_v1'])
+    for kind,row in events.items():
+        valid_until=row['expires_at']
+        if row['plans'] and 'all' not in row['plans']:
+            if not parser.finite(context.get('plan_valid_until')):continue
+            valid_until=min(valid_until,context['plan_valid_until'])
+        if valid_until<=now:continue
+        keys=('kind','status','target_at','expires_at','post_id','published_at','source_url','source_author','confidence',
+              'event_id','revision','time_type','range_start_at','range_end_at','display_date','time_relation','source_time_zone','time_basis','plan_scope')
+        event={k:row.get(k) for k in keys}
+        event.update(valid_until=valid_until,expiry_origin_at=row.get('expiry_origin_at',row['original_published_at']),
+                     canonical_source_url=parser.canonical_source_url(row['source_url'],cfg['target_handle'],row['post_id']),
+                     field_sources=row.get('field_sources',{}),evidence_post_ids=row['evidence']['post_ids'])
+        if view.valid_event(event,kind,2,now):result[kind]=event
+    selected=min((e for k,e in result.items() if k in view.KINDS and e and (show_reset or k!='reset_grant')),
+        key=parser.event_sort_key,default=None)
+    result.update(selected_event=selected,canonical_source_url=selected['canonical_source_url'] if selected else None)
+    return result,rejected
 
 
 def snapshot(*, now=None, config=None, context=None) -> dict:
     now = time.time() if now is None else now
     cfg = (config or _config()).get("codex_announcements") or policy.DEFAULTS
-    empty = {"schema_version": 1, "enabled": False, "quota_reset": None, "reset_grant": None}
+    empty = {"schema_version": 2, "enabled": False, "quota_reset": None, "reset_grant": None, "selected_event": None, "canonical_source_url": None}
     if not cfg.get("enabled"):
         return empty
     try:
-        result, _ = _snapshot(_state(cfg), cfg, now, context if context is not None else account_context(cfg, now))
+        result, _ = _snapshot(_state(cfg), cfg, now, context if context is not None else account_context(cfg, now),
+            show_reset=(config or _config()).get("panel_display",{}).get("show_reset_opportunities",True))
         return result
     except (state_store.StateStoreError, ValueError, TypeError, KeyError):
         return dict(empty, enabled=True)
@@ -163,26 +173,116 @@ def diagnostics(*, now=None) -> dict:
     try:
         state = _state(cfg)
         context = account_context(cfg, now)
-        active, rejected = _snapshot(state, cfg, now, context)
+        active, rejected = _snapshot(state, cfg, now, context,show_reset=config.get("panel_display",{}).get("show_reset_opportunities",True))
         due = policy.decision(state, cfg, now=now, mode=policy.mode_at(config, now),
                               remaining=context["remaining"], events={k: v for k, v in active.items() if k in {"quota_reset", "reset_grant",'reset_unspecified'} and v})
         return {"enabled": True, "experimental": True, "provider": "FxEmbed",
-                "state": state.get("last_result", "not_checked"),
+                "state": state.get("last_result", "not_checked"),"target_handle":cfg["target_handle"],
                 "last_success_at": state.get("last_success_at"), "last_attempt_at": state.get("last_attempt_at"),
                 "next_allowed_at": state.get("next_allowed_at"), "schedule": due,
                 'auxiliary_sources': sources.diagnostics(state.get('auxiliary_sources',{}),cfg),
                 'field_evidence': {k:v.get('field_sources') for k,v in active.items() if isinstance(v,dict)},
                 'source_conflicts': _source_conflicts(state,active),
+                "selected_event": active.get('selected_event'),
+                'series_records':state.get('series_records',[]),
+                'event_history':list((state.get('event_history') or {}).values())[-50:],
+                'recent_candidates':_candidate_diagnostics(state,active,now,cfg),
+                'next_query_at':_next_query_time(config,state,cfg,now,context,active),
+                'last_error':state.get('last_error'),'request_trace':state.get('request_trace',[]),
+                'publication':_publication_diagnostics(active),
                 "snapshot": active, "rejections": (state.get("diagnostics", []) + rejected)[-50:],
                 "note": "实验性第三方；无 Key/Cookie，无模型调用；未识别文案不推测；账户变动不作为到账确认。"}
     except (state_store.StateStoreError, ValueError, TypeError, KeyError):
         return {"enabled": True, "state": "state_unavailable", "experimental": True}
 
 
+def _update_event_history(state,cfg,now,context,config):
+    history=state.setdefault('event_history',{})
+    for event in state.get('analysis',[]):
+        key=event.get('event_id',event.get('root_id',''))+':'+event.get('revision',event['post_id'])
+        entry=history.setdefault(key,dict(event_id=event.get('event_id'),revision=event.get('revision'),
+            original_published_at=event.get('original_published_at'),published_at=event['published_at'],
+            first_recognized_at=None if event['post_id'] in state.get('_legacy_recognized_post_ids',[]) else now,first_selected_at=None,first_seen_at=None))
+        post=state.get('posts',{}).get(event['post_id'],{})
+        entry.update(first_seen_at=post.get('first_seen_at'),last_seen_at=post.get('last_seen_at'),
+                     status=event.get('status'),time_type=event.get('time_type'),source_url=event.get('source_url'))
+    active,_=_snapshot(state,cfg,now,context,show_reset=config.get('panel_display',{}).get('show_reset_opportunities',True))
+    selected=active.get('selected_event')
+    if selected:
+        key=selected['event_id']+':'+selected['revision']
+        if key in history and history[key]['first_selected_at'] is None:history[key]['first_selected_at']=now
+    state['event_history']=dict(list(history.items())[-200:])
+
+
+def _candidate_diagnostics(state,snapshot,now,cfg=None):
+    selected=snapshot.get('selected_event') or {}
+    cfg=cfg or policy.DEFAULTS
+    current,decisions=parser.parse_posts(list(state.get('posts',{}).values()),now=now,
+        max_horizon_seconds=cfg['max_forecast_days']*86400,series_records=state.get('series_records'))
+    reasons={row.get('post_id'):row.get('reason') for row in decisions}
+    analyses={row['post_id']:row for row in current}
+    rows=[]
+    for post in sorted(state.get('posts',{}).values(),key=lambda p:p['published_at'],reverse=True)[:30]:
+        event=analyses.get(post['id']);reason=reasons.get(post['id'],'not_an_event')
+        is_selected=bool(event and selected.get('event_id')==event.get('event_id') and selected.get('revision')==event.get('revision'))
+        outcome='selected' if is_selected else ('expired' if event and event.get('expires_at',0)<=now else event.get('status') if event else reason)
+        rows.append(dict(post_id=post['id'],source_url=post['url'],text=post['text'][:1000],published_at=post['published_at'],
+            first_seen_at=post.get('first_seen_at'),last_seen_at=post.get('last_seen_at'),selected=is_selected,
+            first_recognized_at=next((h.get('first_recognized_at') for h in (state.get('event_history') or {}).values() if event and h.get('event_id')==event.get('event_id') and h.get('revision')==event.get('revision')),None),
+            outcome=outcome,reason=reason,time_basis=event.get('time_basis') if event else None,
+            display_label=' / '.join(view.display_lines(event)) if event and event.get('time_type') else None,
+            timing_evidence='first_seen_unknown' if post.get('first_seen_at') is None else
+                'collected_after_deadline' if event and event.get('target_at') and post['first_seen_at']>=event['target_at'] else 'collection_recorded'))
+    return rows
+
+
+def _next_query_time(config,state,cfg,now,context,snapshot):
+    """Read-only estimate under current settings; re-evaluated after changes."""
+    from datetime import timedelta
+    mode=policy.mode_at(config,now)
+    events={k:e for k,e in snapshot.items() if k in view.KINDS and e}
+    due=policy.decision(state,cfg,now=now,mode=mode,remaining=context.get('remaining'),events=events)
+    block=due['next_allowed_at']
+    if due['due']:return now
+    date=datetime.fromtimestamp(now,policy.BJ).replace(hour=0,minute=0,second=0,microsecond=0)
+    slots=[]
+    for offset in range(3):
+        for clock in cfg['night_slots']:
+            h,m=map(int,clock.split(':'))
+            at=(date+timedelta(days=offset,hours=h,minutes=m)).timestamp()
+            if at>=max(now,block):slots.append(at)
+    if due['slots']:return max(now,block)
+    interval=due['interval_seconds']
+    if interval is not None:
+        at=max(now,block,(state.get('last_success_at') or 0)+interval)
+        if policy.mode_at(config,at) in {'active','light'}:slots.append(at)
+    return min(slots) if slots else None
+
+
+def _publication_diagnostics(snapshot):
+    # GET readback is publication evidence, never device ACK. This read has no
+    # side effects and cannot trigger publication or an upstream refresh.
+    selected=snapshot.get('selected_event') or {}
+    try:
+        path=Path(__file__).resolve().parents[2]/'tools/.cloud_publish_state.json'
+        value=json.loads(path.read_text())
+        rows=list((value.get('_desktop_publications') or {}).values())
+        found=[]
+        for row in rows:
+            doc=row.get('document',{})
+            ann=(((doc.get('screen') or {}).get('pages') or {}).get('ai') or {}).get('announcements') or {}
+            event=ann.get('selected_event') or {}
+            if event.get('event_id')==selected.get('event_id') and event.get('revision')==selected.get('revision') and selected:
+                found.append(dict(at=row.get('last_success_at'),event_id=event['event_id'],revision=event['revision']))
+        return dict(event_history=list((value.get('_announcement_history') or {}).values())[-50:],matching_verified_publications=found,device_ack=False,note='云端回读不代表设备实屏送达')
+    except (OSError,ValueError,TypeError,AttributeError):return dict(matching_verified_publications=[],device_ack=False)
+
+
 class SourceFailure(Exception):
-    def __init__(self, reason, *, status=None, headers=None):
+    def __init__(self, reason, *, status=None, headers=None, detail=None, stage="primary", elapsed_ms=None):
         self.reason, self.status, self.headers = reason, status, headers or {}
         self.partial = None
+        self.detail, self.stage, self.elapsed_ms = detail, stage, elapsed_ms
         super().__init__(reason)
 
 
@@ -201,6 +301,8 @@ def _request(path, query, timeout):
         raise SourceFailure("invalid_fixed_host_path")
     url = "https://" + HOST + path + ("?" + urllib.parse.urlencode(query) if query else "")
     request = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "InkSight-experimental-announcements/1"}, method="GET")
+    started=time.monotonic()
+    stage="connect"
     try:
         with urllib.request.build_opener(_SameHostRedirect()).open(request, timeout=timeout) as response:
             if response.status == 204:
@@ -208,23 +310,28 @@ def _request(path, query, timeout):
             if response.status != 200:
                 raise SourceFailure("unexpected_http_status", status=response.status)
             headers = dict(response.headers)
+            stage="read"
             data = response.read(MAX_BYTES + 1)
             if len(data) > MAX_BYTES:
                 raise SourceFailure("response_too_large")
             if response.headers.get_content_type() != "application/json":
                 raise SourceFailure("non_json_response")
             try:
-                body = json.loads(data)
-            except (ValueError, UnicodeDecodeError):
-                raise SourceFailure("invalid_json")
+                body = json.loads(data.decode("utf-8",errors="strict"))
+            except UnicodeDecodeError:
+                raise SourceFailure("decode",stage="decode") from None
+            except ValueError:
+                raise SourceFailure("invalid_json",stage="parse")
             code = body.get("code") if isinstance(body, dict) else None
             if type(code) is not int or code != 200:
                 raise SourceFailure("provider_error", status=code, headers=headers)
             return 200, body
     except urllib.error.HTTPError as exc:
-        raise SourceFailure("http_error", status=exc.code, headers=dict(exc.headers or {})) from None
-    except (urllib.error.URLError, TimeoutError, OSError):
-        raise SourceFailure("network_or_timeout") from None
+        raise SourceFailure("http_error", status=exc.code, headers=dict(exc.headers or {}),detail=summary(exc),stage=stage,elapsed_ms=round((time.monotonic()-started)*1000,1)) from None
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        reason=failure_reason(exc)
+        if reason=="timeout":reason="read_timeout" if stage=="read" else "connect_timeout"
+        raise SourceFailure(reason,detail=summary(exc),stage=stage,elapsed_ms=round((time.monotonic()-started)*1000,1)) from None
 
 
 def _retry_at(error, now, cfg, failures):
@@ -251,28 +358,29 @@ def _retry_at(error, now, cfg, failures):
     return max(w for w in waits if parser.finite(w))
 
 
-def _collect(state, cfg, now, requester, context=None, auxiliary_requester=None):
+def _collect(state, cfg, now, requester, context=None, auxiliary_requester=None, auxiliary_checkpoint=None):
     posts = dict(state.get("posts") or {})
     tombstones = dict(state.get("tombstones") or {})
     diagnostics, calls, seen_ids = [], 0, set()
+    request_trace=[]
     watermark = state.get("watermark") or 0
     overlap_due = not state.get("last_overlap_at") or now - state["last_overlap_at"] >= cfg["overlap_recheck_minutes"] * 60
-    auxiliary = sources.collect(state.get('auxiliary_sources'),cfg,now,requester=auxiliary_requester)
+    auxiliary = sources.collect(state.get('auxiliary_sources'),cfg,now,requester=auxiliary_requester,checkpoint=auxiliary_checkpoint)
 
     def checkpoint(error):
         # A later network failure must not discard an already verified own
         # cancellation/correction. Keep partial evidence, never success slots,
         # watermark or source-success timestamps from an incomplete operation.
         keep = sorted((p for p in posts.values() if parser.finite(p.get("published_at"))
-                       and 0 <= now - p["published_at"] <= cfg["max_post_age_days"] * 86400),
+                       and 0 <= now - p["published_at"] <= max(14,cfg["max_post_age_days"]) * 86400),
                       key=lambda p: (p["published_at"], int(p["id"])), reverse=True)[:MAX_POSTS]
         analysis, rejected = parser.parse_posts(keep, now=now,
-            max_horizon_seconds=cfg["max_forecast_days"] * 86400)
+            max_horizon_seconds=cfg["max_forecast_days"] * 86400, series_records=state.get("series_records"))
         error.partial = {"posts": {p["id"]: p for p in keep},
                          'terminal_revisions':_retirements(state,analysis,now,cfg),
                          'auxiliary_sources': auxiliary,
-                         "tombstones": {k: v for k, v in tombstones.items() if k in {p["id"] for p in keep}},
-                         "analysis": analysis[-MAX_POSTS * 2:], "diagnostics": (diagnostics + rejected)[-50:]}
+                         "tombstones": {k: v for k, v in tombstones.items() if k in ({p["id"] for p in keep}|{r["anchor_post_id"] for r in state.get("series_records",[])})},
+                         "request_trace":request_trace,"analysis": analysis[-MAX_POSTS * 2:], "diagnostics": (diagnostics + rejected)[-50:]}
         return error
 
     def get(path, query):
@@ -280,23 +388,31 @@ def _collect(state, cfg, now, requester, context=None, auxiliary_requester=None)
         if calls >= MAX_REQUESTS:
             raise checkpoint(SourceFailure("request_budget_exhausted"))
         calls += 1
+        started=time.monotonic()
+        operation='timeline' if '/profile/' in path else 'status'
         try:
-            return requester(path, query, cfg["timeout_seconds"])
+            result=requester(path, query, cfg['timeout_seconds'])
+            request_trace.append(dict(stage='primary',operation=operation,status=result[0],elapsed_ms=round((time.monotonic()-started)*1000,1)))
+            return result
         except SourceFailure as error:
+            if error.elapsed_ms is None:error.elapsed_ms=round((time.monotonic()-started)*1000,1)
+            request_trace.append(dict(stage=error.stage,operation=operation,status=error.status,reason=error.reason,elapsed_ms=error.elapsed_ms,summary=error.detail))
             raise checkpoint(error)
 
     def merge(body, *, checked=False):
         try:
             fresh, rejected = parser.normalize_posts(body, cfg["target_handle"], now,
-                max_posts=MAX_POSTS, max_age_seconds=cfg["max_post_age_days"] * 86400,
+                max_posts=MAX_POSTS, max_age_seconds=max(14,cfg["max_post_age_days"]) * 86400,
                 author_id=cfg["target_user_id"])
         except ValueError:
             raise checkpoint(SourceFailure("invalid_timeline_schema")) from None
         diagnostics.extend(rejected)
         for row in fresh:
             seen_ids.add(row["id"])
-            row["collected_at"] = now
+            row["collected_at"] = now  # Legacy last-collection field, never first-seen evidence.
             previous = posts.get(row["id"])
+            row['first_seen_at']=previous.get('first_seen_at') if previous else now
+            row['last_seen_at']=now
             if previous and previous.get('verified_at') and not checked and previous.get('text')!=row['text']:
                 diagnostics.append({'post_id':row['id'],'reason':'timeline_targeted_conflict_kept_verified'})
                 continue
@@ -317,6 +433,7 @@ def _collect(state, cfg, now, requester, context=None, auxiliary_requester=None)
 
     path = "/2/profile/" + cfg["target_handle"] + "/statuses"
     query = {"count": cfg["page_size"], "with_replies": "1"}
+    if not state.get("series_records") and not watermark:query["since"]=int(now-14*86400)
     if watermark:
         query["since"] = max(0, int(watermark) - 1)
     status, body = get(path, query)
@@ -348,7 +465,7 @@ def _collect(state, cfg, now, requester, context=None, auxiliary_requester=None)
     # Verify up to two active forecast sources even when incremental has no
     # newer posts; timeline absence itself is never treated as deletion.
     revisions, _ = parser.parse_posts(list(posts.values()), now=now,
-        max_horizon_seconds=cfg["max_forecast_days"] * 86400)
+        max_horizon_seconds=cfg["max_forecast_days"] * 86400, series_records=state.get("series_records"))
     revisions.extend(_retirements(state,revisions,now,cfg))
     selected = parser.select_events(revisions, now=now, plan=(context or {}).get("plan"))
     active_sources = list(dict.fromkeys(r["post_id"] for r in selected.values()))[:2]
@@ -399,14 +516,15 @@ def _collect(state, cfg, now, requester, context=None, auxiliary_requester=None)
             # A failed hint lookup is not deletion and does not erase verified
             # evidence or turn a successful main timeline into an empty result.
             if error.status==429: raise
-    keep = sorted((p for p in posts.values() if 0 <= now - p["published_at"] <= cfg["max_post_age_days"] * 86400),
+    keep = sorted((p for p in posts.values() if 0 <= now - p["published_at"] <= max(14,cfg["max_post_age_days"]) * 86400),
                   key=lambda p: (p["published_at"], int(p["id"])), reverse=True)[:MAX_POSTS]
+    series_records,_=parser.series_state(keep,state.get("series_records"))
     revisions, parse_diagnostics = parser.parse_posts(keep, now=now,
-        max_horizon_seconds=cfg["max_forecast_days"] * 86400)
-    return {"posts": {p["id"]: p for p in keep}, "analysis": revisions[-MAX_POSTS * 2:],
+        max_horizon_seconds=cfg["max_forecast_days"] * 86400, series_records=state.get("series_records"))
+    return {"request_trace":request_trace,"series_records":series_records,"posts": {p["id"]: p for p in keep}, "analysis": revisions[-MAX_POSTS * 2:],
             'terminal_revisions':_retirements(state,revisions,now,cfg),
             'auxiliary_sources':auxiliary,
-            "tombstones": {k: v for k, v in tombstones.items() if k in {p["id"] for p in keep}},
+            "tombstones": {k: v for k, v in tombstones.items() if k in ({p["id"] for p in keep}|{r["anchor_post_id"] for r in state.get("series_records",[])})},
             "diagnostics": (diagnostics + parse_diagnostics)[-50:], "requests": calls,
             "watermark": max([watermark] + [p["published_at"] for p in newest]),
             "last_overlap_at": now if overlap_due else state.get("last_overlap_at", 0)}
@@ -415,12 +533,12 @@ def _collect(state, cfg, now, requester, context=None, auxiliary_requester=None)
 def _source_conflicts(state,active):
     result=[]
     for event in active.values():
-        if not isinstance(event,dict):continue
+        if not isinstance(event,dict) or event.get('kind') not in view.KINDS:continue
         for name,source in (state.get('auxiliary_sources') or {}).items():
             for ident,hint in (source.get('field_hints') or {}).items():
                 if ident not in event.get('evidence_post_ids',[]):continue
                 result.append({'source':name,'post_id':ident,'primary_time_zone':event.get('source_time_zone'),
-                    'primary_target_at':event['target_at'],'auxiliary_clocks_unverified':hint.get('clocks',[]),
+                    'primary_target_at':event.get('target_at'),'auxiliary_clocks_unverified':hint.get('clocks',[]),
                     'auxiliary_zones_unverified':hint.get('zones',[]),'policy':'primary_literal_time_wins',
                     'needs_manual_comparison':True,'event_fields_overridden':False})
     return result
@@ -450,13 +568,28 @@ def tick(*, now=None, config=None, context=None, requester=None, auxiliary_reque
                         state["slot_success"][slot] = state["last_success_at"]
                     state_store.write_json(STATE_FILE, state)
                     return {"queried": False, "reason": "successful_boundary_coalesced"}
-                if not due["due"]:
+                mode=policy.mode_at(config,current)
+                auxiliary_due=sources.due(state.get('auxiliary_sources'),cfg,current,allow_retry=mode!='night')
+                if not due['due']:
+                    if auxiliary_due and mode in {'active','light'} and current>=state.get('inflight_until',0):
+                        state['inflight_until']=current+4*cfg.get('auxiliary_timeout_seconds',6)+15
+                        state_store.write_json(STATE_FILE,state)
+                        def auxiliary_checkpoint(result):
+                            state['auxiliary_sources']=result
+                            state_store.write_json(STATE_FILE,state)
+                        state['auxiliary_sources']=sources.collect(state.get('auxiliary_sources'),cfg,current,requester=auxiliary_requester,checkpoint=auxiliary_checkpoint)
+                        state['inflight_until']=0
+                        state_store.write_json(STATE_FILE,state)
+                        return dict(queried=True,ok=True,requests=0,reason='auxiliary_only')
                     return {"queried": False, "reason": due["reason"]}
                 state.update(last_attempt_at=current, inflight_until=current + MAX_REQUESTS * cfg["timeout_seconds"] +
                              4*cfg.get('auxiliary_timeout_seconds',6) + 15)
                 state_store.write_json(STATE_FILE, state)
                 try:
-                    collected = _collect(state, cfg, current, requester or _request, context,auxiliary_requester)
+                    def primary_auxiliary_checkpoint(result):
+                        state['auxiliary_sources']=result
+                        state_store.write_json(STATE_FILE,state)
+                    collected = _collect(state, cfg, current, requester or _request, context,auxiliary_requester,primary_auxiliary_checkpoint)
                     finished = time.time() if now is None else now
                     state.update(collected, last_success_at=finished, next_allowed_at=finished + 60, pending_slots=[],
                                  failures=0, inflight_until=0, last_result="current")
@@ -465,6 +598,7 @@ def tick(*, now=None, config=None, context=None, requester=None, auxiliary_reque
                     # Keep 14 days of success slots, keyed by Beijing date.
                     cutoff = datetime.fromtimestamp(finished - 14 * 86400, policy.BJ).strftime("%Y-%m-%d")
                     state["slot_success"] = {k: v for k, v in state["slot_success"].items() if k[:10] >= cutoff}
+                    _update_event_history(state,cfg,finished,context,config)
                     state_store.write_json(STATE_FILE, state)
                     return {"queried": True, "ok": True, "requests": collected["requests"]}
                 except (SourceFailure, ValueError, TypeError, KeyError) as error:
@@ -472,10 +606,11 @@ def tick(*, now=None, config=None, context=None, requester=None, auxiliary_reque
                     if failure.partial:
                         state.update(failure.partial)
                     state["failures"] = min(1000, state.get("failures", 0) + 1)
-                    state.update(inflight_until=0, last_result=failure.reason,
+                    state.update(last_error=dict(at=current,reason=failure.reason,stage=failure.stage,status=failure.status,summary=failure.detail,elapsed_ms=failure.elapsed_ms),inflight_until=0, last_result=failure.reason,
                                  last_http_status=failure.status,
                                  pending_slots=due["slots"],
                                  next_allowed_at=_retry_at(failure, current, cfg, state["failures"]))
+                    _update_event_history(state,cfg,current,context,config)
                     state_store.write_json(STATE_FILE, state)
                     return {"queried": True, "ok": False, "reason": failure.reason, "status": failure.status}
     except (state_store.StateStoreError, ValueError, TypeError, KeyError):
