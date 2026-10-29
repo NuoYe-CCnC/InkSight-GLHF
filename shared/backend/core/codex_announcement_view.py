@@ -71,3 +71,17 @@ def display_lines(event):
         return '预计',stamp+' '+('前' if event.get('time_relation','before')!='at' else '')+verb
     date=event.get('display_date')
     return '预计'+verb,(date[5:]+'，' if date else '')+'时间待定'
+
+
+def news_footer_text(snapshot, now=None, *, show_reset=True):
+    """The visible single-line news footer; no revision/polling metadata."""
+    now = time.time() if now is None else now
+    if not finite(now) or now < 1672502400:  # 2023-01-01 in Beijing
+        return None
+    event = nearest_event(snapshot, now, show_reset=show_reset)
+    if not event:
+        return None
+    heading, detail = display_lines(event)
+    if event.get('time_type', 'exact') == 'exact':
+        return 'Codex ' + heading + ' ' + detail
+    return 'Codex ' + heading + ' · ' + detail

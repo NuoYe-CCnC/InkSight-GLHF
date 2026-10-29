@@ -195,14 +195,19 @@ def ai_visual_key(ai: dict | None, *, now=None) -> str:
     return _digest(visible)
 
 
-def news_gold_visual_key(ai: dict | None, news_gold: dict | None) -> str:
+def news_gold_visual_key(ai: dict | None, news_gold: dict | None, *, now=None) -> str:
     """Fields visible on page 1, including its compact AI summary."""
     ai = ai if isinstance(ai, dict) else {}
     ds = ai.get("deepseek") if isinstance(ai.get("deepseek"), dict) else {}
     ng = news_gold if isinstance(news_gold, dict) else {}
+    from .codex_announcement_view import news_footer_text
+    prefs = ai.get("display_preferences") if isinstance(ai.get("display_preferences"), dict) else {}
+    footer = news_footer_text(ai.get("announcements"), now,
+                              show_reset=bool(prefs.get("show_reset_opportunities", True)))
     news = ng.get("news") if isinstance(ng.get("news"), dict) else {}
     gold = ng.get("gold") if isinstance(ng.get("gold"), dict) else {}
     visible = {
+        "forecast_footer": footer,
         "ai": {
             "used": _number(ai.get("codex_7d_used"), 2),
             "resets_at": stable_minute_epoch(ai.get("codex_resets_at")),

@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 REPO_URL = "https://github.com/NuoYe-CCnC/InkSight-GLHF"
-VERSION = "v0.1.0-test.18"
+VERSION = "v0.1.0-test.19"
 
 
 def _load_builder():

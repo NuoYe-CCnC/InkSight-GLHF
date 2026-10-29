@@ -52,6 +52,9 @@ EXACT_FILES = (
     "docs/releases/v0.1.0-test.17.en.md",
     "docs/releases/v0.1.0-test.18.zh-CN.md",
     "docs/releases/v0.1.0-test.18.en.md",
+    "docs/releases/v0.1.0-test.19.zh-CN.md",
+    "docs/releases/v0.1.0-test.19.en.md",
+    "docs/NEWS_FORECAST_FOOTER.zh-CN.md",
     "docs/images/README.md",
     "docs/images/ai-usage.png",
     "docs/images/today-brief.png",
@@ -121,6 +124,11 @@ EXACT_FILES = (
     "shared/tools/app/macos/MenuQuota.swift",
     "shared/tools/app/macos/ForecastMenu.swift",
     "shared/backend/tests/test_codex_forecast_v2.py",
+    "shared/backend/tests/test_news_forecast_footer.py",
+    "shared/backend/tests/news_footer_fixtures.py",
+    "shared/backend/tests/news_footer_panel_host.cpp",
+    "shared/backend/tests/footer_host/Arduino.h",
+    "shared/backend/tests/footer_host/Preferences.h",
     "shared/backend/tests/test_codex_forecast_native_v2.py",
     "shared/backend/tests/forecast_menu_test.swift",
     "shared/tools/app/macos/DesktopEntry.swift",
@@ -162,11 +170,11 @@ DAILY_MESSAGE_RELEASE_SOURCE = Path(
 PUBLICATION_READY = True
 APPROVED_BINARY = {
     "docs/images/ai-usage.png": "7137e7ea8128c22ebc935a3c68878d9326d25ca234b2573cdfb2667a0290ae27",
-    "docs/images/today-brief.png": "7284349518a46d2fe608a685c6ea0fabc5b575185cda762df4ba3712145ffba9",
+    "docs/images/today-brief.png": "29ed535c19d352bb053d6dbc1c8226c41d86446c2fff749d4e64651dd39ce832",
     "docs/images/is-menu.png": "b31a7b1ad0f4585f160def27272358f4d7c78a2396a74805580f66644d143cca",
     "docs/images/device-setup.png": "113e7c710d338f748a7f37edbf028080719df3c50364b3ac17885e5458e3a4b8",
     "docs/images/ai-usage-800.png": "1ebe4c0941bb096373e059743a76d7e2a15e79e09e86f8a26f2f5cca5af74de4",
-    "docs/images/today-brief-800.png": "741d0a49d4bcd089a1e4486f3e29a23d6cd8eb7d88807cb84f46a6a4d42c1858",
+    "docs/images/today-brief-800.png": "08f7a04033267fdcffe0e5c4a36ac666bc6b4385da3d2cc5375f5fe828207519",
     "shared/tools/app/macos/assets/InkSight-B2-1024.png":
         "1498ad34fc0c6fb89c79c1e1c31c5420bf9c137661da1a9704c4cd970dc1b0d2",
 }

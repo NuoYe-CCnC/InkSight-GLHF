@@ -1,16 +1,16 @@
 # InkSight-GLHF
 
-[中文](README.md) · [Documentation](docs/README.md) · [test.18 notes](docs/releases/v0.1.0-test.18.en.md)
+[中文](README.md) · [Documentation](docs/README.md) · [test.19 notes](docs/releases/v0.1.0-test.19.en.md)
 
-**A macOS menu-bar app and ESP32-S3 e-paper dashboard.** Keep AI usage, technology briefs and gold prices beside your desk. Use Is to manage local services, inspect quota and optionally follow experimental reset announcements.
+**A macOS menu-bar app and ESP32-S3 e-paper dashboard.** Keep AI usage, technology briefs and gold prices beside your desk. Use Is to manage local services, inspect quota and optionally follow experimental reset announcements. test.19 places announcements in Today’s right footer while preserving the body and page-switching policy.
 
-**[Download Mac App · Apple Silicon](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/InkSight-macOS-arm64.zip)** · [Prerelease and checksums](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.18)
+**[Download Mac App · Apple Silicon](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-macOS-arm64.zip)** · [Prerelease and checksums](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.19)
 
 Requires **Apple Silicon and macOS 26.5+**; actually tested on 26.5.2. CPython 3.11.15 is bundled. This is a public test release, ad-hoc signed and **not Developer ID signed or Apple-notarized**. The physical display also requires supported hardware, wiring and a local firmware build. No generic ready-to-flash firmware is distributed.
 
 ## Interface previews
 
-These are **demo data / historical replay**, produced by the test.18 renderer and isolated UI. They are not personal account data, live market quotes or a current announcement. Briefs are original project demo text. Open each image at full size; the two panel pages retain their 800×480 originals.
+These are **demo data / historical replay**, produced by the test.19 renderer and unchanged isolated UI. They are not personal account data, live market quotes or a current announcement. Briefs are original project demo text. Open each image at full size; the two panel pages retain their 800×480 originals.
 
 ![AI usage demo showing Codex quota, manual resets, DeepSeek balance and daily project tokens](docs/images/ai-usage.png)
 AI usage: available windows, reset timing and project token use. [800×480 original](docs/images/ai-usage-800.png)
@@ -28,7 +28,7 @@ Preparation: visible steps and prerequisites. No USB write was performed for thi
 
 1. **Download and open the App.** Verify the matching SHA256 using the [download guide](docs/DOWNLOAD.zh-CN.md). Keep the complete App at your chosen install path. Is → “打开配置” opens a protected local session without a root account or password.
 2. **Configure and prepare.** Enter Wi-Fi, WebDAV and chosen services. Obtain MiSans legally from Xiaomi, import it locally and explicitly prepare the toolchain in the [graphical preparation center](docs/DEVICE_FIRST_USE.zh-CN.md). Remote news and experimental announcements default to off. Without enabled news sources and keys, local messages are used without automatic paid model calls.
-3. **Confirm the device, then build and flash.** Check [hardware and wiring](docs/INSTALLATION.zh-CN.md). Fresh-board installation and existing-device updates are separate flows. Supported updates back up state and write the inactive application slot. App-only changes do not require reflashing for matching version numbers; **full test.18 v2 announcement support needs compatible firmware**. See [upgrade guidance](docs/UPGRADE.zh-CN.md).
+3. **Confirm the device, then build and flash.** Check [hardware and wiring](docs/INSTALLATION.zh-CN.md). Fresh-board installation and existing-device updates are separate flows. Supported updates back up state and write the inactive application slot. App-only changes do not require reflashing for matching version numbers; **the Today forecast footer requires this firmware update**. See [upgrade guidance](docs/UPGRADE.zh-CN.md).
 
 ## Hardware and runtime
 
@@ -52,8 +52,8 @@ This is **not an official product** of OpenAI, DeepSeek, Xiaomi or a hardware ve
 
 ## Validation, source and license
 
-The feature candidate passed **646 tests, zero skipped**, with one existing Dashscope deprecation warning. Final publication rechecks are recorded in the [test.18 notes](docs/releases/v0.1.0-test.18.en.md). Local App migration and single-instance operation, an existing-board inactive-slot upgrade/full readback/network receipt, and preservation of two Wi-Fi profiles passed; the user confirmed a refreshed footer and normal display. Fresh-board installation, a second Mac/Gatekeeper, real rollback, next-login startup, all physical screen states and long-duration page switching remain separately unverified.
+This version passed **704 tests, zero skipped**, with one existing Dashscope deprecation warning. Final publication rechecks are recorded in the [test.19 notes](docs/releases/v0.1.0-test.19.en.md). Local App migration and single-instance operation, an existing-board inactive-slot upgrade/full readback/network receipt, and preservation of two Wi-Fi profiles passed; the user confirmed a refreshed footer and normal display. Fresh-board installation, a second Mac/Gatekeeper, real rollback, next-login startup, all physical screen states and long-duration page switching remain separately unverified.
 
-For development, download [InkSight-Source.zip](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/InkSight-Source.zip); it is not an installer. See [contributing](CONTRIBUTING.md), [source setup](docs/FIRST_USE.zh-CN.md) and the [documentation index](docs/README.md).
+For development, download [InkSight-Source.zip](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-Source.zip); it is not an installer. See [contributing](CONTRIBUTING.md), [source setup](docs/FIRST_USE.zh-CN.md) and the [documentation index](docs/README.md).
 
 Project-owned code and four release messages use [`GPL-3.0-only`](LICENSE). Third-party code, fonts, news and services keep their own terms. Neither MiSans files nor generated glyph data are distributed in the repository, App source template or source ZIP. The previews are raster output, not font files. See [license scope](LICENSE-SCOPE.md), [third-party notices](THIRD_PARTY_NOTICES.md), [image provenance](docs/images/README.md) and [SBOM](SBOM.json).

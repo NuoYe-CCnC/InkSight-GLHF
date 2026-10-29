@@ -213,7 +213,14 @@ static void _sleepSec(int sec, const char *reason) {
     while (true) delay(1000);
 }
 
+static bool _renderDocument(JsonDocument &doc,bool pending,bool force,const char *reason);
+
 void v4SleepAfterNetworkFailure(int) {
+    // Existing cold-start failure opportunity: an invalid clock must not keep
+    // a previously cached forecast visible. No new wake or network request.
+    JsonDocument cached;
+    if (structuredLoadCachedDocument(cached) && structuredForecastNeedsRefresh(cached))
+        _renderDocument(cached,false,false,"offline-forecast");
     int delaySec = _recordNetworkFailure();
     _sleepSec(delaySec, "network-retry");
 }
@@ -531,7 +538,7 @@ bool schedulerV4Cycle() {
             nowSec = _nowSec();
             if (cacheOk) {
                 bool switched = _setPageForPolicy(cached, mode, current, nowSec, "offline");
-                if (switched || dateChanged)
+                if (switched || dateChanged || structuredForecastNeedsRefresh(cached))
                     _renderDocument(cached, false, switched, "offline-cache");
             }
             time_t tRaw = (time_t)nowSec;
@@ -552,7 +559,7 @@ bool schedulerV4Cycle() {
             nowSec = _nowSec();
             if (cacheOk) {
                 bool switched = _setPageForPolicy(cached, mode, current, nowSec, "offline");
-                if (switched || dateChanged)
+                if (switched || dateChanged || structuredForecastNeedsRefresh(cached))
                     _renderDocument(cached, false, switched, "offline-cache");
             }
             time_t tRaw = (time_t)nowSec;
@@ -624,7 +631,7 @@ bool schedulerV4Cycle() {
                       s_p3.lastChangeAt > 0 ? nowSec - s_p3.lastChangeAt : -1);
     } else if (cacheOk) {
         bool pageSwitched = _setPageForPolicy(cached, mode, current, nowSec, "local");
-        if (pageSwitched || dateChanged)
+        if (pageSwitched || dateChanged || structuredForecastNeedsRefresh(cached))
             _renderDocument(cached, false, pageSwitched,
                             pageSwitched ? "page-deadline" : "date-change");
     }

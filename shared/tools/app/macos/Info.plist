@@ -10,7 +10,7 @@
   <key>InkSightIconVariant</key><string>B2-Is</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
-  <key>CFBundleVersion</key><string>18</string>
+  <key>CFBundleVersion</key><string>19</string>
   <key>NSAppleEventsUsageDescription</key><string>核对并管理此 InkSight 应用的系统登录项，保留你已有的启动选择。</string>
   <key>LSMinimumSystemVersion</key><string>26.5</string>
   <key>NSHighResolutionCapable</key><true/>

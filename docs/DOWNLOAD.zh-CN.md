@@ -2,18 +2,18 @@
 
 [文档目录](README.md) · [Mac App使用](APP_DESKTOP.zh-CN.md) · [升级](UPGRADE.zh-CN.md)
 
-当前是 **[v0.1.0-test.18 公开测试版（Pre-release）](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.18)**。普通用户先下载下面的Mac App；不要从源码ZIP寻找安装器，也不要依赖GitHub的latest跳转选择预发布版。
+当前是 **[v0.1.0-test.19 公开测试版（Pre-release）](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.19)**。普通用户先下载下面的Mac App；不要从源码ZIP寻找安装器，也不要依赖GitHub的latest跳转选择预发布版。
 
 | 文件 | 用途 |
 |---|---|
-| [InkSight-macOS-arm64.zip](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/InkSight-macOS-arm64.zip) | **完整普通Mac App**；Apple Silicon / macOS26.5+，实际测试26.5.2，内置CPython3.11.15 |
-| [InkSight-macOS-arm64.zip.sha256](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/InkSight-macOS-arm64.zip.sha256) | App ZIP校验 |
-| [InkSight-macOS-arm64.zip.receipt.json](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/InkSight-macOS-arm64.zip.receipt.json) | App源码对应、解压/签名/依赖核对收据，不是Apple公证 |
-| [InkSight-Source.zip](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/InkSight-Source.zip) | 经清单整理及扫描的开发者源码，**不是安装器** |
-| [InkSight-Source.zip.sha256](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/InkSight-Source.zip.sha256) | 源码ZIP校验 |
-| [InkSight-Source.zip.receipt.json](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/InkSight-Source.zip.receipt.json) | 源码构建与全新解压核对收据；构建器不代替所有者发布授权 |
-| [InkSight-Source.manifest.json](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/InkSight-Source.manifest.json) | 源文件清单与哈希 |
-| [RELEASE-MANIFEST.json](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.18/RELEASE-MANIFEST.json) | 本次tag/提交与资产哈希对应关系 |
+| [InkSight-macOS-arm64.zip](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-macOS-arm64.zip) | **完整普通Mac App**；Apple Silicon / macOS26.5+，实际测试26.5.2，内置CPython3.11.15 |
+| [InkSight-macOS-arm64.zip.sha256](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-macOS-arm64.zip.sha256) | App ZIP校验 |
+| [InkSight-macOS-arm64.zip.receipt.json](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-macOS-arm64.zip.receipt.json) | App源码对应、解压/签名/依赖核对收据，不是Apple公证 |
+| [InkSight-Source.zip](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-Source.zip) | 经清单整理及扫描的开发者源码，**不是安装器** |
+| [InkSight-Source.zip.sha256](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-Source.zip.sha256) | 源码ZIP校验 |
+| [InkSight-Source.zip.receipt.json](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-Source.zip.receipt.json) | 源码构建与全新解压核对收据；构建器不代替所有者发布授权 |
+| [InkSight-Source.manifest.json](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-Source.manifest.json) | 源文件清单与哈希 |
+| [RELEASE-MANIFEST.json](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/RELEASE-MANIFEST.json) | 本次tag/提交与资产哈希对应关系 |
 
 GitHub另有自动生成的Source code zip/tar.gz，它们不是上述项目验证资产。没有dmg/pkg、Intel/Windows/Linux安装器、预编译固件bin或MiSans。App ad-hoc签名，**未经Apple Developer ID签名或公证**；不能承诺Gatekeeper首次无提示运行，不要关闭系统安全保护。
 
@@ -35,4 +35,4 @@ cd InkSight-Source
 
 App不要求用户安装系统Python或创建root。配置/Wi-Fi/WebDAV需自行填写；MiSans只从[小米官方页面](https://hyperos.mi.com/font/en/download/)合法取得并本地导入。首次固件工具下载需联网并明确启动。源码新准备中心用Python3.11；Python3.9仅保留早期源码后端路径。
 
-普通 App 更新不为匹配版本号重复烧录；完整启用 test.18 的 v2 预告须兼容固件，按[升级说明](UPGRADE.zh-CN.md)核对能力、备份并受控升级。硬件购买与原版说明见[首页](../README.md)，支持范围和未验收项见[test.17说明](releases/v0.1.0-test.18.zh-CN.md)。历史[test.9](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.9)资产保留，不作为当前默认推荐。
+普通 App 更新不为匹配版本号重复烧录；完整启用关注页底栏预告须更新到本版兼容固件，按[升级说明](UPGRADE.zh-CN.md)核对能力、备份并受控升级。硬件购买与原版说明见[首页](../README.md)，支持范围和未验收项见[test.17说明](releases/v0.1.0-test.19.zh-CN.md)。历史[test.9](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.9)资产保留，不作为当前默认推荐。

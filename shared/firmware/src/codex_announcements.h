@@ -104,3 +104,50 @@ inline time_t codexNearestAnnouncement(JsonObjectConst ai,time_t now,bool showRe
     double target=announcementNumber(e["target_at"]);
     return isfinite(target) ? (time_t)target : 0;
 }
+
+// News page shares the selected v2 event, never creates a second inference.
+inline bool codexNewsFooterText(JsonObjectConst ai, time_t now, bool showReset,
+                               char *out, size_t cap) {
+    if (!out || !cap) return false;
+    out[0]=0;
+    if (now < 1672502400LL) return false;
+    JsonObjectConst e=codexSelectedAnnouncement(ai,now,showReset);
+    if (e.isNull()) return false;
+    const char *verb=!strcmp(e["kind"] | "","reset_grant") ? "发放" : "重置";
+    double target=announcementNumber(e["target_at"]);
+    if (isfinite(target)) {
+        char stamp[24]; struct tm t={}; time_t beijing=(time_t)target+8*3600;
+        if (!gmtime_r(&beijing,&t)) return false;
+        strftime(stamp,sizeof(stamp),"%m-%d %H:%M",&t);
+        snprintf(out,cap,"Codex 预计 %s %s%s",stamp,
+                 !strcmp(e["time_relation"] | "before","at") ? "" : "前",verb);
+    } else {
+        const char *date=e["display_date"] | "";
+        if (date[0]) snprintf(out,cap,"Codex 预计%s · %s，时间待定",verb,date+5);
+        else snprintf(out,cap,"Codex 预计%s · 时间待定",verb);
+    }
+    return out[0]!=0;
+}
+
+inline void codexForecastDisplayKey(JsonObjectConst ai,time_t now,bool showReset,
+                                    char *out,size_t cap) {
+    char text[192];codexNewsFooterText(ai,now,showReset,text,sizeof(text));
+    // Full visible UTF-8 text, not polling/revision/auxiliary source metadata.
+    unsigned long long hash=14695981039346656037ULL;
+    if (text[0]) for (const unsigned char *p=(const unsigned char*)text;*p;p++)
+        hash=(hash ^ *p)*1099511628211ULL;
+    else hash=0;
+    snprintf(out,cap,"f%016llx",hash);
+}
+
+inline bool codexForecastMetaChanged(const char *meta,const char *key,bool legacyVisible=false) {
+    if (!meta || !key) return false;
+    const char *first=strchr(meta,'|');
+    const char *second=first ? strchr(first+1,'|') : nullptr;
+    const char *end=second ? strchr(second+1,'|') : nullptr;
+    if (end && end-second>=19 && end[-18]=='.' && end[-17]=='f')
+        return strncmp(end-17,key,17)!=0;
+    // Upgrade old metadata only for an actually visible forecast. No extra
+    // refresh of a page with neither old nor current forecast.
+    return strcmp(key,"f0000000000000000")!=0 || legacyVisible;
+}
