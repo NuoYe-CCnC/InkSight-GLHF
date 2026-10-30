@@ -88,13 +88,13 @@
     },
     {
       "path": "README.en.md",
-      "size": 7382,
-      "sha256": "fb6f1ed67c0f3aca9e49d0289560a5fc9dbb6db1a465a4fac88ce12273989465"
+      "size": 7484,
+      "sha256": "6a6cda7f11aa8823624a4a362ab7c10116a1ba28865392240f9555f5a6adc9ec"
     },
     {
       "path": "README.md",
-      "size": 6571,
-      "sha256": "c950d6c61ecae4ba7ef29389a827bab97736273119a52cd5de964450a5e92e30"
+      "size": 6668,
+      "sha256": "1d2c617ec15fc0300dcab5cc2632e5b975b2308a2d74f9ff2912f30fd09288a8"
     },
     {
       "path": "SBOM.json",
@@ -104,7 +104,7 @@
     {
       "path": "SECURITY.md",
       "size": 2673,
-      "sha256": "c6bdcf25c784fc5fb6f27d968d245de5ee6015f1523f095059a1f55b1e6c4cb4"
+      "sha256": "dea1840b49f1359dd3b46457f6566d404d6ab7b732786cc0a825d4803dbe3a58"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -114,7 +114,7 @@
     {
       "path": "docs/APP_DESKTOP.zh-CN.md",
       "size": 7956,
-      "sha256": "933760832526b28cdf9f76ef8415115b94e0be31d739ca65aed0ba9828ec4a8b"
+      "sha256": "e77d100eb164ad11b04b24e55d9e27b79690d207474f72ae89bac587ef2e20a8"
     },
     {
       "path": "docs/CODEX_ANNOUNCEMENTS.zh-CN.md",
@@ -138,13 +138,13 @@
     },
     {
       "path": "docs/DEVICE_FIRST_USE.zh-CN.md",
-      "size": 9479,
-      "sha256": "352f29574635bed9b8ff51fe9389131dfd71a3354e27707fa8e16f37a19a2b0a"
+      "size": 9703,
+      "sha256": "b81c7dadca68c339c8faf876d6066f95a96ff6ea4417be85716b8edf631d58b9"
     },
     {
       "path": "docs/DOWNLOAD.zh-CN.md",
-      "size": 3724,
-      "sha256": "d5bea02c2fe934d05ddc3c702fb7ba9955f5745a350512f633b7ba5f55917c48"
+      "size": 3738,
+      "sha256": "3c7fcb3461014d0f4f14473c8cc6209bfa58f8d8da98dc284e48e60cedee25fe"
     },
     {
       "path": "docs/FIRMWARE_UPDATE_ROLLBACK.zh-CN.md",
@@ -192,14 +192,19 @@
       "sha256": "e38ab53563883d8ac7a5d910c9128a7fb7a97e4b32481e449dba8bb0ef149b20"
     },
     {
+      "path": "docs/NEWS_FORECAST_FOOTER.zh-CN.md",
+      "size": 3322,
+      "sha256": "0508e632ac99ecd48fb707005567af5e140fcfbe3de404fa1cd32083b6051498"
+    },
+    {
       "path": "docs/NEWS_ISSUE_STATUS.zh-CN.md",
       "size": 15205,
       "sha256": "1b9070fbc7779aa7b832d49dc52caca71a980a1f20d96c2a522d5b2907e62e5c"
     },
     {
       "path": "docs/README.md",
-      "size": 2985,
-      "sha256": "ea12971aef158514e6d3e86a6a98d596efec3257441a4b4c4597e85380913cf8"
+      "size": 3125,
+      "sha256": "cf7833f03aaa97f6f9e37f90eb61982b56fa3a254e4bb202df3477db015f71ab"
     },
     {
       "path": "docs/RELEASE_NOTES_DRAFT.en.md",
@@ -219,7 +224,7 @@
     {
       "path": "docs/SUPPORT_MATRIX.md",
       "size": 3640,
-      "sha256": "27751efbe24c6a1cf7ac519388c91381276cec352f0c97a8ea1e9eaba9558ad0"
+      "sha256": "15191be3df2490070c312d824919a09c8f5184cee9c6a72c020e91c85eaa9fda"
     },
     {
       "path": "docs/TROUBLESHOOTING.zh-CN.md",
@@ -228,8 +233,8 @@
     },
     {
       "path": "docs/UPGRADE.zh-CN.md",
-      "size": 7044,
-      "sha256": "173662d1c21f5f82f9c38217d5fbfa3a20c7d921c727b6b6eee10f3e2680fb55"
+      "size": 8845,
+      "sha256": "8fb61cb5d5b16840d95a79f36aa35030539d59e0d7a40a8db657d1cca22f3ec3"
     },
     {
       "path": "docs/archive/README.md",
@@ -238,8 +243,8 @@
     },
     {
       "path": "docs/images/README.md",
-      "size": 3509,
-      "sha256": "dcbbbfc8ad340cc58acab031811a439ae8921f83abfbf34c722040c07ee47ec7"
+      "size": 3678,
+      "sha256": "9b4faa8cc83c4d410a632ce724d1ec0a61b4b0241a5e9d694354c36421fbdb1f"
     },
     {
       "path": "docs/images/ai-usage-800.png",
@@ -263,13 +268,13 @@
     },
     {
       "path": "docs/images/today-brief-800.png",
-      "size": 7418,
-      "sha256": "741d0a49d4bcd089a1e4486f3e29a23d6cd8eb7d88807cb84f46a6a4d42c1858"
+      "size": 7722,
+      "sha256": "08f7a04033267fdcffe0e5c4a36ac666bc6b4385da3d2cc5375f5fe828207519"
     },
     {
       "path": "docs/images/today-brief.png",
-      "size": 81106,
-      "sha256": "7284349518a46d2fe608a685c6ea0fabc5b575185cda762df4ba3712145ffba9"
+      "size": 77442,
+      "sha256": "29ed535c19d352bb053d6dbc1c8226c41d86446c2fff749d4e64651dd39ce832"
     },
     {
       "path": "docs/phase11-open-source-release-prep-2026-09-14/01-plan.md",
@@ -562,6 +567,16 @@
       "sha256": "9b5b91544547e08660b77e6ed82d59aecd63d2609e32e725cfd6a905dd398e00"
     },
     {
+      "path": "docs/releases/v0.1.0-test.19.en.md",
+      "size": 4313,
+      "sha256": "ff0b85c2607c17986bd0507a1995f038c1106a29bd668efc1ee9fe62b4f6c1bf"
+    },
+    {
+      "path": "docs/releases/v0.1.0-test.19.zh-CN.md",
+      "size": 4021,
+      "sha256": "0f382893ad0ecf956e9ee18d80c28cc0227970ee8881c897c180cf7ff7a4096f"
+    },
+    {
       "path": "docs/releases/v0.1.0-test.2.en.md",
       "size": 2906,
       "sha256": "a206efbdb441aefd62085b1dcc4f8fe2f8214db7ea73053032107f5791ca9dc8"
@@ -783,8 +798,8 @@
     },
     {
       "path": "shared/backend/core/activity_signals.py",
-      "size": 11294,
-      "sha256": "5174d65ce042459263b05b554f20a7a6ff5dae7cdc4ebf6828b9990de4e5fedc"
+      "size": 11653,
+      "sha256": "0a1f2ad46da1d9af39a779a352399d07046165f165e752d5f9e8334d6c114295"
     },
     {
       "path": "shared/backend/core/activity_store.py",
@@ -838,8 +853,8 @@
     },
     {
       "path": "shared/backend/core/codex_announcement_view.py",
-      "size": 4121,
-      "sha256": "9f0d206c8bdab0d455f640ba9474a06dbb9ffcb7d66ec10fa75993035e18995a"
+      "size": 4690,
+      "sha256": "0e29f47658aa251f6656ec9cb3ec17143ea813b752813f1bac260b6c9b41f29d"
     },
     {
       "path": "shared/backend/core/codex_announcements.py",
@@ -1533,8 +1548,8 @@
     },
     {
       "path": "shared/backend/core/structured_payload.py",
-      "size": 16159,
-      "sha256": "7d333f75c8fde6f15053b78abde614e31b6500f5e1299244577daeb0429f99f7"
+      "size": 16170,
+      "sha256": "6e1b5138fc352169a0827a906ed14fdb6f1ea83d861cc967a1df8ce720d026dc"
     },
     {
       "path": "shared/backend/core/vocab_data/core_en.json",
@@ -1648,8 +1663,8 @@
     },
     {
       "path": "shared/backend/tests/codex_announcement_host.cpp",
-      "size": 1157,
-      "sha256": "9703e889bc0e845f19d71c94ebffd0ca769762ac7c2fa241d67ef68d674fa293"
+      "size": 1627,
+      "sha256": "44ddd0da38fbc1ec9fc7972d6b145920e46d7604ef98f96d0dbd2d43a3a09e64"
     },
     {
       "path": "shared/backend/tests/conftest.py",
@@ -1667,9 +1682,29 @@
       "sha256": "97ad46269e96412a2bbca7a8fbebf65cde078ab41761474ac98bb1976552c4b9"
     },
     {
+      "path": "shared/backend/tests/footer_host/Arduino.h",
+      "size": 346,
+      "sha256": "95e2dc420289ad588cf62ac434d945f44ced27650faf7ec06d4c0997b9cf97c8"
+    },
+    {
+      "path": "shared/backend/tests/footer_host/Preferences.h",
+      "size": 151,
+      "sha256": "a50133ce62fa021356fd7694ff7d4a50158d79863c73921342478c503720f262"
+    },
+    {
       "path": "shared/backend/tests/forecast_menu_test.swift",
       "size": 2074,
       "sha256": "8826a88ec1a83532e1be591a1b55aeba3f469643a0644f95ba518aa2c5acddae"
+    },
+    {
+      "path": "shared/backend/tests/news_footer_fixtures.py",
+      "size": 3928,
+      "sha256": "80e2cbe932d485ebfe7747c92b2b12e162a1065ac52b2d50cf7708a906419a09"
+    },
+    {
+      "path": "shared/backend/tests/news_footer_panel_host.cpp",
+      "size": 757,
+      "sha256": "a938ca99dda0ca5e083ee29eeab8c97196081c8cc1915739961cebf255807e05"
     },
     {
       "path": "shared/backend/tests/news_issue_status_host.cpp",
@@ -1698,8 +1733,8 @@
     },
     {
       "path": "shared/backend/tests/test_codex_announcement_views.py",
-      "size": 6611,
-      "sha256": "88dc8db1f0ace81e09cb050bcee08bb629f9c9ff8fbaf4ff678fbd2d3f6dcc4d"
+      "size": 6791,
+      "sha256": "e0a614aa55a477858528e394ba67139de5c81e90a8cf1f8a6b5487821c7a6ec3"
     },
     {
       "path": "shared/backend/tests/test_codex_announcements.py",
@@ -1797,6 +1832,11 @@
       "sha256": "08d43352b32b4705e8f94ca40a55134f373d4a69224a03c9ebdb10d32a6521ac"
     },
     {
+      "path": "shared/backend/tests/test_news_forecast_footer.py",
+      "size": 8603,
+      "sha256": "450a452c90e66efffb7364af811214484b13127c86f1b1fa6d409f536afcf08c"
+    },
+    {
       "path": "shared/backend/tests/test_news_issue_status.py",
       "size": 22558,
       "sha256": "7e1df9a6558c838358fe2eb69b2e0a3508cd5b423ec9040b1fec2d46a81674cc"
@@ -1839,7 +1879,7 @@
     {
       "path": "shared/backend/tests/test_phase18_github_public_release.py",
       "size": 3246,
-      "sha256": "aa2e075c04371c5d6b11f6d5e1c88e36457d678ab8b42800786b9d0cd0389c66"
+      "sha256": "c2a321a0c348a16d0225fa715ab7573aa5a3a14181f712c930cfce644a677cce"
     },
     {
       "path": "shared/backend/tests/test_phase1_reliable.py",
@@ -1993,8 +2033,8 @@
     },
     {
       "path": "shared/firmware/src/codex_announcements.h",
-      "size": 6800,
-      "sha256": "caa866673f5f00896e7600ee4c2b722b03674f02e7ef8c1a9cdaa5678fb1d851"
+      "size": 9088,
+      "sha256": "f391652ddb84f7eb1aa190441196ee83919c87638d5b80693d138708b4c26c74"
     },
     {
       "path": "shared/firmware/src/config.h",
@@ -2048,8 +2088,8 @@
     },
     {
       "path": "shared/firmware/src/network.cpp",
-      "size": 93685,
-      "sha256": "18c95bfd5fb5aa1a4a1704cf0941e98ca99944b63732486ee8cd331885eda1d8"
+      "size": 93736,
+      "sha256": "c6420b77118bda569ea1b7fb4a5bc38cd88abca022315a85edf42ee0a2177002"
     },
     {
       "path": "shared/firmware/src/network.h",
@@ -2088,8 +2128,8 @@
     },
     {
       "path": "shared/firmware/src/panel_pages.cpp",
-      "size": 47406,
-      "sha256": "cfe5f52c4666ea080b9b0e932d1b60970aecfac64e8634b93cbf08673c914326"
+      "size": 48435,
+      "sha256": "7b0dc3299fa83209ddda65ab5721319563683e30425ed0f1b77c59f3dd8a285a"
     },
     {
       "path": "shared/firmware/src/panel_pages.h",
@@ -2143,18 +2183,18 @@
     },
     {
       "path": "shared/firmware/src/structured_display.cpp",
-      "size": 13443,
-      "sha256": "b02bd71958d7a43950f28a56fb55dc72f22e87f41e930221c6a80da406ed7459"
+      "size": 13844,
+      "sha256": "a00d513d110ff10bb031a9e301e49e6dce2ded17837d88dcaa7603f32bec6e93"
     },
     {
       "path": "shared/firmware/src/structured_display.h",
-      "size": 1600,
-      "sha256": "61321244fefc2a7e8b9ea2b14d9bff12ef0feea0307fb4c08557f725613a2275"
+      "size": 1749,
+      "sha256": "40afc140a80cacddaaedaef5b8c16fa349ecf9864030f1af9125cb256eab90a6"
     },
     {
       "path": "shared/firmware/src/v4_mode.cpp",
-      "size": 30302,
-      "sha256": "ea79b3f4252f8f851844c8f4bce871589baaa753c5c836d9249ef0e92ece138b"
+      "size": 30853,
+      "sha256": "8c12ef81f4cb9d4ffe09f1dcf12bf0c0db8a0cfeead9494b6e3bf153138b4904"
     },
     {
       "path": "shared/firmware/src/v4_mode.h",
@@ -2184,12 +2224,12 @@
     {
       "path": "shared/tools/app/macos/Info.plist",
       "size": 1082,
-      "sha256": "ae9d8aad01ce222d8fe96553b57bd72164124f5a80a39bd44001b15800ff6c17"
+      "sha256": "777813648e32563639b6c36fd52efce64768dfb233c51b5e8b8c151548aad664"
     },
     {
       "path": "shared/tools/app/macos/InkSightApp.swift",
       "size": 61600,
-      "sha256": "942e25d486ce5c8def2db7fc0da33ee7b0637f018a2c1faafb39c48d2c127209"
+      "sha256": "d8541ed7901448106481b2313ce8bb181513dcd12b99158ae531a0e0d80e97d2"
     },
     {
       "path": "shared/tools/app/macos/LoginItems.swift",
@@ -2283,8 +2323,8 @@
     },
     {
       "path": "shared/tools/misans_panel_render.py",
-      "size": 53621,
-      "sha256": "1aa4574ba3a56591c1878b2d63751095ab7e8493de442c0f81d7a4a5dc967754"
+      "size": 54860,
+      "sha256": "c7282bf812d446cc6e21b095168ebad0875e777b8f74a8ebfceb0d933373a79b"
     },
     {
       "path": "shared/tools/misans_raster.py",
@@ -2298,8 +2338,8 @@
     },
     {
       "path": "shared/tools/release/build_candidate.py",
-      "size": 22709,
-      "sha256": "8851d0c26449b4de11c799ea638343df1e807df0300ff2b8c0e169d0ed5787af"
+      "size": 23106,
+      "sha256": "8e084e7f86b494baa965c77023d77351a881babd3f225845bb733060e86f0c85"
     },
     {
       "path": "shared/tools/release/generate_release_metadata.py",

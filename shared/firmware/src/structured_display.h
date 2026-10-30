@@ -28,4 +28,8 @@ void enterClockMode();
 // v4：最近一次成功拉取的 payload.ts（0=无）。
 extern long long g_lastPayloadTs;
 
+
+// Read-only local forecast comparison on existing wakes; no network or page switch.
+bool structuredForecastNeedsRefresh(const JsonDocument &doc);
+
 #endif // INKSIGHT_STRUCTURED_DISPLAY_H

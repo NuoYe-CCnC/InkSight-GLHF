@@ -342,7 +342,7 @@ def build_screen_payload(persona: str, content: dict, w: int, h: int,
             "activity_valid": bool(act_key and observed_at),
             "activity_observed_at": observed_at,
             "ai_visual_key": ai_visual_key(feed_ai_for_visual),
-            "news_gold_visual_key": news_gold_visual_key(feed_ai, feed_ng),
+            "news_gold_visual_key": news_gold_visual_key(feed_ai_for_visual, feed_ng),
             "news": content.get("feed_versions", {}).get("news"),
             "gold": content.get("feed_versions", {}).get("gold"),
         }

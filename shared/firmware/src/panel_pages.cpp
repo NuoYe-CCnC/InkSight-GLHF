@@ -971,10 +971,29 @@ bool renderNewsGoldPanel(const JsonDocument &doc) {
     panelHLine(PUB_L, PUB_R, PUB_FTR_Y, 2);
     int miss = 0;
     const char *st = pageStatusText(doc, "news_gold", &miss);
-    fmtUpdText(line, sizeof(line), st, payloadTsOf(doc));
-    panelDrawTextTrunc(F_SMALL(), line, PUB_L, PUB_FOOT_Y,
-                      PUB_R - PUB_L - panelTextInkWidth(F_SMALL(), "INKSIGHT") - 16);
-    panelDrawTextRight(F_SMALL(), "INKSIGHT", PUB_R, PUB_FOOT_Y);
+    char forecastText[192];
+    bool showResetForecast=screen["display_preferences"]["show_reset_opportunities"] | true;
+    if (codexNewsFooterText(ai,time(nullptr),showResetForecast,forecastText,sizeof(forecastText))) {
+        fmtUpdText(line,sizeof(line),st,payloadTsOf(doc));
+        int leftBudget=PUB_R-PUB_L-panelTextInkWidth(F_SMALL(),forecastText)-16;
+        if (panelTextInkWidth(F_SMALL(),line)>leftBudget) {
+            const char *suffixes[]={"暂未更新","待更新","生成中"};
+            for (const char *suffix:suffixes) {
+                size_t n=strlen(st),k=strlen(suffix);
+                if (n>=k && !strcmp(st+n-k,suffix)) {
+                    char shorter[64];snprintf(shorter,sizeof(shorter),"资讯%s",suffix);
+                    fmtUpdText(line,sizeof(line),shorter,payloadTsOf(doc));break;
+                }
+            }
+        }
+        panelDrawText(F_SMALL(),line,PUB_L,PUB_FOOT_Y);
+        panelDrawTextRight(F_SMALL(),forecastText,PUB_R,PUB_FOOT_Y);
+    } else {
+        fmtUpdText(line, sizeof(line), st, payloadTsOf(doc));
+        panelDrawTextTrunc(F_SMALL(), line, PUB_L, PUB_FOOT_Y,
+                          PUB_R - PUB_L - panelTextInkWidth(F_SMALL(), "INKSIGHT") - 16);
+        panelDrawTextRight(F_SMALL(), "INKSIGHT", PUB_R, PUB_FOOT_Y);
+    }
     return true;
 }
 

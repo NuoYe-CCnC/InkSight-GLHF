@@ -4,7 +4,7 @@ import Foundation
 import SwiftUI
 import ServiceManagement
 
-private let appVersion = "v0.1.0-test.18"
+private let appVersion = "v0.1.0-test.19"
 private let inkBlue = Color.primary
 
 @main

@@ -1029,6 +1029,21 @@ def render_ai_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
 
 
 # ── 资讯＋金价面板（镜像修复版）─────────────────────────────
+def news_footer_parts(p: Panel, fonts: dict, status: str, ts: int, now: int,
+                      forecast: str) -> tuple[str, str]:
+    """Keep both labels at Reg21; shorten equivalent issue status only if needed."""
+    left = fmt_upd_text(status, ts, now)
+    budget = PUB_R - PUB_L - p.ink_width(fonts["reg21"], forecast) - 16
+    if p.ink_width(fonts["reg21"], left) > budget:
+        for suffix in ("暂未更新", "待更新", "生成中"):
+            if status.endswith(suffix):
+                left = fmt_upd_text("资讯" + suffix, ts, now)
+                break
+    # Producer statuses are bounded; all validated states fit at Reg21 after
+    # the equivalent issue-name fallback, preserving time and status meaning.
+    return left, forecast
+
+
 def render_news_gold_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     pages = _pages(doc)
     ng = pages.get("news_gold") or {}
@@ -1196,9 +1211,18 @@ def render_news_gold_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
                           and p.ink_width(F_SMALL, label) <= 252)
     ts = payload_ts(doc)
     p.hline(PUB_L, PUB_R, PUB_FTR_Y, 2)
-    p.draw_trunc(F_SMALL, fmt_upd_text(st, ts, now), PUB_L, PUB_FOOT_Y,
-                 PUB_R-PUB_L-p.ink_width(F_SMALL, "INKSIGHT")-16)
-    p.draw_right(F_SMALL, "INKSIGHT", PUB_R, PUB_FOOT_Y)
+    from core.codex_announcement_view import news_footer_text
+    prefs = _display_preferences(doc, ai)
+    forecast = news_footer_text(ai.get("announcements"), now,
+                               show_reset=bool(prefs.get("show_reset_opportunities", True)))
+    if forecast:
+        left, right = news_footer_parts(p, fonts, st, ts, now, forecast)
+        p.draw_text(F_SMALL, left, PUB_L, PUB_FOOT_Y)
+        p.draw_right(F_SMALL, right, PUB_R, PUB_FOOT_Y)
+    else:
+        p.draw_trunc(F_SMALL, fmt_upd_text(st, ts, now), PUB_L, PUB_FOOT_Y,
+                     PUB_R-PUB_L-p.ink_width(F_SMALL, "INKSIGHT")-16)
+        p.draw_right(F_SMALL, "INKSIGHT", PUB_R, PUB_FOOT_Y)
 
 
 def raw_to_png(raw: bytes, out: str):

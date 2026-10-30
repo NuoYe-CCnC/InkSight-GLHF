@@ -86,18 +86,18 @@ def test_actual_misans_forecast_fit_and_baselines(fonts, credits):
 
 
 @pytest.mark.parametrize("show_codex,show_api", [(False,False),(True,False),(False,True),(True,True)])
-def test_expired_restores_byte_identical_old_layout_and_news_unchanged(fonts,show_codex,show_api):
+def test_expired_restores_byte_identical_old_layout_and_news_body_unchanged(fonts,show_codex,show_api):
     doc=document(); doc["screen"]["display_preferences"].update(show_codex_credits=show_codex,show_openai_api_info=show_api)
     old=paint(doc,fonts,now=NOW+7200); news=paint(doc,fonts,news=True)
     doc["screen"]["pages"]["ai"]["announcements"]=forecasts()
     assert paint(doc,fonts,now=NOW+7200).fb==old.fb
-    assert paint(doc,fonts,news=True).fb==news.fb
+    assert paint(doc,fonts,news=True).fb[:42800]==news.fb[:42800]
     active=paint(doc,fonts)
     assert not any(op["text"] in {"API 本月消费","点数余额"} for op in active.ops)
     assert doc["screen"]["display_preferences"]["show_codex_credits"]==show_codex
 
 
-def test_visual_only_not_activity_or_news_keys():
+def test_visual_only_not_activity_and_tracks_both_pages():
     ai=document()["screen"]["pages"]["ai"]
     original=copy.deepcopy(ai)
     ai["announcements"]=forecasts()
@@ -105,7 +105,8 @@ def test_visual_only_not_activity_or_news_keys():
     assert activity_signals.ai_visual_key(ai,now=NOW+7200)==activity_signals.ai_visual_key(original,now=NOW+7200)
     assert activity_signals.activity_snapshot(ai)==activity_signals.activity_snapshot(original)
     assert activity_signals.activity_key(ai)==activity_signals.activity_key(original)
-    assert activity_signals.news_gold_visual_key(ai,{})==activity_signals.news_gold_visual_key(original,{})
+    assert activity_signals.news_gold_visual_key(ai,{},now=NOW)!=activity_signals.news_gold_visual_key(original,{},now=NOW)
+    assert activity_signals.news_gold_visual_key(ai,{},now=NOW+7200)==activity_signals.news_gold_visual_key(original,{},now=NOW+7200)
     key=activity_signals.ai_visual_key(ai,now=NOW)
     ai["announcements"]["last_polled_at"]=NOW+1
     assert activity_signals.ai_visual_key(ai,now=NOW+1)==key

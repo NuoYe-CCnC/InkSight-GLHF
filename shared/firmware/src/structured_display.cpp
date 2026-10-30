@@ -31,6 +31,7 @@ bool structuredRenderDocument(JsonDocument &, bool, bool *changedOut,
 }
 bool structuredLoadCachedDocument(JsonDocument &) { return false; }
 void structuredSaveCachedDocument(const JsonDocument &) {}
+bool structuredForecastNeedsRefresh(const JsonDocument &) { return false; }
 void enterClockMode() {}
 #else
 #include "codex_announcements.h"
@@ -127,7 +128,7 @@ static bool metaMatches(const char *line, int lv, const char *fv, const char *pi
                         const char *dateKey, const char *stateKey) {
     if (!line || !*line) return false;
     if (!strchr(line, '|')) return false;   // 旧格式 → 重绘一次
-    char tmp[160];
+    char tmp[512];
     snprintf(tmp, sizeof(tmp), "%d|%s|%s|%s|%s", lv, fv ? fv : "", pid ? pid : "",
              dateKey ? dateKey : "", stateKey ? stateKey : "");
     return strcmp(tmp, line) == 0;
@@ -141,6 +142,19 @@ static void todayKey(char *out, size_t cap) {
         snprintf(out, cap, "%04d-%02d-%02d", tm_->tm_year + 1900, tm_->tm_mon + 1, tm_->tm_mday);
     else
         snprintf(out, cap, "1970-01-01");
+}
+
+bool structuredForecastNeedsRefresh(const JsonDocument &doc) {
+    if ((doc["screen"]["layout_version"] | 0)<2 || !doc["screen"]["pages"].is<JsonObject>()) return false;
+    char key[24],atPublication[24],last[512]={0};
+    codexForecastDisplayKey(doc["screen"]["pages"]["ai"].as<JsonObjectConst>(),time(nullptr),
+        doc["screen"]["display_preferences"]["show_reset_opportunities"] | true,key,sizeof(key));
+    loadLastMeta(pidFileFor(panelCurrentPage(),true),last,sizeof(last));
+    codexForecastDisplayKey(doc["screen"]["pages"]["ai"].as<JsonObjectConst>(),
+        (time_t)doc["ts"].as<long long>(),
+        doc["screen"]["display_preferences"]["show_reset_opportunities"] | true,
+        atPublication,sizeof(atPublication));
+    return codexForecastMetaChanged(last,key,strcmp(atPublication,"f0000000000000000")!=0);
 }
 
 // 简单 CRC-32（IEEE，用于验收帧完整性校验）
@@ -177,25 +191,21 @@ bool structuredRenderDocument(JsonDocument &doc, bool pending,
     const char *fv = doc["screen"]["font_version"] | "";
     char pid[64] = {0};
     bool hasPid = layoutGetPayloadId(doc, pid, sizeof(pid));
-    char visualPid[80] = {0};
+    char visualPid[128] = {0};
     const char *pageVer = doc["screen"]["versions"]
         [curPage == 1 ? "news_gold_visual_key" : "ai_visual_key"] | "";
     const char *calendarVer = doc["screen"]["versions"]["calendar_key"] | "";
-    if (pageVer[0]) snprintf(visualPid, sizeof(visualPid), "%s.%s", pageVer, calendarVer);
+    if (pageVer[0]) snprintf(visualPid, sizeof(visualPid), "%.24s.%.24s", pageVer, calendarVer);
     else if (hasPid) snprintf(visualPid, sizeof(visualPid), "%s", pid);
-    // Local expiry also invalidates a cached AI frame when the network is down.
-    // This never enters the activity key or selects a different page.
-    JsonObjectConst forecastAi = doc["screen"]["pages"]["ai"].as<JsonObjectConst>();
-    const bool showResetForecast = doc["screen"]["display_preferences"]["show_reset_opportunities"] | true;
-    if (curPage == 0 && (!forecastAi["announcements"]["quota_reset"].isNull() ||
-                        !forecastAi["announcements"]["reset_unspecified"].isNull() ||
-                        (showResetForecast && !forecastAi["announcements"]["reset_grant"].isNull()))) {
-        const time_t now = time(nullptr);
-        const char *kind = nullptr;
-        const time_t selected = codexNearestAnnouncement(forecastAi,now,showResetForecast,&kind);
-        const size_t used = strlen(visualPid);
-        const char *relation = kind ? (forecastAi["announcements"][kind]["time_relation"] | "before") : "";
-        snprintf(visualPid + used, sizeof(visualPid) - used, ".%lld.%s.%s", (long long)selected,kind ? kind : "",relation);
+    // Both pages invalidate local expiry even with an unchanged cached payload.
+    // Fixed-size visible-text key cannot truncate and never becomes activity.
+    if (v2panels) {
+        char forecastKey[24];
+        codexForecastDisplayKey(doc["screen"]["pages"]["ai"].as<JsonObjectConst>(),
+            time(nullptr),doc["screen"]["display_preferences"]["show_reset_opportunities"] | true,
+            forecastKey,sizeof(forecastKey));
+        const size_t used=strlen(visualPid);
+        snprintf(visualPid+used,sizeof(visualPid)-used,".%s",forecastKey);
     }
     const char *metaPid = visualPid[0] ? visualPid : pid;
 
@@ -211,7 +221,7 @@ bool structuredRenderDocument(JsonDocument &doc, bool pending,
     }
     if (!forceRender && !pending && hasPid && !mode.equalsIgnoreCase("delta")) {
         const char *pf = pidFileFor(curPage, v2panels);
-        char last[200] = {0};
+        char last[512] = {0};
         if (loadLastMeta(pf, last, sizeof(last)) && metaMatches(last, lv, fv, metaPid, dk, sk)) {
             Serial.printf("[STRUCT] payload unchanged (page=%d) skip refresh\n", curPage);
             if (changedOut) *changedOut = false;

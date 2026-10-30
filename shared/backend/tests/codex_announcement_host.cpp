@@ -20,5 +20,12 @@ int main() {
         if (selected.isNull()) std::cout << "null";
         else { std::string json;serializeJson(selected,json);std::cout << json; }
     }
+    if (doc["inspect_footer"] | false) {
+        char footer[192],key[24];
+        codexNewsFooterText(ai,now,doc["show_reset"] | true,footer,sizeof(footer));
+        codexForecastDisplayKey(ai,now,doc["show_reset"] | true,key,sizeof(key));
+        std::cout << ",\"footer\":\"" << footer << "\",\"display_key\":\"" << key << "\",\"changed\":"
+                  << (codexForecastMetaChanged(doc["meta"] | "",key,doc["legacy_visible"] | false) ? "true" : "false");
+    }
     std::cout << "}";
 }
