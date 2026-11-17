@@ -81,6 +81,8 @@ def status():
                 critical += count(firmware.get(group, {}))
             critical += count(manual_issue._read().get('tasks', {}))
             critical += firmware_setup.active_jobs()
+            from .apple_subscription import active_jobs
+            critical += active_jobs()
         except Exception:
             # Corrupt/unreadable state cannot be interpreted as "no flash".
             error = True

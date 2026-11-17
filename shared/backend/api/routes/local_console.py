@@ -36,6 +36,13 @@ async def codex_announcements_status(_user_id: int = Depends(require_local_root)
     from core.codex_announcements import diagnostics
     return {"ok": True, **diagnostics()}
 
+
+@router.get('/automation')
+async def automation_status(_user_id: int = Depends(require_local_root)):
+    from core import apple_subscription, codex_announcements
+    return {'ok':True,'apple':await run_in_threadpool(apple_subscription.status),
+            'announcements':await run_in_threadpool(codex_announcements.diagnostics)}
+
 _CREDENTIAL_ERRORS = {
     "missing": "尚未配置密钥。",
     "pending_validation": "密钥已经保存并应用，但尚未验证。",
@@ -122,6 +129,7 @@ async def overview(_user_id: int = Depends(require_local_root)):
             "rows": news_schedule._config().get("schedules") or [],
             "effective_windows": news_schedule.effective_windows(),
             "recent_log": (schedule_state.get("log") or [])[-12:],
+            "recent_rejections": (schedule_state.get("rejections") or [])[-8:],
         },
         "manual_tasks": manual_issue.list_recent(5),
     }
@@ -332,8 +340,9 @@ async def manual_issue_create(body: dict, _user_id: int = Depends(require_local_
             str(body.get("idempotency_key") or ""),
             issue_title=str(body.get("title") or "手动生成"),
         )
-        task = manual_issue.start(str(task["id"]))
-        local_console_audit.record("manual_issue.started", _user_id, task_id=task["id"], status=task["status"])
+        if created:
+            task = manual_issue.start(str(task["id"]))
+            local_console_audit.record("manual_issue.started", _user_id, task_id=task["id"], status=task["status"])
         return JSONResponse(
             {"ok": True, "created": created, "task": task},
             status_code=202 if created else 200,

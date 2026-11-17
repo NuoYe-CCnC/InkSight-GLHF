@@ -59,13 +59,14 @@ def pick_seven_day(normalized: dict) -> Optional[dict]:
 
 def ai_key_snapshot(codex: dict, ds: dict) -> dict:
     """AI 关键版本种子：只含用量/余额/重置/会员，不含采集时间等易变字段。"""
+    from .membership import visual_member
     return {
         "codex_7d_used": codex.get("used_percent"),
         "codex_resets_at": codex.get("resets_at"),
         "codex_reset_credits": codex.get("reset_credits_available"),
         "ds_cny": ds.get("CNY"),
         "ds_usd": ds.get("USD"),
-        "member": member_config(),
+        "member": visual_member(member_config()),
         "deepseek_today": _deepseek_today(),
     }
 
@@ -85,7 +86,8 @@ def member_config() -> dict:
         except Exception as e:  # noqa: BLE001
             logger.warning("member_config 读取失败: %s", e)
             _member_cache = {}
-    return dict(_member_cache or {})
+    from .membership import effective_member
+    return effective_member(_member_cache or {})
 
 
 def reload_member_config() -> dict:

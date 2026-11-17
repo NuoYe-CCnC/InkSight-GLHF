@@ -119,19 +119,30 @@ def validate_visible_chinese(text: str, *, min_cjk: int = 6) -> dict:
                 "latin_words": len(_LATIN_TOKEN_RE.findall(value))}
     cjk = len(re.findall(r"[\u3400-\u9fff]", value))
     latin_words = _LATIN_TOKEN_RE.findall(value)
-    for run in _LATIN_RUN_RE.findall(value):
-        tokens = _LATIN_TOKEN_RE.findall(run)
-        lowered = {token.lower().strip("'-") for token in tokens}
-        if len(tokens) >= 3 and lowered & _ENGLISH_PROSE_WORDS:
-            return {"ok": False, "reason": "english-clause", "cjk": cjk,
-                    "latin_words": len(latin_words), "latin_run": run[:80]}
-    if latin_words and cjk < int(min_cjk):
-        return {"ok": False, "reason": "not-natural-chinese", "cjk": cjk,
-                "latin_words": len(latin_words)}
-    latin_letters = len(re.findall(r"[A-Za-z]", value))
-    if latin_letters > max(64, cjk * 3):
-        return {"ok": False, "reason": "english-dominant", "cjk": cjk,
-                "latin_words": len(latin_words)}
+    fragments=[]
+    narrative={"announced","announces","announce","releases","released","releasing","launched","launches","launch","supports","supported","support","introduces","introduced","unveiled","unveils","reveals","revealed","plans","will","says","said","has","have","is","are","was","were","offers","offered","expands","expanded","improves","improved"}
+    descriptive={"the","a","an","new","next","latest","future","how","why","what"}
+    names=("Apple Vision Pro","AI for Science","The New York Times","The Verge")
+    for match in _LATIN_RUN_RE.finditer(value):
+        run=match.group(); tokens=list(_LATIN_TOKEN_RE.finditer(run))
+        covered=set()
+        for name in names:
+            for hit in re.finditer(r'(?<![A-Za-z])'+re.escape(name)+r'(?![A-Za-z])',run):covered.update(range(hit.start(),hit.end()))
+        rest=[t for t in tokens if not all(i in covered for i in range(t.start(),t.end()))]
+        if not rest:continue
+        # Capitalized proper-name chains may contain for/of/the; finite verbs
+        # and descriptive headline words prevent a title from becoming a name.
+        proper=all(t.group().lower() in {'for','of','the','and'} or t.group()[0].isupper() or bool(re.search(r'\d',t.group())) for t in rest)
+        bad=[t for j,t in enumerate(rest) if t.group().lower().strip("'-") in narrative|{'a','an','next','latest','future','how','why','what'} or (t.group().lower()=='new' and j+1<len(rest) and rest[j+1].group().lower() in {'model','models','version','system','tool','chip','feature'})]
+        if proper and not bad:continue
+        suspect=[t for t in rest if not t.group().isupper() and not re.search(r'\d',t.group()) and (not t.group()[0].isupper() or t.group().lower() in narrative|descriptive)]
+        if suspect:
+            lo,hi=suspect[0].start(),suspect[-1].end()
+            fragments.append(dict(text=run[lo:hi],start=match.start()+lo,end=match.start()+hi,reason='english-narrative'))
+    if fragments:
+        return {"ok":False,"reason":"english-clause","cjk":cjk,"latin_words":len(latin_words),"latin_run":fragments[0]['text'],"fragments":fragments}
+    if cjk < 2:
+        return {"ok":False,"reason":"not-natural-chinese","cjk":cjk,"latin_words":len(latin_words),"fragments":[]}
     return {"ok": True, "reason": "", "cjk": cjk,
             "latin_words": len(latin_words)}
 

@@ -138,17 +138,17 @@ def test_plan_labels_not_adjectives_or_tool_names():
 
 
 @pytest.mark.parametrize("remaining,active,light", [(31,60,120),(30,30,60),(10,30,60),(0,30,60),(None,60,120),(-1,60,120),(True,60,120)])
-def test_cadence_boundaries_without_extra_low10_tier(remaining, active, light):
+def test_legacy_quota_tiers_no_longer_schedule_requests(remaining, active, light):
     cfg = s.DEFAULTS
-    assert s.interval_seconds(cfg,"active",remaining,{},NOW) == active*60
-    assert s.interval_seconds(cfg,"light",remaining,{},NOW) == light*60
+    assert s.interval_seconds(cfg,"active",remaining,{},NOW) is None
+    assert s.interval_seconds(cfg,"light",remaining,{},NOW) is None
     assert s.interval_seconds(cfg,"night",remaining,{},NOW) is None
 
 
 @pytest.mark.parametrize("minutes,expected", [(121,60),(120,15),(31,15),(30,10),(1,10)])
-def test_near_event_acceleration_not_night(minutes,expected):
+def test_near_event_no_longer_accelerates_daily_schedule(minutes,expected):
     events={"quota_reset":{"target_at":NOW+minutes*60}}
-    assert s.interval_seconds(s.DEFAULTS,"active",80,events,NOW) == expected*60
+    assert s.interval_seconds(s.DEFAULTS,"active",80,events,NOW) is None
     assert s.interval_seconds(s.DEFAULTS,"night",0,events,NOW) is None
 
 
@@ -191,7 +191,7 @@ def test_night_catchup_success_persistent_then06_still_runs(isolated):
     assert a.tick(now=at(6),requester=requester())['ok']
     assert a.tick(now=at(6)+30,requester=lambda *args:pytest.fail('duplicate six'))['queried'] is False
     data=json.loads(a.STATE_FILE.read_text())
-    assert set(data['slot_success'])=={'2026-10-23@00:00','2026-10-23@06:00'}
+    assert set(data['slot_success'])=={'2026-10-22@06:00','2026-10-23@06:00'}
 
 
 def test_failed_night_not_counted_success_and_respects_backoff(isolated):
@@ -199,7 +199,7 @@ def test_failed_night_not_counted_success_and_respects_backoff(isolated):
     assert not a.tick(now=at(1),requester=fail)['ok']
     assert not json.loads(a.STATE_FILE.read_text())['slot_success']
     assert not a.tick(now=at(1)+60,requester=lambda *args:pytest.fail('backoff'))['queried']
-    assert a.tick(now=at(1)+300,requester=requester())['ok']
+    assert a.tick(now=at(1)+900,requester=requester())['ok']
 
 
 def test_midnight_trigger_and_catchup_coalesce(isolated):
@@ -226,7 +226,7 @@ def test_204_is_success_not_retraction_and_expiry_local_on_failure(isolated):
     assert a.tick(now=NOW,requester=requester([post()]))['ok']
     def unchanged(path,query,timeout):
         return (200,{'code':200,'status':post()}) if '/status/' in path else (204,None)
-    assert a.tick(now=NOW+900,requester=unchanged)['ok']
+    assert a.tick(now=NOW+900,requester=unchanged,manual=True)['ok']
     assert a.snapshot(now=NOW+901)['quota_reset']
     assert a.snapshot(now=NOW+7200)['quota_reset'] is None
 
@@ -236,7 +236,7 @@ def test_deleted_post_never_revives_from_cached_parent(isolated):
     def deleted(path,query,timeout):
         if '/status/' in path:return 200,{'code':200,'status':{'type':'tombstone','reason':'deleted'}}
         return 204,None
-    assert a.tick(now=NOW+900,requester=deleted)['ok']
+    assert a.tick(now=NOW+900,requester=deleted,manual=True)['ok']
     assert a.snapshot(now=NOW+901)['quota_reset'] is None
 
 
@@ -288,16 +288,17 @@ def test_06_failure_retries_after_trigger_grace_and_restart(isolated):
     def fail(*args): raise a.SourceFailure('network_or_timeout')
     assert not a.tick(now=at(6),requester=fail)['ok']
     assert json.loads(a.STATE_FILE.read_text())['pending_slots']==['2026-10-23@06:00']
-    assert a.tick(now=at(6,5),requester=requester())['ok']
+    assert a.tick(now=at(6,15),requester=requester())['ok']
     state=json.loads(a.STATE_FILE.read_text())
-    assert state['slot_success']['2026-10-23@06:00']==at(6,5)
+    assert state['slot_success']['2026-10-23@06:00']==at(6,15)
     assert state['pending_slots']==[]
 
 
-def test_success_before06_coalesces_boundary_without_query(isolated):
-    # A midnight catch-up finishing just before 06 also satisfies that boundary.
+def test_success_before06_does_not_satisfy_future_daily_slot(isolated):
+    # Before06 satisfies yesterday only; the new slot remains pending.
     assert a.tick(now=at(5,59)+40,requester=requester())['ok']
-    assert a.tick(now=at(6),requester=lambda *args:pytest.fail('second request'))['reason']=='successful_boundary_coalesced'
+    assert not a.tick(now=at(6),requester=lambda *args:pytest.fail('short coalescing guard'))['queried']
+    assert a.tick(now=at(6)+60,requester=requester())['ok']
 
 
 def test_total_budget_cursor_and_overlap_bounded(isolated):
@@ -310,7 +311,7 @@ def test_total_budget_cursor_and_overlap_bounded(isolated):
             row=next(row for row in rows if path.endswith(row['id']))
             return 200,{'code':200,'status':row}
         return 204,None
-    result=a.tick(now=NOW+3600,requester=transport)
+    result=a.tick(now=NOW+3600,requester=transport,manual=True)
     assert result['ok'] and result['requests']<=4
     assert len([path for path,_ in calls if '/status/' in path])==2
     assert calls[0][1]['since']==NOW-61
@@ -391,11 +392,11 @@ def test_scope_ttl_and_account_unknown_expire_without_network(isolated):
 def test_edit_provenance_survives_unchanged_recheck(isolated):
     assert a.tick(now=NOW,requester=requester([post()]))['ok']
     revised=post('All Codex Plus users will reset weekly quota within three hours.')
-    assert a.tick(now=NOW+900,requester=requester([revised]))['ok']
+    assert a.tick(now=NOW+900,requester=requester([revised]),manual=True)['ok']
     # The correction moves the event out of the near window: ordinary cadence
     # resumes instead of forcing another request at the old 15-minute interval.
     assert not a.tick(now=NOW+1800,requester=lambda *args:pytest.fail('not due'))['queried']
-    assert a.tick(now=NOW+4500,requester=requester([revised]))['ok']
+    assert a.tick(now=NOW+4500,requester=requester([revised]),manual=True)['ok']
     saved=json.loads(a.STATE_FILE.read_text())['posts'][IDENT]
     assert saved['previous_text']==post()['text'] and saved['edited_observed_at']==NOW+900
 
@@ -407,7 +408,7 @@ def test_verified_cancellation_survives_later_independent_source_failure(isolate
     def partial(path,query,timeout):
         if '/status/' in path:raise a.SourceFailure('http_error',status=503)
         return 200,{'code':200,'results':[cancel]}
-    assert not a.tick(now=NOW+900,requester=partial)['ok']
+    assert not a.tick(now=NOW+900,requester=partial,manual=True)['ok']
     snapshot=a.snapshot(now=NOW+901)
     assert snapshot['quota_reset'] is None and snapshot['reset_grant']
     state=json.loads(a.STATE_FILE.read_text())

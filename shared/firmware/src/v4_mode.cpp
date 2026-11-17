@@ -330,6 +330,10 @@ static ActivityResult _applyActivity(const JsonDocument &doc, P3Mode mode,
             _persistActivity(key, s_p3.lastChangeAt, s_p3.aiHoldUntil);
             out.established = true;
             Serial.printf("[P3][ACTIVITY] baseline established observed=%lld\n", observed);
+        } else if (p3ActivitySchemaMigration(s_p3.activityKey, key)) {
+            snprintf(s_p3.activityKey, sizeof(s_p3.activityKey), "%s", key);
+            _persistActivity(key, s_p3.lastChangeAt, s_p3.aiHoldUntil);
+            Serial.println("[P3][ACTIVITY] schema migrated; page and idle deadlines retained");
         } else if (strcmp(s_p3.activityKey, key) != 0) {
             snprintf(s_p3.activityKey, sizeof(s_p3.activityKey), "%s", key);
             s_p3.lastChangeAt = nowSec;

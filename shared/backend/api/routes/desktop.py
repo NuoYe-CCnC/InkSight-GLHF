@@ -58,3 +58,34 @@ async def quota(request: Request):
         raise HTTPException(403, 'desktop quota unavailable')
     from core.desktop_quota import snapshot
     return await run_in_threadpool(snapshot)
+
+
+@router.post('/automation/next')
+async def automation_next(request: Request):
+    authorize(request)
+    from core import apple_subscription, codex_announcements
+    body = await request.json()
+    await run_in_threadpool(apple_subscription.report_permission, body.get('accessibility_trusted') is True)
+    job = await run_in_threadpool(apple_subscription.claim)
+    return {'apple_job': job, 'apple': await run_in_threadpool(apple_subscription.status),
+            'announcements': await run_in_threadpool(codex_announcements.diagnostics)}
+
+
+@router.post('/automation/apple-result')
+async def automation_apple_result(request: Request):
+    authorize(request)
+    from core import apple_subscription
+    body = await request.json()
+    return await run_in_threadpool(apple_subscription.complete, body.get('job_id'), body.get('result'))
+
+
+@router.post('/automation/{kind}/check')
+async def automation_check(kind: str, request: Request):
+    authorize(request)
+    if kind == 'apple':
+        from core.apple_subscription import request as check
+        return await run_in_threadpool(check, manual=True)
+    if kind == 'announcements':
+        from core.codex_announcements import request_manual
+        return await run_in_threadpool(request_manual)
+    raise HTTPException(400, 'unsupported check')

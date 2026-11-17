@@ -20,10 +20,11 @@ from . import news_brief as brief
 from . import news_budget as budget
 from . import news_validate as validate
 from . import news_semantics as semantics
+from . import news_evidence as evidence
 
 logger = logging.getLogger(__name__)
 
-DIGEST_PROMPT_VERSION = "v2.1"
+DIGEST_PROMPT_VERSION = "v2.2"
 BODY_TARGET = "约100-115个汉字，包含标点"
 MAX_LINES = 4
 LINE_MAX_PX = 744          # 正文区 28..772
@@ -40,6 +41,7 @@ _CAT_VOCAB = ["模型与研究", "产品与应用", "芯片与基础设施", "�
 
 PROMPT_SYS_DIGEST = f"""
 你是科技/AI 简报编辑，帮助读者了解技术、产品与产业的重要变化，不专门整理社会争议。
+引用规则：events 的 evidence_ids 只选此候选所附 E编号T/S，引用由程序回填原文，不能把中文译文当逐字证据；claim逐字摘自body，并覆盖全文事实和限定。reasons可省略以节省输出。
 选稿规则：
 - 候选已经由程序按新鲜度、可显示性和类别预选；必须覆盖提供的全部 2-3 个候选，不得漏项或另选。
 - 每期必须包含 2-3 个互不重复事件、至少两个类别、至少一个技术或产品进展。
@@ -53,8 +55,7 @@ PROMPT_SYS_DIGEST = f"""
 - 保留“计划、测试中、厂商宣称、未经独立验证”等必要限定；不把宣传/评测当独立事实，不编造数字、名称、引用或因果。
  - 正文只能用常用字（设备字库约3900字）：不使用生僻字；产品/人名含生僻字时改用通用写法或常见字（如用 Intel Core 或型号），避免任何字库外汉字。
 返回（JSON，无多余内容）：
-{{"body":"一段中文", "events":[{{"candidate_id":"<候选编号>","category":"<候选标注类别>","source":"<来源id>",
-  "event_type":"<候选标注事件类型>","evidence":"<支持正文说法的候选标题或摘要片段>"}}],
+{{"body":"一段中文", "events":[{{"candidate_id":"<候选编号>","evidence_ids":["E1T"],"claim":"正文中与此候选对应的原句段"}}],
   "reasons":["每条一句入选理由"], "exception":"非技术/产品例外的说明，无则空串"}}
 六类（category 必须严格取其一）：模型与研究 / 产品与应用 / 芯片与基础设施 / 开源与开发生态 / 企业与产业 / 政策与社会影响
 """
@@ -63,8 +64,8 @@ PROMPT_SYS_DIGEST_COMPACT = f"""你是中文科技/AI简报编辑。只依据固
 必须覆盖全部2-3个候选且不重复，至少两类并含一个技术或产品进展。body写一段{BODY_TARGET}字的自然中文，
 只写材料支持的主体、进展和关键细节，不杜撰数字、名称、引用或因果。英文来源的叙事必须译成中文；
 品牌、产品名、型号、API等常用缩写可保留，不得留下英文句段。不得输出分析、思考、代码围栏或嵌套JSON。
-返回纯JSON：{{"body":"中文正文","events":[{{"candidate_id":"编号","category":"候选类别","source":"来源id",
-"event_type":"候选事件类型","evidence":"候选原文中的证据片段"}}],"reasons":["理由"],"exception":""}}。
+返回纯JSON：{{"body":"中文正文","events":[{{"candidate_id":"编号","evidence_ids":["E1T"],"claim":"正文中对应原句段"}}],"reasons":["理由"],"exception":""}}。
+引用evidence_ids仅从此候选的E编号T/S选择，claim逐字摘自body，并覆盖全文事实和限定；不使用译文作证据。reasons可省略。
 category只能是：{' / '.join(_CAT_VOCAB)}。"""
 
 
@@ -317,7 +318,7 @@ def prepare_digest_candidates(cands: list[dict]) -> list[dict]:
 
 def _digest_candidates_to_prompt(cands: list[dict], summary_chars: int = 80,
                                  compact: bool = False, title_chars: int = 160) -> str:
-    lines = ["【固定候选】（必须全部覆盖；类别、事件类型必须原样回填；时间未知不得猜测）"]
+    lines = ["【固定候选】（必须全部覆盖；编号决定类别和事件类型；时间未知不得猜测）"]
     for i, candidate in enumerate(cands, 1):
         title = str(candidate.get("title") or "")[:title_chars]
         summary = (candidate.get("summary") or "")[:summary_chars]
@@ -325,13 +326,13 @@ def _digest_candidates_to_prompt(cands: list[dict], summary_chars: int = 80,
         event_at = candidate.get("event_at")
         if compact:
             lines.append(f"{i}.[{candidate.get('source')}][{candidate.get('digest_category')}]"
-                         f"[event_type={candidate.get('event_type')}] {title} | {summary}")
+                         f"[event_type={candidate.get('event_type')}] [E{i}T] {title} | [E{i}S] {summary}")
         else:
             lines.append(f"{i}. [{candidate.get('source')}][{candidate.get('digest_category')}]"
                          f"[event_type={candidate.get('event_type')}][published_at={pub or 'unknown'}]"
                          f"[trusted_at={candidate.get('trusted_at') or 'unknown'}]"
                          f"[event_at={event_at or 'unknown'}]"
-                         f"[update_of={candidate.get('update_of') or 'none'}] {title} | {summary}")
+                         f"[update_of={candidate.get('update_of') or 'none'}] [E{i}T] {title} | [E{i}S] {summary}")
     return "\n".join(lines)
 
 
@@ -359,46 +360,40 @@ def _truncate_ink(text: str, max_px: int) -> str:
     return out.rstrip(" ，；：、") + suffix
 
 
-def build_local_fallback(cands: list[dict]) -> dict | None:
-    """用两条中文来源标题拼出零调用兜底；只截短，不翻译或补写事实。"""
-    prepared = prepare_digest_candidates(cands)
-    chosen = []
-    for row in prepared:
-        title = str(row.get("title") or "")
-        if (not title or validate.unsupported_chars(title)
-                or not validate.validate_visible_chinese(title, min_cjk=4)["ok"]):
-            continue
-        if not chosen or row["digest_category"] != chosen[0]["digest_category"]:
-            chosen.append(row)
-        if len(chosen) == 2:
-            break
-    if len(chosen) < 2 or not ({row["digest_category"] for row in chosen} & TECH_CATS):
-        return None
-    for title_budget in (1260, 1140, 1020, 900, 780, 660):
-        parts = []
-        for row in chosen:
-            source = _SOURCE_NAMES.get(str(row.get("source") or ""), str(row.get("source") or "来源"))
-            title = str(row.get("title") or "").strip().rstrip("。；")
-            parts.append(f"{source}：{_truncate_ink(title, title_budget)}")
-        body = "；".join(parts) + "。"
-        checked = validate_digest_text(body)
-        if not checked.get("ok"):
-            continue
-        events = [{"candidate_id": i + 1, "category": row["digest_category"],
-                   "source": row.get("source"), "id": row.get("article_id"),
-                   "url": row.get("url"), "title": str(row.get("title") or "")[:120],
-                   "event_type": row.get("event_type"),
-                   "published_at": row.get("published_at"), "trusted_at": row.get("trusted_at"),
-                   "event_at": row.get("event_at"), "update_of": row.get("update_of"),
-                   "time_trust": row.get("time_trust"),
-                   "fingerprint": semantics.event_fingerprint(row),
-                   "evidence": str(row.get("title") or "")[:160]}
-                  for i, row in enumerate(chosen)]
-        return {"ok": True, "body": body, "lines": checked["lines"],
-                "widths": checked.get("widths") or [], "events": events,
-                "reasons": ["模型稿未通过校验，使用来源标题自动排版"],
-                "exception": "", "usage": None, "origin": "local-fallback",
-                "publish_note": "模型稿未通过校验，本期使用来源标题兜底"}
+def build_local_fallback(cands: list[dict], diagnostics=None) -> dict | None:
+    """Choose independently readable Chinese source excerpts before ranking."""
+    import itertools
+    detail=diagnostics if diagnostics is not None else {}
+    eligible=[];rejected=[];now=time.time()
+    history=semantics.prune_history(brief._load_state().get('published_events') or [],now=int(now))
+    for original in cands[:60]:
+        row=semantics.enrich_candidate(original,now=int(now))
+        stamp=row.get('trusted_at') or row.get('published_at')
+        if not isinstance(stamp,(int,float)) or not -300<=now-stamp<=brief.CANDIDATE_LOOKBACK_H*3600:
+            rejected.append(dict(id=row.get('article_id'),reason='not-timely'));continue
+        if (semantics.history_relation(row,history) or {}).get('duplicate'):
+            rejected.append(dict(id=row.get('article_id'),reason='already-published'));continue
+        category=classify_candidate(row)
+        texts=[str(row.get('title') or '')]+re.split(r'(?<=[。！？])',str(row.get('summary') or ''))[:3]
+        for text in texts:
+            text=text.strip().rstrip('。；')
+            if (not text or len(text)>256 or '?' in text or '？' in text or
+                not validate.validate_visible_chinese(text)['ok'] or validate.unsupported_chars(text) or
+                not re.search(r'.{2,}(?:发布|推出|开源|获得|完成|支持|申请|计划|测试|宣布|升级|新增|提高|增长|合作|收购|上线|更新|通过|扩展|开放)',text)):
+                continue
+            item=dict(row,digest_category=category,_fallback_text=text)
+            eligible.append(item)
+    detail.update(eligible=len(eligible),rejected=rejected[:20])
+    for pair in itertools.combinations(eligible[:24],2):
+        if semantics.event_fingerprint(pair[0])==semantics.event_fingerprint(pair[1]) or pair[0].get('article_id')==pair[1].get('article_id') or pair[0]['digest_category']==pair[1]['digest_category'] or not {c['digest_category'] for c in pair}&TECH_CATS:continue
+        parts=[f"{_SOURCE_NAMES.get(str(c.get('source') or ''),'来源')}：{c['_fallback_text']}" for c in pair]
+        body='；'.join(parts)+'。';checked=validate_digest_text(body)
+        if not checked.get('ok'):continue
+        events=[dict(candidate_id=i+1,category=c['digest_category'],source=c.get('source'),id=c.get('article_id'),url=c.get('url'),title=c.get('title'),event_type=c.get('event_type'),published_at=c.get('published_at'),trusted_at=c.get('trusted_at'),event_at=c.get('event_at'),update_of=c.get('update_of'),time_trust=c.get('time_trust'),fingerprint=semantics.event_fingerprint(c),evidence=c['_fallback_text'],claim=c['_fallback_text']) for i,c in enumerate(pair)]
+        if semantics.unsupported_claims(body,pair):continue
+        detail.update(ok=True,reason='whole-source-excerpts')
+        return dict(ok=True,body=body,lines=checked['lines'],widths=checked['widths'],events=events,reasons=['使用本期合格中文原文材料'],exception='',usage=None,origin='local-fallback',publish_note='模型稿未通过校验，使用来源原文兜底')
+    detail.update(ok=False,reason='no-independent-timely-renderable-pair')
     return None
 
 
@@ -420,19 +415,24 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
     hint：修订提示（上次校验失败原因），附加到用户消息要求按约束重写。"""
     key = brief._env_key()
     prepared = prepare_digest_candidates(cands)
+    if len(prepared)<2 or len({c.get('digest_category') for c in prepared})<2 or not {c.get('digest_category') for c in prepared}&TECH_CATS:
+        return dict(ok=False,note='insufficient-independent-candidate-diversity',limit_rejected=True)
     pname = PERIOD_NAMES.get(period, period)
     scope = "早报覆盖隔夜与前一日重要消息" if period == "morning" else "覆盖当日最近半日的重要消息"
     messages = None
     input_upper_bound = None
     prompt_cands = prepared
+    evidence_map = {}
     # Prefer the complete editorial contract.  If a user-selected small input
     # limit cannot carry it, use the compact equivalent with two candidates;
     # the lower-ranked optional third candidate is dropped before material is
     # truncated to an ambiguous prompt.
+    required_count=(hint.get("candidate_count") or None) if isinstance(hint,dict) else None
     prompt_modes = ((PROMPT_SYS_DIGEST, len(prepared)),
-                    (PROMPT_SYS_DIGEST_COMPACT, min(len(prepared), 2)))
+                    (PROMPT_SYS_DIGEST_COMPACT, len(prepared) if required_count else min(len(prepared), 2)))
     for system_prompt, max_count in prompt_modes:
         for count in range(max_count, 1, -1):
+            if required_count and count!=required_count:continue
             candidate_subset = prepared[:count]
             for summary_chars, compact, title_chars in (
                     (80, False, 160), (48, True, 120), (24, True, 80), (0, True, 64),
@@ -441,8 +441,8 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
                     candidate_subset, summary_chars, compact, title_chars)
                 user = (f"期次：{period}（{pname}）。{scope}。候选如下：\n{cand_lines}")
                 if hint:
-                    user += (f"\n修订：上一稿失败（{hint}）。覆盖全部 {len(candidate_subset)} 个候选；"
-                             f"events 编号完整且不重复；类别照抄且至少两类；含技术或产品；"
+                    user += (f"\n修订约束：{json.dumps(hint, ensure_ascii=False) if isinstance(hint,dict) else hint}。只修正列明的正文片段或引用编号，其余正文逐字保留。覆盖全部 {len(candidate_subset)} 个候选；"
+                             f"events 编号完整且不重复；类别由编号绑定且至少两类；含技术或产品；"
                              f"正文{BODY_TARGET}、≤{MAX_LINES}行、每行≤744px、行首无闭合标点；"
                              "英文来源的叙事必须翻译为自然中文，仅保留品牌、产品名、型号和常用技术缩写；"
                              "不得保留完整英文句段，不得输出分析、思考或嵌套 JSON；缺字改为常见字或 ASCII，勿提上一稿。")
@@ -452,6 +452,7 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
                     input_upper_bound = brief.validate_call_limits(trial, brief.MAX_OUTPUT_TOKEN)
                     messages = trial
                     prompt_cands = candidate_subset
+                    evidence_map = evidence.options(prompt_cands,summary_chars,title_chars)
                     break
                 except ValueError:
                     continue
@@ -476,6 +477,8 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
     # Persist attribution at the actual send boundary.  If the transport later
     # times out, the bounded uncertain reservation can still match a delayed
     # provider charge after a restart.
+    if not brief.authorize_model_send():
+        return {"ok":False,"budget_exhausted":True,"note":"max-model-calls"}
     brief.reserve_usage_activity(brief.estimate_max_cost_cny())
     try:
         with urllib.request.urlopen(req, timeout=90) as r:
@@ -483,10 +486,10 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
     except urllib.error.HTTPError as e:
         kind = "auth_failure" if e.code in {401, 403} else "temporary_failure"
         return {"ok": False, "failure_kind": kind,
-                "note": f"HTTP {e.code}: {e.read().decode('utf-8','ignore')[:160]}"}
+                "note": f"HTTP {e.code}"}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "failure_kind": "temporary_failure",
-                "note": f"{type(e).__name__}: {str(e)[:160]}"}
+                "note": type(e).__name__}
     usage = data.get("usage") or {}
     brief.settle_usage(usage)
     choice = (data.get("choices") or [{}])[0]
@@ -497,8 +500,10 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
     content = (choice.get("message") or {}).get("content") or ""
     parsed = _read_json(content)
     if not parsed:
-        return {"ok": False, "note": "bad-json", "raw": content[:300]}
-    body_text = _normalize_model_body(str(parsed.get("body") or ""))
+        return {"ok": False, "note": "bad-json", "raw": content[:1000], "usage": usage}
+    if not isinstance(parsed.get('body'),str) or not isinstance(parsed.get('events'),list) or any(not isinstance(ev,dict) for ev in parsed['events']):
+        return dict(ok=False,note='invalid-result-schema',raw=content[:1000],usage=usage)
+    body_text = _normalize_model_body(parsed['body'])
     # 事件回填：模型给的是候选序号（对 prompt 用渲染列表）；这里解析为可直接使用的记录
     events = []
     for ev in (parsed.get("events") or [])[:4]:
@@ -527,6 +532,7 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
     else:
         sel_ok, sel_note = _selection_check(events, exc)
     semantic_errors = semantics.unsupported_claims(body_text, prompt_cands)
+    evidence_failures=[]
     # Event type is program-owned. A contradictory model mapping is rejected,
     # while an omitted field remains compatible because the trusted value above
     # is still attached to the published provenance.
@@ -538,14 +544,28 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
         if 1 <= ci <= len(prompt_cands) and ev.get("event_type") not in (None, "", prompt_cands[ci - 1].get("event_type")):
             semantic_errors.append(f"candidate-{ci}:event-type-mismatch")
         if 1 <= ci <= len(prompt_cands):
-            evidence = re.sub(r"\s+", " ", str(ev.get("evidence") or "")).strip()
-            material = re.sub(r"\s+", " ",
-                              f"{prompt_cands[ci - 1].get('title') or ''} "
-                              f"{prompt_cands[ci - 1].get('summary') or ''}").strip()
-            if not evidence:
-                semantic_errors.append(f"candidate-{ci}:evidence-missing")
-            elif evidence.lower() not in material.lower():
-                semantic_errors.append(f"candidate-{ci}:evidence-not-in-source")
+            quote,error,claim=evidence.check(body_text,prompt_cands[ci-1],ev,evidence_map,ci)
+            if error:
+                semantic_errors.append(f"candidate-{ci}:"+error)
+                evidence_failures.append(dict(candidate_id=ci,rule=error,submitted=str(ev.get('evidence_ids') or ev.get('evidence_id') or ev.get('evidence') or '')[:160],claim=str(claim or ev.get('claim') or '')[:160],source_excerpt=str(prompt_cands[ci-1].get('title') or '')[:160]))
+            for row in events:
+                if row['candidate_id']==ci:
+                    row.update(evidence=quote or '',claim=claim,evidence_ids=ev.get('evidence_ids') or [])
+    if not evidence.covers_body(body_text,[row.get('claim') for row in events]):
+        semantic_errors.append('claim-coverage-incomplete')
+    if isinstance(hint,dict) and hint.get('previous_body'):
+        previous=hint['previous_body'];fragments=hint.get('fragments') or []
+        if fragments:
+            pattern='';cursor=0
+            for fragment in sorted(fragments,key=lambda f:f['start']):
+                pattern+=re.escape(previous[cursor:fragment['start']]).replace(r'\ ',r'\s*')+r'(.{1,240}?)';cursor=fragment['end']
+            pattern+=re.escape(previous[cursor:]).replace(r'\ ',r'\s*')
+            if not re.fullmatch(pattern,body_text,re.S):semantic_errors.append('repair-outside-target-fragments')
+            protected=lambda t:re.findall(r'(?<![A-Za-z0-9])(?:[A-Z][A-Za-z0-9.+/-]*|\d+(?:\.\d+)*)',t)
+            if protected(previous)!=protected(body_text):semantic_errors.append('repair-entity-or-number-changed')
+            if any(re.search(r'\b(?:will|plans?|expected)\b',f['text'],re.I) for f in fragments) and not re.search(r'将|计划|预计|即将|拟',body_text):
+                semantic_errors.append('repair-tense-changed')
+        elif hint.get('metadata_only') and body_text!=previous:semantic_errors.append('repair-body-changed')
     ok = v["ok"] and sel_ok and not semantic_errors
     failure_notes = []
     if not v["ok"]:
@@ -562,4 +582,8 @@ def _call_digest(cands: list[dict], period: str, hint: str | None = None) -> dic
             "events": events, "reasons": parsed.get("reasons") or [],
             "exception": parsed.get("exception") or "",
             "usage": usage, "input_token_upper_bound": input_upper_bound,
-            "raw": content[:300]}
+            "language": validate.validate_visible_chinese(body_text),
+            "semantic_errors":semantic_errors,
+            "evidence_failures":evidence_failures,
+            "source_candidates":[{"id":c.get("article_id"),"source":c.get("source"),"title":str(c.get("title") or "")[:160]} for c in prompt_cands],
+            "raw": content[:1000]}

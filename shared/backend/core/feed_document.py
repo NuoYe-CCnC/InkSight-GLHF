@@ -20,6 +20,7 @@ from . import gold_feed
 from . import news_feed
 from . import reliable_sources as rs
 from .activity_signals import stable_minute_epoch
+from .membership import visual_member
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def refresh_ai_key_version() -> str:
         "codex_reset_credits": codex.get("reset_credits_available"),
         "codex_reset_expiry_list": codex.get("reset_expiry_list"),  # 变化必须更新 AI 版本
         "ds": rs.ds_values_cached(),
-        "member": rs.member_config(),
+        "member": visual_member(rs.member_config()),
         "deepseek_today": rs._deepseek_today(),
     }
     return dc.bump_version("ai_key", seed)

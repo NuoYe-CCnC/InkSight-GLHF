@@ -1,4 +1,6 @@
 import Foundation
+import CryptoKit
+import CoreFoundation
 
 /// Main-thread request identity. Stop/restart and quit invalidate late replies.
 struct MenuQuotaGeneration {
@@ -22,11 +24,14 @@ struct MenuQuota: Decodable {
     let expiresAt: Double?
     let maxAgeSeconds: Int
     let reason: String?
+    let resetsAt: Double?
+    let retrying: Bool
     let announcements: MenuAnnouncements?
 
     enum CodingKeys: String, CodingKey {
         case remainingPercent = "remaining_percent", lastSuccessAt = "last_success_at"
         case expiresAt = "expires_at", maxAgeSeconds = "max_age_seconds", reason, announcements
+        case resetsAt = "resets_at", retrying
     }
 
     init(from decoder: Decoder) throws {
@@ -36,6 +41,8 @@ struct MenuQuota: Decodable {
         expiresAt = try c.decodeIfPresent(Double.self, forKey: .expiresAt)
         maxAgeSeconds = try c.decode(Int.self, forKey: .maxAgeSeconds)
         reason = try c.decodeIfPresent(String.self, forKey: .reason)
+        resetsAt = try c.decodeIfPresent(Double.self, forKey: .resetsAt)
+        retrying = (try? c.decode(Bool.self, forKey: .retrying)) ?? false
         // The optional experimental field must never poison valid quota data.
         announcements = try? c.decodeIfPresent(MenuAnnouncements.self, forKey: .announcements)
     }
@@ -44,7 +51,8 @@ struct MenuQuota: Decodable {
         guard reason == nil, let percent = remainingPercent, (0...100).contains(percent),
               let stamp = lastSuccessAt, let expiry = expiresAt,
               stamp.isFinite, expiry.isFinite, maxAgeSeconds > 0,
-              expiry == stamp + Double(maxAgeSeconds),
+              expiry <= stamp + Double(min(1800,maxAgeSeconds)), expiry > stamp,
+              resetsAt.map({ $0.isFinite && expiry <= $0 }) ?? true,
               stamp <= now.timeIntervalSince1970, expiry > now.timeIntervalSince1970
         else { return "-" }
         return "\(percent)%"
@@ -60,6 +68,110 @@ struct MenuQuota: Decodable {
                        "wrong_source": "不是本机采集", "collector_unavailable": "采集暂不可用",
                        "invalid_timestamp": "采集时间无效", "unavailable": "尚无有效采集"]
         return reasons[reason ?? ""] ?? "七日窗口剩余额度"
+    }
+}
+
+/// Local identity/window check used even when the loopback HTTP request fails.
+struct MenuQuotaLocalContext {
+    let identity: String?
+    let stamp: Double?
+    let reset: Double?
+    let valid: Bool
+    let reason: String
+    let loginBoundary: Double
+
+    static func load(runtime: URL?, authURL: URL? = nil, at now: Date = Date()) -> Self {
+        let auth = authURL ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/auth.json")
+        func json(_ path: URL?) -> [String: Any]? {
+            guard let path, let data = try? Data(contentsOf: path), data.count <= 4*1024*1024 else { return nil }
+            return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        }
+        func number(_ value: Any?) -> Double? {
+            guard let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(), n.doubleValue.isFinite else { return nil }
+            return n.doubleValue
+        }
+        let account = (json(auth)?["tokens"] as? [String: Any])?["account_id"] as? String
+        let identity = account.flatMap { $0.isEmpty ? nil : SHA256.hash(data: Data($0.utf8)).map { String(format:"%02x",$0) }.joined().prefix(20).description }
+        let boundary = ((try? auth.resourceValues(forKeys:[.contentModificationDateKey]))?.contentModificationDate?.timeIntervalSince1970 ?? now.timeIntervalSince1970).rounded(.down)
+        let groups = json(runtime?.appendingPathComponent("shared/backend/state/data_cache.json"))?["groups"] as? [String: Any]
+        let group = groups?["ai.codex"] as? [String: Any]
+        let value = group?["value"] as? [String: Any]
+        let stamp = number(group?["last_success"]), reset = number(value?["resets_at"])
+        let health = json(runtime?.appendingPathComponent("shared/backend/state/codex_collector_health.json"))
+        var reason = "current"
+        if identity == nil { reason = "identity_unknown" }
+        else if identity != value?["account_key"] as? String { reason = "account_mismatch" }
+        else if value?["source"] as? String != "mac" { reason = "wrong_source" }
+        else if number(value?["duration_minutes"]) != 10080 { reason = "missing_7d" }
+        else if let used = number(value?["used_percent"]), (0...100).contains(used), let stamp, stamp > 0, stamp <= now.timeIntervalSince1970 {
+            if reset != nil && reset! <= now.timeIntervalSince1970 { reason = "reset_boundary" }
+            if value?["resets_at"] != nil && reset == nil { reason = "invalid_reset" }
+            if health?["reason"] as? String == "missing_7d", (number(health?["last_attempt_at"]) ?? 0) >= stamp.rounded(.down) { reason = "missing_7d" }
+            if !["fresh","stale"].contains(group?["status"] as? String ?? "") { reason = "unavailable" }
+            if let h=number(health?["last_success_at"]),h > now.timeIntervalSince1970+2 { reason="invalid_timestamp" }
+            if let meta=group?["meta"] as? [String:Any], let fail=meta["last_fail"] as? String,
+               ["no 7D window in codex payload","no 7D window"].contains(fail), (number(group?["last_attempt"]) ?? 0)>=stamp.rounded(.down) { reason="missing_7d" }
+        } else { reason = "invalid_sample" }
+        return Self(identity:identity,stamp:stamp,reset:reset,valid:reason == "current",reason:reason,loginBoundary:boundary)
+    }
+}
+
+/// The displayed sample and the forecast have separate clocks and lifetimes.
+struct MenuQuotaStore {
+    var current: MenuQuota?
+    var announcements: MenuAnnouncements?
+    private var identity: String?
+    private var window: Double?
+    private var observed = false
+    private var localValid = false
+    private var invalidThrough = 0.0
+    private var notBefore = 0.0
+    private(set) var retrying = false
+    private(set) var state = "unavailable"
+    private(set) var cause: String?
+
+    mutating func clear() {
+        current=nil; announcements=nil; retrying=false; state="service_stopped"; cause="service_stopped"
+    }
+    @discardableResult mutating func observe(_ context: MenuQuotaLocalContext, at now: Date = Date()) -> Bool {
+        let identityChanged = observed && identity != context.identity
+        let changed = observed && (identityChanged || window != context.reset || localValid != context.valid)
+        if changed {
+            current=nil
+            if identityChanged { announcements=nil; notBefore=max(notBefore,context.loginBoundary) }
+            state="identity_or_window_changed"
+        }
+        if !context.valid {
+            invalidThrough=max(invalidThrough,context.stamp ?? 0,current?.lastSuccessAt ?? 0)
+            current=nil; retrying=false; state=context.reason; cause=context.reason
+        }
+        identity=context.identity; window=context.reset; localValid=context.valid; observed=true
+        if let value=current, value.quotaLabel(at:now)=="-" { current=nil; state="expired"; cause="sample_expired" }
+        return changed
+    }
+    mutating func accept(_ value: MenuQuota, context: MenuQuotaLocalContext, at now: Date = Date()) {
+        observe(context,at:now)
+        // The collector can advance between HTTP snapshot and main-thread
+        // delivery. Ignore that older reply without clearing a still-valid
+        // sample from the same identity/window; the next read gets the new one.
+        if context.valid, let incoming=value.lastSuccessAt, let local=context.stamp, incoming < local { return }
+        if let old=current?.lastSuccessAt, let incoming=value.lastSuccessAt, incoming < old { return }
+        announcements=value.announcements
+        guard context.valid, value.quotaLabel(at:now) != "-", let stamp=value.lastSuccessAt,
+              stamp >= notBefore, stamp > invalidThrough, value.resetsAt == context.reset,
+              stamp == context.stamp, stamp >= (current?.lastSuccessAt ?? 0) else {
+            current=nil; retrying=false; state=value.reason ?? context.reason; return
+        }
+        current=value; retrying=value.retrying; state=retrying ? "retrying" : "current"; cause=retrying ? "collector_retrying" : nil
+    }
+    mutating func transportFailed(context: MenuQuotaLocalContext, cause errorCause: String = "loopback_error", at now: Date = Date()) {
+        observe(context,at:now)
+        retrying=current?.quotaLabel(at:now) != nil && current?.quotaLabel(at:now) != "-"
+        state=retrying ? "retrying" : context.valid ? "unavailable" : context.reason
+        cause=errorCause
+    }
+    func label(at now: Date = Date()) -> String {
+        (current?.quotaLabel(at:now) ?? "-") + (announcements?.isActive(at:now)==true ? "*" : "")
     }
 }
 

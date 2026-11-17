@@ -3,8 +3,9 @@ import Darwin
 import Foundation
 import SwiftUI
 import ServiceManagement
+import ApplicationServices
 
-private let appVersion = "v0.1.0-test.19"
+private let appVersion = "v0.1.0-test.23"
 private let inkBlue = Color.primary
 
 @main
@@ -23,6 +24,10 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate, NSWindowDelegat
     })
     private var pauseItem = NSMenuItem(title: "暂停自动服务", action: nil, keyEquivalent: "")
     private var loginItem = NSMenuItem(title: "登录时启动：检查中", action: nil, keyEquivalent: "")
+    private var appleCheckItem = NSMenuItem(title: "立即检查续期日期", action: #selector(checkAppleDate), keyEquivalent: "")
+    private var noticeCheckItem = NSMenuItem(title: "立即查询重置预告", action: #selector(checkAnnouncements), keyEquivalent: "")
+    @objc private func checkAppleDate() { RuntimeManager.shared.requestAutomation("apple") }
+    @objc private func checkAnnouncements() { RuntimeManager.shared.requestAutomation("announcements") }
     private var menuTimer: Timer?
     private var quitPending = false
     private var quitApproved = false
@@ -82,6 +87,7 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate, NSWindowDelegat
         } else { showWindow() }
         RuntimeManager.shared.prepareAndStart()
         menuTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            RuntimeManager.shared.pollAutomation()
             self?.refreshMenu()
         }
         #if INKSIGHT_LIFECYCLE_TEST
@@ -115,7 +121,7 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate, NSWindowDelegat
         menu.autoenablesItems = false
         for entry in [NSMenuItem(title: "打开配置", action: #selector(openConsole), keyEquivalent: ""),
                       NSMenuItem(title: "运行详情", action: #selector(showWindow), keyEquivalent: ""),
-                      .separator(), stateItem, quotaItem, forecastMenu.item, publishItem, .separator(), pauseItem, loginItem,
+                      .separator(), stateItem, quotaItem, appleCheckItem, noticeCheckItem, forecastMenu.item, publishItem, .separator(), pauseItem, loginItem,
                       NSMenuItem(title: "系统登录项设置", action: #selector(openLoginSettings), keyEquivalent: ""),
                       .separator(), NSMenuItem(title: "退出 InkSight", action: #selector(quit), keyEquivalent: "q")] {
             if entry !== forecastMenu.item { entry.target = self }
@@ -155,6 +161,12 @@ final class InkSightDesktopApp: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
 
     private func refreshMenu() {
+        appleCheckItem.title = RuntimeManager.shared.appleChecking ? "续期日期：检查中…" : "立即检查续期日期"
+        noticeCheckItem.title = RuntimeManager.shared.noticeChecking ? "重置预告：查询中…" : "立即查询重置预告"
+        appleCheckItem.isEnabled = !RuntimeManager.shared.appleChecking
+        noticeCheckItem.isEnabled = !RuntimeManager.shared.noticeChecking
+        appleCheckItem.toolTip = RuntimeManager.shared.appleCheckStatus
+        noticeCheckItem.toolTip = RuntimeManager.shared.noticeCheckStatus
         let runtime = RuntimeManager.shared
         runtime.refreshMenuQuota()
         let quota = runtime.menuQuotaLabel
@@ -320,17 +332,24 @@ final class RuntimeManager: ObservableObject {
     @Published var transitioning = false
     @Published var lifecycleError = false
     private let desktopToken = UUID().uuidString + UUID().uuidString
-    private var quota: MenuQuota?
+    private var quotaStore = MenuQuotaStore()
+    private var quota: MenuQuota? { quotaStore.current }
+    private var quotaDiagnosticState = ""
+    private var quotaDiagnosticSince = Date()
     private var quotaTask: URLSessionDataTask?
     private var quotaGeneration = MenuQuotaGeneration()
     private var quotaNextRead = Date.distantPast
     private var quitting = false
 
-    var menuQuotaLabel: String { backend == "运行正常" ? (quota?.label() ?? "-") : "-" }
+    var menuQuotaLabel: String { backend == "运行正常" ? quotaStore.label() : "-" }
     var menuQuotaDetail: String {
         let state = menuQuotaLabel.hasPrefix("-") ? (quota?.reason == nil ? "数据已陈旧或尚未就绪" : quota!.detail) : "剩余 " + menuQuotaLabel
         var label = "Codex 7D：" + state
-        if let forecast = quota?.announcements?.detail() { label += "；" + forecast + "（实验）" }
+        if quotaStore.retrying, let stamp = quota?.lastSuccessAt {
+            let f=DateFormatter();f.timeZone=TimeZone(identifier:"Asia/Shanghai");f.dateFormat="HH:mm"
+            label += "；上次确认 " + f.string(from:Date(timeIntervalSince1970:stamp)) + "，正在重试"
+        }
+        if let forecast = quotaStore.announcements?.detail() { label += "；" + forecast + "（实验）" }
         if let stamp = quota?.lastSuccessAt, stamp.isFinite, stamp > 0 {
             let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm:ss"
             label += "（本机采集 " + formatter.string(from: Date(timeIntervalSince1970: stamp)) + "）"
@@ -339,7 +358,7 @@ final class RuntimeManager: ObservableObject {
     }
 
     var menuForecastLink: ForecastLink? {
-        backend == "运行正常" ? quota?.announcements?.link() : nil
+        backend == "运行正常" ? quotaStore.announcements?.link() : nil
     }
 
     func validateForecastLink(expected: ForecastLink, completion: @escaping (URL?) -> Void) {
@@ -354,20 +373,108 @@ final class RuntimeManager: ObservableObject {
                 guard (response as? HTTPURLResponse)?.statusCode == 200, let data,
                       let fresh = try? JSONDecoder().decode(MenuQuota.self, from: data) else { completion(nil); return }
                 self.quotaGeneration.invalidate(); self.quotaTask?.cancel(); self.quotaTask = nil
-                self.quota = fresh
+                self.quotaStore.accept(fresh,context:self.localQuotaContext())
                 completion(self.menuForecastLink == expected ? expected.url : nil)
             }
         }.resume()
     }
 
+    private var automationTask: URLSessionDataTask?
+    private var nextAutomationPoll = Date.distantPast
+    private var appleReader: AppleSubscriptionReader?
+    private var pendingAppleResult: [String: Any]?
+    @Published var appleChecking = false
+    @Published var noticeChecking = false
+    @Published var appleCheckStatus = "待检查"
+    @Published var noticeCheckStatus = "待查询"
+
+    private func automationPost(_ path: String, body: [String: Any], done: @escaping ([String: Any]?) -> Void) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/desktop/automation/" + path))
+        request.httpMethod = "POST"; request.timeoutInterval = 6
+        request.setValue(desktopToken, forHTTPHeaderField: "X-InkSight-Desktop-Token")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            let row = (response as? HTTPURLResponse)?.statusCode == 200 ? data.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } : nil
+            DispatchQueue.main.async { done(row) }
+        }.resume()
+    }
+
+    func requestAutomation(_ kind: String) {
+        guard !quitting, backend == "运行正常" else { return }
+        if kind == "apple" { guard !appleChecking else { return }; appleChecking = true; appleCheckStatus = "正在请求检查" }
+        else { guard !noticeChecking else { return }; noticeChecking = true; noticeCheckStatus = "正在请求查询" }
+        automationPost(kind + "/check", body: [:]) { [weak self] result in
+            guard let self else { return }
+            if result?["accepted"] as? Bool != true {
+                let code = result?["reason"] as? String ?? "unavailable"
+                let reason = ["disabled":"请先在配置中启用", "backoff":"正在等待重试时间", "in_progress":"检查正在执行", "paused":"自动服务已暂停", "unavailable":"服务暂不可用"][code] ?? "暂未执行，请看运行详情"
+                if kind == "apple" { self.appleChecking = false; self.appleCheckStatus = reason }
+                else { self.noticeChecking = false; self.noticeCheckStatus = reason }
+            }
+            self.nextAutomationPoll = .distantPast; self.pollAutomation()
+        }
+    }
+
+    func pollAutomation() {
+        guard backend == "运行正常", Date() >= nextAutomationPoll else { return }
+        nextAutomationPoll = Date().addingTimeInterval(15)
+        if let result = pendingAppleResult {
+            automationPost("apple-result", body: result) { [weak self] reply in
+                guard let self else { return }
+                if reply?["accepted"] as? Bool == true { self.pendingAppleResult = nil; self.appleChecking = false }
+            }
+            return
+        }
+        guard !quitting else { return }
+        automationPost("next", body: ["accessibility_trusted": AXIsProcessTrusted()]) { [weak self] reply in
+            guard let self, let reply else { return }
+            let apple = reply["apple"] as? [String: Any] ?? [:]
+            let notices = reply["announcements"] as? [String: Any] ?? [:]
+            self.appleCheckStatus = (apple["label"] as? String ?? "") + " · " + (apple["summary"] as? String ?? "待检查")
+            let reason = notices["state"] as? String ?? "not_checked"
+            let labels = ["current":"采集完成", "disabled":"已关闭", "not_checked":"待查询", "state_unavailable":"状态待核对", "auth_required":"待处理授权"]
+            self.noticeCheckStatus = notices["summary"] as? String ?? labels[reason] ?? "查询暂未完成"
+            if notices["summary"] == nil && reason == "current" && notices["selected_event"] is NSNull { self.noticeCheckStatus = "无有效未来预告" }
+            self.noticeChecking = notices["busy"] as? Bool ?? false
+            if self.appleReader == nil { self.appleChecking = apple["busy"] as? Bool ?? false }
+            guard self.appleReader == nil, let job = reply["apple_job"] as? [String: Any],
+                  let id = job["id"] as? String, id.range(of: "^[a-f0-9]{32}$", options: .regularExpression) != nil,
+                  let runtime = self.runtimeURL else { return }
+            let root = runtime.appendingPathComponent("shared/backend/state/apple-reader/" + id)
+            do { try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true) }
+            catch { return }
+            self.appleChecking = true
+            let reader = AppleSubscriptionReader(root, "B") { [weak self] result in
+                guard let self else { return }
+                self.appleReader = nil
+                self.pendingAppleResult = ["job_id": id, "result": result]
+                self.nextAutomationPoll = .distantPast; self.pollAutomation()
+            }
+            self.appleReader = reader
+            reader.begin()
+        }
+    }
+
     private func invalidateQuota() {
         quotaGeneration.invalidate()
         quotaTask?.cancel(); quotaTask = nil
-        quota = nil; quotaNextRead = .distantPast
+        quotaStore.clear(); quotaNextRead = .distantPast
     }
 
     func beginQuit() { quitting = true; quotaGeneration.stop(); invalidateQuota() }
     func cancelQuit() { quitting = false; quotaGeneration.resume(); quotaNextRead = .distantPast }
+
+    private func localQuotaContext() -> MenuQuotaLocalContext { .load(runtime:runtimeURL) }
+    private func recordQuotaTransition() {
+        let state=quotaStore.state
+        guard state != quotaDiagnosticState, let runtime=runtimeURL else { return }
+        let path=runtime.appendingPathComponent("shared/backend/state/menu_quota_transitions.json")
+        var rows=((try? Data(contentsOf:path)).flatMap { try? JSONSerialization.jsonObject(with:$0) }) as? [[String:Any]] ?? []
+        let now=Date();rows.append(["at":now.timeIntervalSince1970,"previous":quotaDiagnosticState,"reason":state,"cause":quotaStore.cause ?? "none","duration_seconds":max(0,now.timeIntervalSince(quotaDiagnosticSince))])
+        if let data=try? JSONSerialization.data(withJSONObject:Array(rows.suffix(100))) { try? data.write(to:path,options:.atomic) }
+        quotaDiagnosticState=state;quotaDiagnosticSince=now
+    }
 
     func refreshMenuQuota(force: Bool = false) {
         // A new user can explicitly bind from the USB preparation center.
@@ -380,6 +487,9 @@ final class RuntimeManager: ObservableObject {
             macText = mac
             UserDefaults.standard.set(mac, forKey: "deviceMac")
         }
+        let local = localQuotaContext()
+        if quotaStore.observe(local) { quotaGeneration.invalidate(); quotaTask?.cancel(); quotaTask=nil }
+        recordQuotaTransition()
         guard !quitting, backend == "运行正常", backendProcess?.isRunning == true else {
             if quota != nil || quotaTask != nil { invalidateQuota() }
             return
@@ -392,13 +502,22 @@ final class RuntimeManager: ObservableObject {
         request.timeoutInterval = 4
         request.setValue(desktopToken, forHTTPHeaderField: "X-InkSight-Desktop-Token")
         quotaNextRead = Date().addingTimeInterval(15)
-        quotaTask = URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+        quotaTask = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             DispatchQueue.main.async {
-                guard let self, !self.quitting, self.quotaGeneration.accepts(generation),
-                      self.backendProcess === process, self.backend == "运行正常" else { return }
+                guard let self, !self.quitting, self.backendProcess === process, self.backend == "运行正常" else { return }
+                let context=self.localQuotaContext()
+                if self.quotaStore.observe(context) { self.quotaGeneration.invalidate() }
+                guard self.quotaGeneration.accepts(generation) else { self.quotaTask=nil; return }
                 self.quotaTask = nil
-                self.quota = (response as? HTTPURLResponse)?.statusCode == 200
-                    ? data.flatMap { try? JSONDecoder().decode(MenuQuota.self, from: $0) } : nil
+                if (response as? HTTPURLResponse)?.statusCode == 200, let data,
+                   let value=try? JSONDecoder().decode(MenuQuota.self,from:data) {
+                    self.quotaStore.accept(value,context:context)
+                } else {
+                    let status=(response as? HTTPURLResponse)?.statusCode
+                    let cause=(error as NSError?)?.code == NSURLErrorTimedOut ? "loopback_timeout" : status.map { $0 != 200 ? "http_\($0)" : "decode_failed" } ?? "loopback_error"
+                    self.quotaStore.transportFailed(context:context,cause:cause)
+                }
+                self.recordQuotaTransition()
             }
         }
         quotaTask?.resume()
@@ -1087,6 +1206,10 @@ private struct ControlView: View {
                     StatusLine(name: "云端发布", value: runtime.cloud)
                     Divider()
                     StatusLine(name: "设备连接", value: runtime.device)
+                    Divider()
+                    StatusLine(name: "Apple 订阅", value: runtime.appleCheckStatus)
+                    Divider()
+                    StatusLine(name: "重置预告", value: runtime.noticeCheckStatus)
                 }
 
                 HStack {

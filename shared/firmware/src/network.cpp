@@ -12,6 +12,7 @@
 #include <mbedtls/base64.h>
 #include <time.h>
 #ifdef ENABLE_STRUCTURED
+#include "membership.h"
 #include <esp32-hal-psram.h>
 #include <Preferences.h>
 #include <esp_sleep.h>
@@ -1097,6 +1098,18 @@ bool fetchStructured(JsonDocument &doc, String *modeIdOut, bool *pendingRefreshO
         receipt["compatibility"] = "INKSIGHT_COMPAT_V1_SSD1677_N32R16";
         receipt["announcement_schema_max"] = 2;
         receipt["announcement_footer_schema"] = 1;
+        receipt["membership_schema_max"] = 1;
+        JsonObjectConst memberAi=doc["screen"]["pages"]["ai"].as<JsonObjectConst>();
+        JsonObjectConst memberInfo=memberAi["membership"].as<JsonObjectConst>();
+        if ((memberInfo["schema"] | 0)==1) {
+            char memberLine[160]; membershipText(memberAi,memberLine,sizeof(memberLine));
+            receipt["membership_date_type"] = memberInfo["date_type"];
+            receipt["membership_date"] = memberInfo["date"];
+            receipt["membership_precision"] = memberInfo["precision"];
+            receipt["membership_state"] = memberInfo["state"];
+            receipt["membership_text"] = memberLine;
+            receipt["document_ts"] = doc["ts"];
+        }
         receipt["network_json"] = true;
         receipt["payload_id"] = doc["screen"]["payload_id"] | "";
         receipt["physical_confirmed"] = false;

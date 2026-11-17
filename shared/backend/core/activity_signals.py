@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 from typing import Any
+from .membership import line as membership_line
 
 
 def _digest(value: Any) -> str:
@@ -94,7 +95,7 @@ def activity_snapshot(ai: dict | None) -> dict | None:
         return None
     plan = str(member.get("plan") or ai.get("plan") or "").strip().upper()
     valid_until = str(member.get("valid_until_date") or ai.get("valid_until_date") or "").strip()
-    if not plan or not valid_until:
+    if not plan:
         return None
     return {
         "codex_used_pct": used,
@@ -105,9 +106,6 @@ def activity_snapshot(ai: dict | None) -> dict | None:
         "deepseek_usd": usd,
         "member": {
             "plan": plan,
-            "valid_until_date": valid_until,
-            "renewal_status": str(member.get("renewal_status") or "").strip().lower(),
-            "precision": str(member.get("precision") or "").strip().lower(),
         },
     }
 
@@ -127,7 +125,7 @@ def activity_observed_at(ai: dict | None) -> int | None:
 
 def activity_key(ai: dict | None) -> str | None:
     snap = activity_snapshot(ai)
-    return _digest(snap) if snap is not None else None
+    return 'v2:' + _digest(snap) if snap is not None else None
 
 
 def ai_visual_key(ai: dict | None, *, now=None) -> str:
@@ -165,7 +163,7 @@ def ai_visual_key(ai: dict | None, *, now=None) -> str:
         "reset_credits_confirmed": reset_confirmed,
         "expiry": _expiry_list(ai.get("reset_expiry_list")),
         "plan": str(ai.get("plan") or "").strip().upper(),
-        "valid_until": str(ai.get("valid_until_date") or "").strip(),
+        "membership": membership_line(ai),
         "cny": _number(ds.get("CNY"), 2),
         "usd": _number(ds.get("USD"), 2),
         "today_tokens": ai.get("deepseek_today_tokens"),

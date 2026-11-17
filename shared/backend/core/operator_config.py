@@ -99,6 +99,7 @@ DEFAULT_CONFIG = {
     },
     "codex_member": {},
     "codex_announcements": copy.deepcopy(codex_announcement_schedule.DEFAULTS),
+    "apple_subscription": {"enabled": False},
     "panel_display": {
         "show_codex_credits": False,
         # Deprecated compatibility values are deliberately retained in the
@@ -132,7 +133,7 @@ DEFAULT_CONFIG = {
         "monthly_budget_cny": None,
         "max_input_tokens": 4000,
         "max_output_tokens": 500,
-        "max_calls_per_issue": 5,
+        "max_calls_per_issue": 3,
         "precollect_minutes": 5,
         "retry_window_minutes": 30,
         "allow_missed_catchup": True,
@@ -263,7 +264,7 @@ DEFAULT_CONFIG = {
             "monthly_budget_cny": None,
             "max_input_tokens": 4000,
             "max_output_tokens": 500,
-            "max_calls_per_issue": 5,
+            "max_calls_per_issue": 3,
             "failure_policy": "revise_then_source_title_fallback",
             "sources": ["ithome", "qbitai", "ars", "verge", "techcrunch", "openai"],
             "schedules": [
@@ -318,6 +319,7 @@ _CONFIG_ALLOWED = {
     "codex_member": {"plan": None, "renewal_status": None, "valid_until_date": None,
                      "precision": None, "source": None},
     "codex_announcements": {key: None for key in codex_announcement_schedule.DEFAULTS},
+    "apple_subscription": {"enabled": None},
     "panel_display": {"show_codex_credits": None, "codex_credit_balance": None,
                       "show_openai_api_info": None, "openai_api_balance_usd": None,
                       "show_reset_opportunities": None,
@@ -686,6 +688,8 @@ def validate_config(config: dict) -> list[str]:
     errors: list[str] = []
     _reject_unknown(config, _CONFIG_ALLOWED, "", errors)
     codex_announcement_schedule.validate(config, errors)
+    if not isinstance(config.get("apple_subscription"),dict) or not isinstance(config["apple_subscription"].get("enabled"), bool):
+        errors.append("apple_subscription.enabled: expected true or false")
     if config.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"schema_version: expected {SCHEMA_VERSION}; future/unknown versions are not activated")
     refs = config.get("secret_refs")
@@ -776,7 +780,7 @@ def validate_config(config: dict) -> list[str]:
                 news_active.get("max_output_tokens")):
             errors.append("news_digest." + problem)
         _finite_number(news_active.get("max_calls_per_issue"),
-                       "news_digest.max_calls_per_issue", errors, minimum=1, integer=True)
+                       "news_digest.max_calls_per_issue", errors, minimum=1, maximum=3, integer=True)
         _finite_number(news_active.get("precollect_minutes"),
                        "news_digest.precollect_minutes", errors, minimum=0, maximum=30,
                        integer=True)
@@ -1036,7 +1040,7 @@ def validate_config(config: dict) -> list[str]:
             news.get("max_output_tokens")):
         errors.append("reserved.news." + problem)
     _finite_number(news.get("max_calls_per_issue"), "reserved.news.max_calls_per_issue", errors,
-                   minimum=1, integer=True)
+                   minimum=1, maximum=3, integer=True)
     if news.get("failure_policy") != "revise_then_source_title_fallback":
         errors.append("reserved.news.failure_policy: unsupported policy")
     if not isinstance(news.get("sources"), list) or not news.get("sources"):
@@ -1084,6 +1088,9 @@ def _upgrade_public_document(config: dict) -> dict:
     for audit but are not silently copied into the active v2 device policy.
     """
     out = copy.deepcopy(config)
+    for section in (out.get('news_digest'), (out.get('reserved') or {}).get('news')):
+        if isinstance(section,dict) and type(section.get('max_calls_per_issue')) is int:
+            section['max_calls_per_issue']=min(3,section['max_calls_per_issue'])
     if out.get("schema_version") == 1:
         out["schema_version"] = SCHEMA_VERSION
     news = out.get("news_digest")
@@ -1191,7 +1198,7 @@ def _legacy_layers(legacy: dict) -> tuple[dict, dict, list[str]]:
     legacy_news = legacy.get("news_digest")
     if isinstance(legacy_news, dict) and "max_calls_per_issue" in legacy_news:
         normal["news_digest"] = {
-            "max_calls_per_issue": copy.deepcopy(legacy_news.get("max_calls_per_issue"))
+            "max_calls_per_issue": min(3,legacy_news["max_calls_per_issue"]) if type(legacy_news.get("max_calls_per_issue")) is int else legacy_news.get("max_calls_per_issue")
         }
     wifi = legacy.get("wifi")
     if isinstance(wifi, dict) and isinstance(wifi.get("networks"), list):

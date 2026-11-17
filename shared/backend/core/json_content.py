@@ -1957,6 +1957,7 @@ async def _generate_ai_usage_content(fallback: dict, **kwargs) -> dict:
             "valid_until_date": (_mem or {}).get("valid_until_date"),
             "deepseek": {"CNY": _dsv.get("CNY"), "USD": _dsv.get("USD")},
             "member": _mem,
+            "membership": (_mem or {}).get("subscription"),
             "fresh": _fr,
             "freshness_policy": _fresh_policy,
         }

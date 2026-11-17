@@ -24,7 +24,9 @@
     "near_interval_minutes": 15,
     "urgent_window_minutes": 30,
     "urgent_interval_minutes": 10,
-    "night_slots": ["00:00", "06:00"],
+    "night_slots": [
+      "06:00"
+    ],
     "overnight_catchup_until": "06:00",
     "overlap_hours": 24,
     "overlap_recheck_minutes": 360,
@@ -34,14 +36,15 @@
     "max_post_age_days": 7,
     "max_forecast_days": 7,
     "plan_max_age_seconds": 86400,
-    "retry_initial_seconds": 300,
-    "retry_max_seconds": 21600,
+    "retry_initial_seconds": 900,
+    "retry_max_seconds": 10800,
     "forbidden_backoff_seconds": 86400,
     "whenreset_enabled": false,
     "nextreset_enabled": false,
     "auxiliary_interval_minutes": 120,
     "auxiliary_timeout_seconds": 6,
-    "auxiliary_max_links": 8
+    "auxiliary_max_links": 8,
+    "analysis_enabled": false
   },
   "panel_display": {
     "show_codex_credits": false,
@@ -74,7 +77,7 @@
     "monthly_budget_cny": null,
     "max_input_tokens": 4000,
     "max_output_tokens": 500,
-    "max_calls_per_issue": 5,
+    "max_calls_per_issue": 3,
     "precollect_minutes": 5,
     "retry_window_minutes": 30,
     "allow_missed_catchup": true,
@@ -92,14 +95,42 @@
     },
     "topic_preferences": [],
     "schedules": [
-      {"id": "morning", "label": "科技 / AI 早报", "time": "08:55", "enabled": true, "day_types": ["all"]},
-      {"id": "noon", "label": "科技 / AI 中报", "time": "12:55", "enabled": true, "day_types": ["workday"]},
-      {"id": "evening", "label": "科技 / AI 晚报", "time": "16:55", "enabled": true, "day_types": ["workday"]}
+      {
+        "id": "morning",
+        "label": "科技 / AI 早报",
+        "time": "08:55",
+        "enabled": true,
+        "day_types": [
+          "all"
+        ]
+      },
+      {
+        "id": "noon",
+        "label": "科技 / AI 中报",
+        "time": "12:55",
+        "enabled": true,
+        "day_types": [
+          "workday"
+        ]
+      },
+      {
+        "id": "evening",
+        "label": "科技 / AI 晚报",
+        "time": "16:55",
+        "enabled": true,
+        "day_types": [
+          "workday"
+        ]
+      }
     ]
   },
   "gold_refresh": {
     "scheduled_enabled": true,
-    "mode_enabled": {"active": true, "light": true, "night": true},
+    "mode_enabled": {
+      "active": true,
+      "light": true,
+      "night": true
+    },
     "wake_enabled": true,
     "minimum_request_interval_seconds": 60,
     "response_max_age_seconds": 300,
@@ -118,31 +149,85 @@
     },
     "activity_windows": {
       "workday": [
-        {"id": "work-active", "start": "08:30", "end": "18:30", "mode": "active"},
-        {"id": "work-light", "start": "18:30", "end": "22:00", "mode": "light"},
-        {"id": "work-night", "start": "22:00", "end": "08:30", "mode": "night"}
+        {
+          "id": "work-active",
+          "start": "08:30",
+          "end": "18:30",
+          "mode": "active"
+        },
+        {
+          "id": "work-light",
+          "start": "18:30",
+          "end": "22:00",
+          "mode": "light"
+        },
+        {
+          "id": "work-night",
+          "start": "22:00",
+          "end": "08:30",
+          "mode": "night"
+        }
       ],
       "restday": [
-        {"id": "rest-light", "start": "08:00", "end": "20:00", "mode": "light"},
-        {"id": "rest-night", "start": "20:00", "end": "08:00", "mode": "night"}
+        {
+          "id": "rest-light",
+          "start": "08:00",
+          "end": "20:00",
+          "mode": "light"
+        },
+        {
+          "id": "rest-night",
+          "start": "20:00",
+          "end": "08:00",
+          "mode": "night"
+        }
       ]
     },
     "adaptive_check": {
       "observation_seconds": 300,
       "observation_poll_seconds": 60,
       "unknown_max_age_seconds": 1800,
-      "active": [{"after_seconds": 0, "interval_seconds": 60}],
+      "active": [
+        {
+          "after_seconds": 0,
+          "interval_seconds": 60
+        }
+      ],
       "light": [
-        {"after_seconds": 0, "interval_seconds": 60},
-        {"after_seconds": 300, "interval_seconds": 180},
-        {"after_seconds": 900, "interval_seconds": 300}
+        {
+          "after_seconds": 0,
+          "interval_seconds": 60
+        },
+        {
+          "after_seconds": 300,
+          "interval_seconds": 180
+        },
+        {
+          "after_seconds": 900,
+          "interval_seconds": 300
+        }
       ],
       "night": [
-        {"after_seconds": 0, "interval_seconds": 60},
-        {"after_seconds": 300, "interval_seconds": 300},
-        {"after_seconds": 900, "interval_seconds": 600},
-        {"after_seconds": 1800, "interval_seconds": 900},
-        {"after_seconds": 3600, "interval_seconds": 1800}
+        {
+          "after_seconds": 0,
+          "interval_seconds": 60
+        },
+        {
+          "after_seconds": 300,
+          "interval_seconds": 300
+        },
+        {
+          "after_seconds": 900,
+          "interval_seconds": 600
+        },
+        {
+          "after_seconds": 1800,
+          "interval_seconds": 900
+        },
+        {
+          "after_seconds": 3600,
+          "interval_seconds": 1800
+        }
       ]
     },
     "page_switch": {
@@ -156,7 +241,10 @@
     "time_sync": {
       "enabled": true,
       "interval_seconds": 3600,
-      "servers": ["ntp.aliyun.com", "pool.ntp.org"]
+      "servers": [
+        "ntp.aliyun.com",
+        "pool.ntp.org"
+      ]
     },
     "network": {
       "association_timeout_ms": 9000,
@@ -164,9 +252,17 @@
       "fetch_round_budget_ms": 60000,
       "http_timeout_ms": 15000,
       "fallback_tries": 1,
-      "retry_backoff_seconds": [30, 60, 120, 300]
+      "retry_backoff_seconds": [
+        30,
+        60,
+        120,
+        300
+      ]
     },
-    "calendar_overrides": {"manual_workdays": [], "manual_holidays": []}
+    "calendar_overrides": {
+      "manual_workdays": [],
+      "manual_holidays": []
+    }
   },
   "reserved": {
     "activity_policy": {
@@ -174,25 +270,69 @@
       "timezone": "Asia/Shanghai",
       "windows": {
         "workday": [
-          {"id": "work-active", "start": "08:30", "end": "18:30", "mode": "active"},
-          {"id": "work-light", "start": "18:30", "end": "22:00", "mode": "light"},
-          {"id": "work-night", "start": "22:00", "end": "08:30", "mode": "night"}
+          {
+            "id": "work-active",
+            "start": "08:30",
+            "end": "18:30",
+            "mode": "active"
+          },
+          {
+            "id": "work-light",
+            "start": "18:30",
+            "end": "22:00",
+            "mode": "light"
+          },
+          {
+            "id": "work-night",
+            "start": "22:00",
+            "end": "08:30",
+            "mode": "night"
+          }
         ],
         "restday": [
-          {"id": "rest-light", "start": "08:00", "end": "20:00", "mode": "light"},
-          {"id": "rest-night", "start": "20:00", "end": "08:00", "mode": "night"}
+          {
+            "id": "rest-light",
+            "start": "08:00",
+            "end": "20:00",
+            "mode": "light"
+          },
+          {
+            "id": "rest-night",
+            "start": "20:00",
+            "end": "08:00",
+            "mode": "night"
+          }
         ]
       },
       "intervals_s": {
-        "active": [60],
-        "light": [60, 180, 300],
-        "night": [60, 300, 600, 900, 1800]
+        "active": [
+          60
+        ],
+        "light": [
+          60,
+          180,
+          300
+        ],
+        "night": [
+          60,
+          300,
+          600,
+          900,
+          1800
+        ]
       }
     },
     "device_runtime": {
       "enabled": false,
-      "page_switch_s": {"active": 600, "light": 300, "night": 0},
-      "ntp_servers": ["ntp.aliyun.com", "pool.ntp.org"],
+      "page_switch_s": {
+        "active": 600,
+        "light": 300,
+        "night": 0
+      },
+      "ntp_servers": [
+        "ntp.aliyun.com",
+        "pool.ntp.org"
+      ],
       "network": {
         "association_timeout_ms": 9000,
         "connect_round_budget_ms": 25000,
@@ -200,7 +340,10 @@
         "http_timeout_ms": 15000,
         "fallback_tries": 1
       },
-      "calendar": {"manual_workdays": [], "manual_holidays": []}
+      "calendar": {
+        "manual_workdays": [],
+        "manual_holidays": []
+      }
     },
     "news": {
       "enabled": false,
@@ -208,14 +351,53 @@
       "monthly_budget_cny": null,
       "max_input_tokens": 4000,
       "max_output_tokens": 500,
-      "max_calls_per_issue": 5,
+      "max_calls_per_issue": 3,
       "failure_policy": "revise_then_source_title_fallback",
-      "sources": ["ithome", "qbitai", "ars", "verge", "techcrunch", "openai"],
+      "sources": [
+        "ithome",
+        "qbitai",
+        "ars",
+        "verge",
+        "techcrunch",
+        "openai"
+      ],
       "schedules": [
-        {"id": "weekday-morning", "label": "科技 / AI 早报", "time": "08:55", "enabled": true, "day_types": ["workday"]},
-        {"id": "weekday-noon", "label": "科技 / AI 中报", "time": "12:55", "enabled": true, "day_types": ["workday"]},
-        {"id": "weekday-evening", "label": "科技 / AI 晚报", "time": "16:55", "enabled": true, "day_types": ["workday"]},
-        {"id": "restday-morning", "label": "科技 / AI 早报", "time": "08:55", "enabled": true, "day_types": ["restday"]}
+        {
+          "id": "weekday-morning",
+          "label": "科技 / AI 早报",
+          "time": "08:55",
+          "enabled": true,
+          "day_types": [
+            "workday"
+          ]
+        },
+        {
+          "id": "weekday-noon",
+          "label": "科技 / AI 中报",
+          "time": "12:55",
+          "enabled": true,
+          "day_types": [
+            "workday"
+          ]
+        },
+        {
+          "id": "weekday-evening",
+          "label": "科技 / AI 晚报",
+          "time": "16:55",
+          "enabled": true,
+          "day_types": [
+            "workday"
+          ]
+        },
+        {
+          "id": "restday-morning",
+          "label": "科技 / AI 早报",
+          "time": "08:55",
+          "enabled": true,
+          "day_types": [
+            "restday"
+          ]
+        }
       ]
     },
     "gold": {
@@ -226,15 +408,46 @@
       "shared_quota_calls_per_token": 100,
       "automatic_token_rotation": false,
       "schedules": [
-        {"id": "gold-morning", "label": "上午金价", "time": "09:05", "enabled": true, "day_types": ["all"]},
-        {"id": "gold-afternoon", "label": "下午金价", "time": "15:05", "enabled": true, "day_types": ["all"]}
+        {
+          "id": "gold-morning",
+          "label": "上午金价",
+          "time": "09:05",
+          "enabled": true,
+          "day_types": [
+            "all"
+          ]
+        },
+        {
+          "id": "gold-afternoon",
+          "label": "下午金价",
+          "time": "15:05",
+          "enabled": true,
+          "day_types": [
+            "all"
+          ]
+        }
       ]
     },
     "market_data": {
       "enabled": false,
-      "international_gold": {"instrument": "XAU", "currency": "CNY", "unit": "g"},
-      "domestic_gold": {"instrument": null, "currency": "CNY", "unit": "g"},
-      "fx": {"pair": null, "display_decimals": 2, "smaller_font": true}
+      "international_gold": {
+        "instrument": "XAU",
+        "currency": "CNY",
+        "unit": "g"
+      },
+      "domestic_gold": {
+        "instrument": null,
+        "currency": "CNY",
+        "unit": "g"
+      },
+      "fx": {
+        "pair": null,
+        "display_decimals": 2,
+        "smaller_font": true
+      }
     }
+  },
+  "apple_subscription": {
+    "enabled": false
   }
 }

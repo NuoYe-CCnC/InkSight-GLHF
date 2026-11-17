@@ -1,10 +1,10 @@
 # InkSight-GLHF
 
-[English](README.en.md) · [使用文档](docs/README.md) · [test.19 更新说明](docs/releases/v0.1.0-test.19.zh-CN.md)
+[English](README.en.md) · [使用文档](docs/README.md) · [test.23 更新说明](docs/releases/v0.1.0-test.23.zh-CN.md)
 
-**macOS 菜单栏与 ESP32-S3 墨水屏看板。** 把 AI 用量、科技简报和金价放在桌边；从 Is 菜单管理本机服务、查看额度与可选的实验性重置预告。test.19 将预告同步放入关注页右底栏，保持正文完整，不因预告切页。
+**InkSight 把 Codex 七日剩余额度放进 Mac 菜单栏，把 AI 用量、中文科技简报和金价放上桌面的墨水屏。** 用量页可显示 DeepSeek 余额、手动重置次数和订阅日期。通过 App Store 订阅 Plus 的用户可授权读取续期日。
 
-**[下载 Mac App · Apple Silicon](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-macOS-arm64.zip)** · [测试版与校验文件](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.19)
+**[下载 Mac App · Apple Silicon](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.23/InkSight-macOS-arm64.zip)** · [测试版与校验文件](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/tag/v0.1.0-test.23)
 
 要求 **Apple Silicon、macOS 26.5+**，实际验证 26.5.2；App 内含 Python 3.11.15。当前为公开测试版，ad-hoc 签名，**无 Apple Developer ID 签名或公证**。实体屏另需下列硬件、接线及本机固件准备；不提供通用预编译固件。
 
@@ -28,7 +28,7 @@ Is 菜单：有效预告附星号，可核对原文；历史回放不代表当�
 
 1. **下载并打开 App。** 先按[下载校验](docs/DOWNLOAD.zh-CN.md)核对同版 SHA256，在原安装路径放入完整 App；Is →“打开配置”进入本机管理页，无需 root 账号或密码。
 2. **配置与准备。** 填写 Wi-Fi、WebDAV 和需要的服务；从小米官方合法取得 MiSans，在[图形准备中心](docs/DEVICE_FIRST_USE.zh-CN.md)本地导入字体、明确点击准备工具并检查配置。默认关闭全部远程新闻源与实验性预告，没有自行启用的新闻源和密钥时显示本地寄语，不自动调用付费模型。
-3. **确认设备后构建、刷写。** 按[接线与安装](docs/INSTALLATION.zh-CN.md)确认支持的板卡和屏幕；新板与已有设备使用不同流程。已有设备先备份，受控升级仅写非活动槽并保留设置。普通 App 升级不为版本号重复刷写；**启用关注页底栏预告需要本版固件更新**，详见[升级说明](docs/UPGRADE.zh-CN.md)。
+3. **确认设备后构建、刷写。** 按[接线与安装](docs/INSTALLATION.zh-CN.md)确认支持的板卡和屏幕；新板与已有设备使用不同流程。已有设备先备份，受控升级仅写非活动槽并保留设置。普通 App 升级不为版本号重复刷写；**旧固件如需区分“续期”和“有效至”须升级，已支持的设备只需更新 Mac App**，详见[升级说明](docs/UPGRADE.zh-CN.md)。
 
 ## 硬件与运行条件
 
@@ -52,8 +52,8 @@ Is 菜单：有效预告附星号，可核对原文；历史回放不代表当�
 
 ## 验证、源码与许可
 
-本版全量回归 **704 通过、0 跳过**，另有一项既有 Dashscope 弃用警告；验收与发布复核以[test.19 更新说明](docs/releases/v0.1.0-test.19.zh-CN.md)的最终日志为准。本机 App 迁移和单实例、现有板备用槽升级/完整回读/联网及保留两组 Wi-Fi 已验证，用户确认底栏刷新且显示正常。空白板、另一台 Mac/Gatekeeper、真实回退、重新登录自启、两页所有状态和长时间切页未据此认定通过。
+本机 test.23 交付记录有 **806 项回归、57 项原生菜单检查通过**。已有设备已验证续期日期上屏。空白板首次安装、另一台 Mac 首次启动和长期断连仍待验证。详见 [test.23 更新说明](docs/releases/v0.1.0-test.23.zh-CN.md)。
 
-开发者下载 [InkSight-Source.zip](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.19/InkSight-Source.zip)，它不是安装器；另见[贡献指南](CONTRIBUTING.md)、[源码安装](docs/FIRST_USE.zh-CN.md)与[文档目录](docs/README.md)。
+开发者下载 [InkSight-Source.zip](https://github.com/NuoYe-CCnC/InkSight-GLHF/releases/download/v0.1.0-test.23/InkSight-Source.zip)，它不是安装器；另见[贡献指南](CONTRIBUTING.md)、[源码安装](docs/FIRST_USE.zh-CN.md)与[文档目录](docs/README.md)。
 
 自有代码及四条发行寄语按 [`GPL-3.0-only`](LICENSE) 提供。第三方代码、字体、新闻与服务遵循各自条款；MiSans 原始字体和生成字库不随仓库、App 源模板或源码 ZIP 分发。图片为渲染输出，不含可提取的字体文件。见[许可范围](LICENSE-SCOPE.md)、[第三方通知](THIRD_PARTY_NOTICES.md)、[图片来源](docs/images/README.md)和[SBOM](SBOM.json)。

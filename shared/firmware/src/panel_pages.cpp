@@ -18,6 +18,7 @@
 #include "panel_ui.h"
 #include "news_issue_status.h"
 #include "codex_announcements.h"
+#include "membership.h"
 
 static const int PW = 800, PH = 480;
 
@@ -366,7 +367,7 @@ static const char *pageStatusText(const JsonDocument &doc, const char *page, int
     // 会员（手动确认语义：存在即有效；fresh 可选）
     const char *plan = ai["plan"] | "";
     const char *valid = ai["valid_until_date"] | "";
-    if (!plan[0] || !valid[0]) miss[3] = true; else last[3] = fr["member"].as<long long>();
+    if (membershipProblem(ai)) miss[3] = true; else last[3] = fr["member"].as<long long>();
     // 新闻（资讯页）
     const char *nmode = nw["mode"] | "";
     if (strcmp(nmode, "digest") == 0 || strcmp(nmode, "daily_message") == 0 ||
@@ -522,8 +523,9 @@ bool renderAiPanel(const JsonDocument &doc) {
     const char *plan = ai["plan"] | "";
     const char *valid = ai["valid_until_date"] | "";
     const char *mmdd = (strlen(valid) >= 10) ? (valid + 5) : valid;
-    snprintf(s, sizeof(s), "%s · 有效至 %.5s", plan[0] ? plan : "会员", mmdd);
-    if (panelTextInkWidth(F_SMALL(), s) <= (codexRight - cnyX0 - 16)) {
+    membershipText(ai, s, sizeof(s));
+    Serial.printf("[MEMBER] %s\n", s);
+    if (panelTextInkWidth(F_SMALL(), s) <= (codexRight - cnyX0 - panelTextInkWidth(F_TITLE(), "CODEX") - 16)) {
         panelDrawTextRight(F_SMALL(), s, codexRight, 93);
     } else {
         panelDrawTextRight(F_TINY(), s, codexRight, 93);   // 空间不足只缩会员行

@@ -41,7 +41,8 @@ def test_chinese_gate_rejects_english_prose_and_internal_leaks(text, reason):
     assert not result["ok"] and result["reason"] == reason
 
 
-def test_local_fallback_never_copies_an_english_source_title():
+def test_local_fallback_never_copies_an_english_source_title(monkeypatch):
+    monkeypatch.setattr(digest.time,"time",lambda:NOW)
     rows = [
         {"source": "qbitai", "article_id": "cn1", "title": "国产算力集群发布世界模型",
          "summary": "完成新的模型建设", "digest_category": "模型与研究",

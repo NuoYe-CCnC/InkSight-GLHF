@@ -198,6 +198,11 @@ def test_firmware_policy_header_host_compiles(tmp_path):
 #include "phase3_policy.h"
 #include <cassert>
 int main() {
+  assert(p3ActivitySchemaMigration("legacyhash", "v2:newhash"));
+  assert(p3ActivitySchemaMigration("v2:newhash", "legacyhash"));
+  assert(!p3ActivitySchemaMigration("", "v2:newhash"));
+  assert(!p3ActivitySchemaMigration("v2:old", "v2:changed-usage"));
+  assert(!p3ActivitySchemaMigration("legacyhash", "anotherlegacyhash"));
   assert(p3ModeForMinute(true, 8*60+29) == P3Mode::Night);
   assert(p3ModeForMinute(true, 8*60+30) == P3Mode::Active);
   assert(p3ModeForMinute(true, 18*60+30) == P3Mode::Light);

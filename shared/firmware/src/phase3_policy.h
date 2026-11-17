@@ -2,6 +2,13 @@
 #define INKSIGHT_PHASE3_POLICY_H
 
 #include <stdint.h>
+#include <string.h>
+
+// A schema migration establishes comparability, never claims usage changed.
+inline bool p3ActivitySchemaMigration(const char *previous, const char *incoming) {
+    return previous && incoming && previous[0] && incoming[0] &&
+           ((strncmp(previous,"v2:",3)==0)!=(strncmp(incoming,"v2:",3)==0));
+}
 
 // Pure, host-testable phase-3 policy.  All times are Asia/Shanghai wall-clock
 // seconds supplied by the caller; this file performs no I/O and owns no state.

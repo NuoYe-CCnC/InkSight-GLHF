@@ -14,8 +14,13 @@ def verified_receipt(line,build_id):
     if (not isinstance(data,dict) or type(data.get('schema')) is not int or data.get('schema')!=1 or data.get('build_id')!=build_id
         or data.get('compatibility')!='INKSIGHT_COMPAT_V1_SSD1677_N32R16'
         or data.get('network_json') is not True or data.get('physical_confirmed') is not False):return None
-    return {'network_verified':True,'transport':'physical-USB-after-verified-image',
+    result={'network_verified':True,'transport':'physical-USB-after-verified-image',
             'build_id':build_id,'physical_confirmed':False}
+    for key in ('membership_schema_max','membership_date_type','membership_date',
+                'membership_precision','membership_state','membership_text','document_ts'):
+        if key in data and isinstance(data[key],(str,int)) and len(str(data[key]))<=160:
+            result[key]=data[key]
+    return result
 
 
 def main():

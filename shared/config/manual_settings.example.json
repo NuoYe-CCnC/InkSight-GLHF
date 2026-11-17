@@ -46,6 +46,6 @@
     "balance_estimate_output_ratio": 0.1
   },
   "news_digest": {
-    "max_calls_per_issue": 5
+    "max_calls_per_issue": 3
   }
 }

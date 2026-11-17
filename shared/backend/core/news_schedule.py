@@ -310,7 +310,8 @@ def _publish(state: dict, result: dict, period: str, planned: datetime,
                "published_at": event.get("published_at"), "trusted_at": event.get("trusted_at"),
                "event_at": event.get("event_at"), "update_of": event.get("update_of"),
                "time_trust": event.get("time_trust"), "fingerprint": event.get("fingerprint"),
-               "evidence": event.get("evidence")}
+               "evidence": event.get("evidence"), "claim":event.get("claim"),
+               "evidence_ids":event.get("evidence_ids")}
               for event in (result.get("events") or [])[:4] if event.get("id")]
     version = digest_publish_version(period, text)
     brief_state = brief._load_state()
@@ -440,10 +441,10 @@ def _mark_generation_unavailable(state: dict, period: str, credential: dict) -> 
 
 
 def _max_model_calls(cfg: dict | None) -> int:
-    value = (cfg or {}).get("max_calls_per_issue", 5)
+    value = (cfg or {}).get("max_calls_per_issue", 3)
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        return 5
-    return value
+        return 3
+    return min(3,value)
 
 
 def _take_model_call(state: dict, issue_key: str, period: str, limit: int) -> bool:
@@ -520,53 +521,59 @@ def _run_one(state: dict, cands: list[dict] | None, period: str, planned: dateti
 
     call_key = issue_key or _key(planned.strftime("%Y-%m-%d"), period)
     call_limit = _max_model_calls(cfg)
-    if not _take_model_call(state, call_key, period, call_limit):
-        return "skip:max-model-calls"
-    call_number = int((state.get("model_calls") or {}).get(call_key, 0))
-    activity_context = {
-        "automatic": not call_key.startswith("manual|"),
-        "issue_key": call_key,
-        "call_id": f"{call_key}#{call_number}",
-    }
-    with brief.usage_activity_context(activity_context):
-        result, why = _generate(candidates, period, None, cfg)
-    if result is None:
-        _log(state, int(time.time()), f"generation unavailable: {why or 'unknown'}", period)
-        return str(why)
-    while not result.get("ok"):
-        if result.get("body"):
-            reason = result.get("note") or "validate"
-            _log(state, int(time.time()), f"model result rejected: {reason}", period)
-            if not _take_model_call(state, call_key, period, call_limit):
-                fallback = digest.build_local_fallback(candidates)
-                if fallback is not None:
-                    _log(state, int(time.time()),
-                         f"generation attempts exhausted: {reason}; local fallback", period)
-                    return publish(fallback)
-                _log(state, int(time.time()),
-                     f"generation attempts exhausted: {reason}; previous issue retained", period)
-                return "skip:keep-old"
-            call_number = int((state.get("model_calls") or {}).get(call_key, 0))
-            activity_context = {
-                "automatic": not call_key.startswith("manual|"),
-                "issue_key": call_key,
-                "call_id": f"{call_key}#{call_number}",
-            }
-            with brief.usage_activity_context(activity_context):
-                revised, why2 = _generate(candidates, period, reason, cfg)
-            if revised is not None and revised.get("ok"):
-                return publish(revised)
-            if revised is None:
-                _log(state, int(time.time()),
-                     f"revision unavailable: {why2 or 'unknown'}", period)
-                return str(why2 or "skip:gen")
-            result = revised
-            continue
-        if result.get("failure_kind") in {"auth_failure", "temporary_failure"}:
-            return _mark_generation_unavailable(state, period, {
-                "state": result["failure_kind"], "reason": result.get("note")})
-        return "skip:gen"
-    return publish(result)
+    repeated={}
+
+    def diagnose(result, fallback=None):
+        language=result.get('language') or {}
+        row=dict(at=int(time.time()),issue_key=call_key,attempt=int(state.get('model_calls',{}).get(call_key,0)),
+                 rules=str(result.get('note') or 'generation-unavailable')[:500],
+                 fragments=[dict(text=str(f.get('text') or '')[:160],reason=f.get('reason')) for f in language.get('fragments',[])[:8]],
+                 evidence_failures=result.get('evidence_failures',[])[:8],
+                 rejected_body=str(result.get('body') or result.get('raw') or '')[:1000],
+                 source_candidates=(result.get('source_candidates') or [dict(id=c.get('article_id'),source=c.get('source'),title=str(c.get('title') or '')[:160]) for c in candidates[:8]]),
+                 fallback=fallback)
+        state['rejections']=(state.get('rejections',[])+[row])[-40:]
+        _save(state)
+
+    def local_fallback(reason, temporary=False):
+        detail={}
+        value=digest.build_local_fallback(candidates,diagnostics=detail)
+        diagnose(dict(note=reason),fallback=detail)
+        if value is not None:
+            _log(state,int(time.time()),'local source-backed fallback; no model call',period)
+            return publish(value)
+        _log(state,int(time.time()),'local fallback unavailable; previous issue retained',period)
+        if temporary and int(state.get('model_calls',{}).get(call_key,0))<call_limit:
+            return _mark_generation_unavailable(state,period,dict(state='temporary_failure',reason=reason))
+        return _retain_previous_valid(state,period,planned,now,reason)
+
+    hint=None
+    while int(state.get('model_calls',{}).get(call_key,0))<call_limit:
+        sent=False
+        def send_gate():
+            nonlocal sent
+            if not _take_model_call(state,call_key,period,call_limit):return False
+            sent=True
+            context=brief._USAGE_ACTIVITY_CONTEXT.get()
+            if context is not None:context['call_id']=f"{call_key}#{state['model_calls'][call_key]}"
+            return True
+        activity_context={'automatic':not call_key.startswith('manual|'),'issue_key':call_key,'call_id':''}
+        with brief.usage_activity_context(activity_context),brief.model_send_gate(send_gate):
+            result,why=_generate(candidates,period,hint,cfg)
+        if result is not None and result.get('ok'):return publish(result)
+        result=result or dict(note=why or 'generation-unavailable')
+        diagnose(result)
+        reason=str(result.get('note') or result.get('failure_kind') or 'generation-unavailable')
+        repeated[reason]=repeated.get(reason,0)+1
+        if (not sent or result.get('failure_kind') or repeated[reason]>=2):return local_fallback(reason,temporary=result.get('failure_kind')=='temporary_failure')
+        if result.get('body'):
+            fragments=(result.get('language') or {}).get('fragments') or []
+            hint=dict(previous_body=result['body'],fragments=fragments,candidate_count=len(result.get('source_candidates') or []),
+                      metadata_only=not fragments and all('evidence' in v or 'claim' in v for v in result.get('semantic_errors',[])) and bool(result.get('semantic_errors')),
+                      rules=reason)
+        else:
+            hint=dict(rules=reason)
+    return local_fallback('max-model-calls')
 
 
 def digest_freshness(cur: dict | None, now_dt: datetime | None = None, *,
@@ -893,6 +900,7 @@ def run_manual_issue(issue_key: str, issue_config: dict, *,
     now = now_dt or cal.bj_now()
     with state_store.file_lock(_STATE, operation="schedule"):
         state = _load()
+        if (state.get("manual_outcomes") or {}).get(issue_key) == "published":return "published"
         snapshot = copy.deepcopy(issue_config)
         state.setdefault("issue_configs", {})[issue_key] = snapshot
         _save(state)
@@ -913,5 +921,8 @@ def run_manual_issue(issue_key: str, issue_config: dict, *,
             snapshot,
             issue_key,
         )
+        if outcome.startswith("published"):
+            state.setdefault("manual_outcomes",{})[issue_key]="published"
+            state["manual_outcomes"]=dict(list(state["manual_outcomes"].items())[-100:])
         _save(state)
         return outcome

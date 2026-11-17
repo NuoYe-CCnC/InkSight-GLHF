@@ -7,6 +7,7 @@ import re
 BJ = timezone(timedelta(hours=8))
 DEFAULTS = {
     "enabled": False,
+    "analysis_enabled": False,
     "target_handle": "thsottiaux",
     "target_user_id": "1953337039510003712",
     "active_minutes": 60, "light_minutes": 120,
@@ -14,12 +15,12 @@ DEFAULTS = {
     "low_remaining_percent": 30,
     "near_window_minutes": 120, "near_interval_minutes": 15,
     "urgent_window_minutes": 30, "urgent_interval_minutes": 10,
-    "night_slots": ["00:00", "06:00"], "overnight_catchup_until": "06:00",
+    "night_slots": ["06:00"], "overnight_catchup_until": "06:00",
     "overlap_hours": 24, "overlap_recheck_minutes": 360,
     "page_size": 20, "max_pages": 2, "timeout_seconds": 8,
     "max_post_age_days": 7, "max_forecast_days": 7,
     "plan_max_age_seconds": 86400,
-    "retry_initial_seconds": 300, "retry_max_seconds": 21600,
+    "retry_initial_seconds": 900, "retry_max_seconds": 10800,
     "forbidden_backoff_seconds": 86400,
     "whenreset_enabled": False, "nextreset_enabled": False,
     "auxiliary_interval_minutes": 120, "auxiliary_timeout_seconds": 6,
@@ -35,7 +36,7 @@ def validate(config: dict, errors: list[str]) -> None:
         errors.append(prefix + ": expected object"); return
     if not isinstance(section.get("enabled"), bool):
         errors.append(prefix + ".enabled: expected true or false")
-    for key in ('whenreset_enabled','nextreset_enabled'):
+    for key in ('whenreset_enabled','nextreset_enabled','analysis_enabled'):
         if not isinstance(section.get(key),bool): errors.append(prefix+'.'+key+': expected true or false')
     if not isinstance(section.get("target_handle"), str) or not re.fullmatch(r"[A-Za-z0-9_]{1,15}", section.get("target_handle", "")):
         errors.append(prefix + ".target_handle: expected public handle, no URL or @")
@@ -84,54 +85,15 @@ def mode_at(config: dict, now: float, *, is_workday=None) -> str:
     return "night"  # Invalid/gapped policy must not silently enable daytime traffic.
 
 
-def interval_seconds(cfg: dict, mode: str, remaining, events: dict, now: float) -> int | None:
-    if mode not in {"active", "light"}:
-        return None
-    low = type(remaining) in (int, float) and 0 <= remaining <= cfg["low_remaining_percent"]
-    base = cfg[("low_" if low else "") + mode + "_minutes"] * 60
-    nearest = min((e["target_at"] - now for e in events.values() if type(e.get("target_at")) in (int,float) and e["target_at"] > now), default=None)
-    if nearest is not None:
-        if nearest <= cfg["urgent_window_minutes"] * 60:
-            base = min(base, cfg["urgent_interval_minutes"] * 60)
-        elif nearest <= cfg["near_window_minutes"] * 60:
-            base = min(base, cfg["near_interval_minutes"] * 60)
-    return base
+def interval_seconds(cfg, mode, remaining, events, now):
+    return None  # Legacy mode/quota cadence intentionally retired.
 
 
-def relevant_slots(cfg: dict, now: float) -> list[str]:
-    """Late startup only catches the current overnight slot, not missed days."""
-    local = datetime.fromtimestamp(now, BJ)
-    date = local.strftime("%Y-%m-%d")
-    minute = local.hour * 60 + local.minute
-    cutoff = sum(int(x) * k for x, k in zip(cfg["overnight_catchup_until"].split(":"), (60, 1)))
-    result = []
-    for slot in cfg["night_slots"]:
-        h, m = (int(x) for x in slot.split(":"))
-        at = h * 60 + m
-        # The first overnight slot remains eligible until the catch-up cutoff.
-        # Other exact-time slots have a 90-second timer/coalescing grace.
-        inside = at <= minute < cutoff if at == 0 else (0 <= (local.hour * 3600 + local.minute * 60 + local.second) - at * 60 < 90)
-        if inside:
-            result.append(date + "@" + slot)
-    return result
+def relevant_slots(cfg, now):
+    from .automation_schedule import daily_slot
+    return [daily_slot(now)[0]]
 
 
-def decision(state: dict, cfg: dict, *, now: float, mode: str, remaining=None,
-             events: dict | None = None) -> dict:
-    interval = interval_seconds(cfg, mode, remaining, events or {}, now)
-    slots = [s for s in relevant_slots(cfg, now) if s not in (state.get("slot_success") or {})]
-    # Failed exact-time work remains pending through its bounded backoff even
-    # after the 90s trigger grace. Never backfill a previous Beijing date.
-    date = datetime.fromtimestamp(now, BJ).strftime("%Y-%m-%d")
-    slots = sorted(set(slots + [s for s in state.get("pending_slots", [])
-                               if isinstance(s, str) and s.startswith(date + "@")
-                               and s not in (state.get("slot_success") or {})]))
-    last = state.get("last_success_at") or 0
-    due = bool(slots or (interval is not None and (not last or now - last >= interval)))
-    blocked = max(state.get("next_allowed_at") or 0, state.get("inflight_until") or 0)
-    return {"due": due and now >= blocked, "slots": slots,
-            "interval_seconds": interval, "next_allowed_at": blocked,
-            "reason": "backoff" if now < blocked else "night_slot" if slots else "interval" if due else "not_due",
-            # A just-completed pre-boundary check can satisfy a simultaneous
-            # slot without making a second HTTP operation.
-            "coalesce": bool(slots and last and 0 <= now - last < 60)}
+def decision(state, cfg, *, now, mode=None, remaining=None, events=None, manual=False):
+    from .automation_schedule import announcement_due
+    return announcement_due(state, now, manual)

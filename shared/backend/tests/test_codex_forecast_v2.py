@@ -268,28 +268,18 @@ def test_first_seen_migration_repeat_and_no_ack(tmp_path,monkeypatch):
     assert a._publication_diagnostics(snap([post]))['device_ack'] is False
 
 
-def test_auxiliary_due_is_independent_of_primary_and_restart_lease(tmp_path,monkeypatch):
+def test_auxiliary_does_not_have_an_independent_poll_opportunity(tmp_path,monkeypatch):
     cfg={**policy.DEFAULTS,'enabled':True,'whenreset_enabled':True}
-    configuration={'codex_announcements':cfg}
     monkeypatch.setattr(a,'STATE_FILE',tmp_path/'announcements.json')
-    monkeypatch.setattr(policy,'mode_at',lambda *args:'active')
-    state=a._default(cfg);state.update(last_success_at=NOW,last_attempt_at=NOW,next_allowed_at=NOW+60)
-    state['auxiliary_sources']=s.collect({},cfg,NOW,requester=lambda *args:(_ for _ in ()).throw(s.DiscoveryError('connection')))
+    state=a._default(cfg)
+    from core.automation_schedule import daily_slot
+    state.update(last_success_at=NOW,last_attempt_at=NOW,daily_success_slot=daily_slot(NOW)[0])
+    state['auxiliary_sources']={'whenreset':{'next_allowed_at':0,'state':'connection'}}
     a.state_store.write_json(a.STATE_FILE,state)
-    seen=[]
-    def auxiliary(name,path,timeout):
-        reserved=a.state_store.read_json(a.STATE_FILE)[0]
-        assert reserved['auxiliary_sources'][name]['next_allowed_at']>NOW+600
-        assert reserved['auxiliary_sources'][name]['retry_cycle']['attempts']==1
-        seen.append(path)
-        return 'User-agent: *\nAllow: /' if path=='/robots.txt' else '<a href="https://x.com/thsottiaux/status/2115273253711409208">Source</a>'
-    result=a.tick(now=NOW+600,config=configuration,context={'account_present':False,'remaining':80},
-                  requester=lambda *args:pytest.fail('auxiliary retry pulled main source'),auxiliary_requester=auxiliary)
-    assert result['reason']=='auxiliary_only' and result['requests']==0 and seen
-    saved=a.state_store.read_json(a.STATE_FILE)[0]
-    assert saved['last_success_at']==NOW and saved['last_attempt_at']==NOW
-    assert not saved['auxiliary_sources']['whenreset']['retry_cycle']
-    assert not a.tick(now=NOW+601,config=configuration,context={'account_present':False,'remaining':80},requester=lambda *args:pytest.fail('unexpected primary'))['queried']
+    result=a.tick(now=NOW+600,config={'codex_announcements':cfg},context={'account_present':False,'remaining':0},
+        requester=lambda *args:pytest.fail('not daily slot'),auxiliary_requester=lambda *args:pytest.fail('no independent auxiliary polling'))
+    assert not result['queried']
+    assert a.state_store.read_json(a.STATE_FILE)[0]['last_success_at']==NOW
 
 
 def test_primary_failure_keeps_verified_plan_and_auxiliary_success():
@@ -406,7 +396,9 @@ def test_diagnostics_reparse_old_rejections_and_estimate_schedule(monkeypatch):
     assert chosen['display_label']=='预计 / 10-28 16:00 前重置'
     monkeypatch.setattr(policy,'mode_at',lambda *args:'active')
     state.update(last_success_at=NOW,last_attempt_at=NOW,next_allowed_at=NOW+60)
-    assert a._next_query_time({},state,policy.DEFAULTS,NOW,{'remaining':80},{})==NOW+3600
+    from core.automation_schedule import daily_slot,next_daily
+    state['daily_success_slot']=daily_slot(NOW)[0]
+    assert a._next_query_time({},state,policy.DEFAULTS,NOW,{'remaining':80},{})==next_daily(NOW)
     monkeypatch.setattr(policy,'mode_at',lambda *args:'night')
     next_time=a._next_query_time({},state,policy.DEFAULTS,NOW,{'remaining':80},{})
-    assert datetime.fromtimestamp(next_time,t.BJ).strftime('%H:%M')=='00:00'
+    assert datetime.fromtimestamp(next_time,t.BJ).strftime('%H:%M')=='06:00'

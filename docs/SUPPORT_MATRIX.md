@@ -1,6 +1,6 @@
 # Support matrix / 支持矩阵
 
-`v0.1.0-test.19`公开测试版边界，不是全平台或所有用户一次成功的承诺。细节见[发布说明](releases/v0.1.0-test.19.zh-CN.md)。
+`v0.1.0-test.23`公开测试版边界，不是全平台或所有用户一次成功的承诺。细节见[发布说明](releases/v0.1.0-test.23.zh-CN.md)。
 
 | 部分 / Area | 已验证 / Verified | 未验收或限制 / Limits |
 |---|---|---|

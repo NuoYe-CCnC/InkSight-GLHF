@@ -394,6 +394,19 @@ def usage_activity_context(value: dict | None):
         _USAGE_ACTIVITY_CONTEXT.reset(token)
 
 
+_SEND_GATE: ContextVar = ContextVar('news_send_gate', default=None)
+
+@contextmanager
+def model_send_gate(callback):
+    token=_SEND_GATE.set(callback)
+    try:yield
+    finally:_SEND_GATE.reset(token)
+
+def authorize_model_send():
+    callback=_SEND_GATE.get()
+    return True if callback is None else bool(callback())
+
+
 def reserve_usage_activity(max_cost_cny: float) -> bool:
     context = _USAGE_ACTIVITY_CONTEXT.get()
     if not context or context.get("automatic") is not True:

@@ -33,6 +33,8 @@ ROW_BYTES = W // 8
 FB_LEN = ROW_BYTES * H
 FONT_DIR = Path(__file__).resolve().parent.parent / "firmware" / "src" / "fonts_gen"
 TZ = 8 * 3600
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+from core.membership import line as membership_line, problem as membership_problem
 
 
 def _arr(header: str, tag: str, field: str) -> list[int]:
@@ -617,7 +619,7 @@ def page_status_text(doc: dict, page: str, now: int, *, label_validator=None) ->
     last[1] = int(fr.get("ds_cny") or 0)
     miss[2] = ds.get("USD") is None
     last[2] = int(fr.get("ds_usd") or 0)
-    miss[3] = not (ai.get("plan") and ai.get("valid_until_date"))
+    miss[3] = membership_problem(ai)
     last[3] = int(fr.get("member") or 0)
     stale_ov = [False] * 8
     mode = str(nw.get("mode") or "")
@@ -709,7 +711,7 @@ def ai_status_text(doc: dict, now: int) -> str:
     miss = 0
     if not (ai.get("plan") or ""):
         miss += 1
-    if not (ai.get("valid_until_date") or ""):
+    if membership_problem(ai):
         miss += 1
     if ai.get("codex_7d_used") is None:
         miss += 1
@@ -865,8 +867,8 @@ def render_ai_panel(p: Panel, fonts: dict, doc: dict, now: int) -> None:
     if len(valid) < 10:
         mmdd = mmdd[:5]
     # 验收示意图可显式给出会员状态文案；正式数据未提供时仍保持原逻辑。
-    s = ai.get("membership_display") or f"{plan} · 有效至 {mmdd}"
-    if p.ink_width(F_SMALL, s) <= (codex_right - cny_x0 - 16):
+    s = ai.get("membership_display") or membership_line(ai)
+    if p.ink_width(F_SMALL, s) <= (codex_right - cny_x0 - p.ink_width(F_TITLE, "CODEX") - 16):
         p.draw_right(F_SMALL, s, codex_right, 93)
     else:
         p.draw_right(F_TINY, s, codex_right, 93)
@@ -1250,7 +1252,7 @@ def layout_checks(p: Panel) -> dict:
 
     # A1 会员行与 CODEX 间距
     codex = by.get("CODEX")
-    member = [op for op in p.ops if "有效至" in op["text"]]
+    member = [op for op in p.ops if " · " in op["text"] and op.get("baseline") == 93]
     if codex and member:
         c_ink = span(codex[0])
         m_ink = span(member[0])

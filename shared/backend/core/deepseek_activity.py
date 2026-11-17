@@ -126,6 +126,27 @@ def settle_automatic_call(call_id: str, exact_cost_cny: float,
     return state_store.update_json(_STATE_FILE, mutate, default=_default())
 
 
+def cancel_automatic_call(call_id: str, *, now: int | None = None) -> bool:
+    """A definitively rejected request cannot suppress a real external charge."""
+    stamp=int(now or time.time())
+    def mutate(state):
+        old=state.get('pending') or []
+        state['pending']=[r for r in old if r.get('call_id')!=call_id]
+        kept=[]
+        for row in state.get('provisional') or []:
+            if not row.get('confirmed') and call_id in row.get('call_ids',[]):
+                row['call_ids']=[i for i in row['call_ids'] if i!=call_id]
+                if not row['call_ids']:
+                    raw=_money((state.get('last_raw') or {}).get('CNY'))
+                    if raw is not None:state.setdefault('effective',{})['CNY']=raw
+                    continue
+            kept.append(row)
+        state['provisional']=kept
+        _log(state,stamp,'cancel-no-charge',call_id=call_id)
+        return len(old)!=len(state['pending'])
+    return state_store.update_json(_STATE_FILE,mutate,default=_default())
+
+
 def _release_expired_provisional(state: dict, now: int) -> bool:
     kept = []
     released = False

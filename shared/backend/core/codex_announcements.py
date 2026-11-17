@@ -22,6 +22,8 @@ from . import codex_announcement_parser as parser
 from . import codex_announcement_schedule as policy
 from . import codex_announcement_sources as sources
 from . import desktop_service, state_store
+from . import codex_announcement_analysis as analysis_pipeline
+from . import codex_banked_rules, automation_schedule
 from . import codex_announcement_view as view
 from .codex_announcement_network import failure_reason, summary
 
@@ -115,6 +117,8 @@ def _events(state, cfg, now, context):
              and p.get("author")==cfg["target_handle"].lower() and p.get("author_id")==cfg["target_user_id"]]
     revisions, rejected = parser.parse_posts(posts, now=now,
         max_horizon_seconds=cfg["max_forecast_days"] * 86400, series_records=state.get("series_records"))
+    revisions.extend(r for r in analysis_pipeline.snapshot().get('revisions',[]) if analysis_pipeline.current_revision(r,state.get('posts') or {},cfg))
+    revisions.extend(codex_banked_rules.revisions(posts,now,state.get('series_records') or []))
     revisions.extend(_retirements(state,revisions,now,cfg))
     # An explicit tombstone or unavailable active source cannot revive from a
     # later cached/overlap timeline. A successful targeted recheck can recover it.
@@ -138,11 +142,11 @@ def _snapshot(state, cfg, now, context, *, show_reset=True):
             valid_until=min(valid_until,context['plan_valid_until'])
         if valid_until<=now:continue
         keys=('kind','status','target_at','expires_at','post_id','published_at','source_url','source_author','confidence',
-              'event_id','revision','time_type','range_start_at','range_end_at','display_date','time_relation','source_time_zone','time_basis','plan_scope')
+              'event_id','revision','time_type','range_start_at','range_end_at','display_date','time_relation','source_time_zone','time_basis','plan_scope','grant_count','stages','related_post_ids','related_event_ids','event_phase')
         event={k:row.get(k) for k in keys}
         event.update(valid_until=valid_until,expiry_origin_at=row.get('expiry_origin_at',row['original_published_at']),
                      canonical_source_url=parser.canonical_source_url(row['source_url'],cfg['target_handle'],row['post_id']),
-                     field_sources=row.get('field_sources',{}),evidence_post_ids=row['evidence']['post_ids'])
+                     field_sources={key:(f"https://x.com/{cfg['target_handle']}/status/{value['post_id']}" if isinstance(value,dict) and value.get('post_id') in (state.get('posts') or {}) else value) for key,value in row.get('field_sources',{}).items()},evidence_post_ids=row['evidence']['post_ids'])
         if view.valid_event(event,kind,2,now):result[kind]=event
     selected=min((e for k,e in result.items() if k in view.KINDS and e and (show_reset or k!='reset_grant')),
         key=parser.event_sort_key,default=None)
@@ -176,7 +180,16 @@ def diagnostics(*, now=None) -> dict:
         active, rejected = _snapshot(state, cfg, now, context,show_reset=config.get("panel_display",{}).get("show_reset_opportunities",True))
         due = policy.decision(state, cfg, now=now, mode=policy.mode_at(config, now),
                               remaining=context["remaining"], events={k: v for k, v in active.items() if k in {"quota_reset", "reset_grant",'reset_unspecified'} and v})
-        return {"enabled": True, "experimental": True, "provider": "FxEmbed",
+        model_status=analysis_pipeline.snapshot()
+        busy=bool(_poll_lock.locked() or state.get('inflight_until',0)>now or state.get('manual_pending'))
+        summary_text=('正在查询' if busy else '来源待人工处理' if state.get('auth_blocked') else
+                      '简报模型密钥待核对，规则识别继续' if model_status.get('auth_blocked') else
+                      '原文已采集，分析待处理' if model_status.get('pending') else
+                      '已确认未来预告' if active.get('selected_event') else
+                      '无有效未来预告' if state.get('last_result')=='current' else '等待查询或重试')
+        return {"enabled": True, "experimental": True, "provider": "FxEmbed","summary":summary_text,
+                "busy":bool(_poll_lock.locked() or state.get("inflight_until",0)>now or state.get("manual_pending")),
+                "analysis":analysis_pipeline.snapshot(),
                 "state": state.get("last_result", "not_checked"),"target_handle":cfg["target_handle"],
                 "last_success_at": state.get("last_success_at"), "last_attempt_at": state.get("last_attempt_at"),
                 "next_allowed_at": state.get("next_allowed_at"), "schedule": due,
@@ -191,14 +204,16 @@ def diagnostics(*, now=None) -> dict:
                 'last_error':state.get('last_error'),'request_trace':state.get('request_trace',[]),
                 'publication':_publication_diagnostics(active),
                 "snapshot": active, "rejections": (state.get("diagnostics", []) + rejected)[-50:],
-                "note": "实验性第三方；无 Key/Cookie，无模型调用；未识别文案不推测；账户变动不作为到账确认。"}
+                "note": "公开原文第三方采集；每日06:00；仅新增上下文使用简报密钥分析；预告不代表账户已到账。"}
     except (state_store.StateStoreError, ValueError, TypeError, KeyError):
         return {"enabled": True, "state": "state_unavailable", "experimental": True}
 
 
 def _update_event_history(state,cfg,now,context,config):
     history=state.setdefault('event_history',{})
-    for event in state.get('analysis',[]):
+    recognized=list(state.get('analysis',[]))+codex_banked_rules.revisions(list((state.get('posts') or {}).values()),now,state.get('series_records') or [])
+    recognized.extend(r for r in analysis_pipeline.snapshot().get('revisions',[]) if analysis_pipeline.current_revision(r,state.get('posts') or {},cfg))
+    for event in recognized:
         key=event.get('event_id',event.get('root_id',''))+':'+event.get('revision',event['post_id'])
         entry=history.setdefault(key,dict(event_id=event.get('event_id'),revision=event.get('revision'),
             original_published_at=event.get('original_published_at'),published_at=event['published_at'],
@@ -238,25 +253,12 @@ def _candidate_diagnostics(state,snapshot,now,cfg=None):
 
 def _next_query_time(config,state,cfg,now,context,snapshot):
     """Read-only estimate under current settings; re-evaluated after changes."""
-    from datetime import timedelta
-    mode=policy.mode_at(config,now)
-    events={k:e for k,e in snapshot.items() if k in view.KINDS and e}
-    due=policy.decision(state,cfg,now=now,mode=mode,remaining=context.get('remaining'),events=events)
-    block=due['next_allowed_at']
-    if due['due']:return now
-    date=datetime.fromtimestamp(now,policy.BJ).replace(hour=0,minute=0,second=0,microsecond=0)
-    slots=[]
-    for offset in range(3):
-        for clock in cfg['night_slots']:
-            h,m=map(int,clock.split(':'))
-            at=(date+timedelta(days=offset,hours=h,minutes=m)).timestamp()
-            if at>=max(now,block):slots.append(at)
-    if due['slots']:return max(now,block)
-    interval=due['interval_seconds']
-    if interval is not None:
-        at=max(now,block,(state.get('last_success_at') or 0)+interval)
-        if policy.mode_at(config,at) in {'active','light'}:slots.append(at)
-    return min(slots) if slots else None
+    due=policy.decision(state,cfg,now=now)
+    pending=analysis_pipeline.snapshot()
+    model_next=pending.get('next_allowed_at') if pending.get('pending') else None
+    options=[due['next_query_at']] if due['next_query_at'] is not None else []
+    if pending.get('pending') and cfg.get('analysis_enabled') and not pending.get('auth_blocked') and pending.get('last_result')!='rules_only_missing_news_key':options.append(max(now,model_next or 0))
+    return min(options) if options else None
 
 
 def _publication_diagnostics(snapshot):
@@ -336,7 +338,7 @@ def _request(path, query, timeout):
 
 def _retry_at(error, now, cfg, failures):
     headers = {k.lower(): v for k, v in error.headers.items()}
-    waits = [now + min(cfg["retry_max_seconds"], cfg["retry_initial_seconds"] * 2 ** min(failures - 1, 10))]
+    waits = [now + automation_schedule.retry_wait(failures)]
     if error.status in (401, 403):
         waits.append(now + cfg["forbidden_backoff_seconds"])
     retry = headers.get("retry-after")
@@ -544,7 +546,7 @@ def _source_conflicts(state,active):
     return result
 
 
-def tick(*, now=None, config=None, context=None, requester=None, auxiliary_requester=None) -> dict:
+def tick(*, now=None, config=None, context=None, requester=None, auxiliary_requester=None, manual=False, model_caller=None) -> dict:
     """One bounded operation; safe on startup, wake, tick and concurrent triggers."""
     if not _poll_lock.acquire(blocking=False):
         return {"queried": False, "reason": "concurrent_coalesced"}
@@ -560,27 +562,34 @@ def tick(*, now=None, config=None, context=None, requester=None, auxiliary_reque
                 current = time.time() if now is None else now
                 state = _state(cfg)
                 context = context if context is not None else account_context(cfg, current)
+                if state.get('analysis_enqueue_pending'):
+                    try:
+                        analysis_pipeline.enqueue(state.get('posts') or {},cfg,current)
+                        state['analysis_enqueue_pending']=False
+                        state_store.write_json(STATE_FILE,state)
+                    except state_store.StateStoreError:
+                        pass
+                manual=manual or bool(state.get("manual_pending"))
                 events, _ = _events(state, cfg, current, context)
                 due = policy.decision(state, cfg, now=current, mode=policy.mode_at(config, current),
-                                      remaining=context.get("remaining"), events=events)
+                                      remaining=context.get("remaining"), events=events, manual=manual)
                 if due["coalesce"] and state.get("last_attempt_at", 0) <= state.get("last_success_at", 0):
                     for slot in due["slots"]:
                         state["slot_success"][slot] = state["last_success_at"]
                     state_store.write_json(STATE_FILE, state)
                     return {"queried": False, "reason": "successful_boundary_coalesced"}
-                mode=policy.mode_at(config,current)
-                auxiliary_due=sources.due(state.get('auxiliary_sources'),cfg,current,allow_retry=mode!='night')
+                had_manual_pending=bool(state.get('manual_pending'))
+                state['manual_pending']=False
                 if not due['due']:
-                    if auxiliary_due and mode in {'active','light'} and current>=state.get('inflight_until',0):
-                        state['inflight_until']=current+4*cfg.get('auxiliary_timeout_seconds',6)+15
+                    # Analyze pending public context without repeating source HTTP.
+                    analyzed=analysis_pipeline.process_one(cfg,None if now is None else current,caller=model_caller)
+                    if analyzed.get('analyzed'):
+                        _update_event_history(state,cfg,current,context,config)
                         state_store.write_json(STATE_FILE,state)
-                        def auxiliary_checkpoint(result):
-                            state['auxiliary_sources']=result
-                            state_store.write_json(STATE_FILE,state)
-                        state['auxiliary_sources']=sources.collect(state.get('auxiliary_sources'),cfg,current,requester=auxiliary_requester,checkpoint=auxiliary_checkpoint)
-                        state['inflight_until']=0
-                        state_store.write_json(STATE_FILE,state)
-                        return dict(queried=True,ok=True,requests=0,reason='auxiliary_only')
+                        return dict(queried=False,reason='pending_analysis_only',analysis=analyzed)
+                    active,_=_snapshot(state,cfg,current,context,show_reset=config.get('panel_display',{}).get('show_reset_opportunities',True))
+                    analysis_pipeline.record_publication(active.get('selected_event'),_publication_diagnostics(active))
+                    if had_manual_pending:state_store.write_json(STATE_FILE,state)
                     return {"queried": False, "reason": due["reason"]}
                 state.update(last_attempt_at=current, inflight_until=current + MAX_REQUESTS * cfg["timeout_seconds"] +
                              4*cfg.get('auxiliary_timeout_seconds',6) + 15)
@@ -598,14 +607,29 @@ def tick(*, now=None, config=None, context=None, requester=None, auxiliary_reque
                     # Keep 14 days of success slots, keyed by Beijing date.
                     cutoff = datetime.fromtimestamp(finished - 14 * 86400, policy.BJ).strftime("%Y-%m-%d")
                     state["slot_success"] = {k: v for k, v in state["slot_success"].items() if k[:10] >= cutoff}
+                    state['daily_success_slot']=automation_schedule.daily_slot(finished)[0]
+                    state['auth_blocked']=False
+                    state['analysis_enqueue_pending']=True
+                    # Durable source checkpoint precedes model work. A failed
+                    # analysis never turns successful collection into a retry GET.
+                    state_store.write_json(STATE_FILE,state)
+                    try:
+                        analysis_pipeline.enqueue(state['posts'],cfg,finished)
+                        state['analysis_enqueue_pending']=False
+                        state_store.write_json(STATE_FILE,state)
+                        analyzed=analysis_pipeline.process_one(cfg,None if now is None else finished,caller=model_caller)
+                    except state_store.StateStoreError:
+                        analyzed=dict(analyzed=False,ok=False,reason='analysis_state_unavailable')
                     _update_event_history(state,cfg,finished,context,config)
                     state_store.write_json(STATE_FILE, state)
-                    return {"queried": True, "ok": True, "requests": collected["requests"]}
+                    return {"queried": True, "ok": True, "requests": collected["requests"], "analysis":analyzed}
                 except (SourceFailure, ValueError, TypeError, KeyError) as error:
                     failure = error if isinstance(error, SourceFailure) else SourceFailure("invalid_provider_schema")
                     if failure.partial:
                         state.update(failure.partial)
+                        state['analysis_enqueue_pending']=True
                     state["failures"] = min(1000, state.get("failures", 0) + 1)
+                    if failure.status in {401,403}:state["auth_blocked"]=True
                     state.update(last_error=dict(at=current,reason=failure.reason,stage=failure.stage,status=failure.status,summary=failure.detail,elapsed_ms=failure.elapsed_ms),inflight_until=0, last_result=failure.reason,
                                  last_http_status=failure.status,
                                  pending_slots=due["slots"],
@@ -617,6 +641,23 @@ def tick(*, now=None, config=None, context=None, requester=None, auxiliary_reque
         return {"queried": False, "reason": "state_or_configuration_unavailable"}
     finally:
         _poll_lock.release()
+
+
+def request_manual():
+    if desktop_service.gate.paused:return dict(accepted=False,reason='paused')
+    if _poll_lock.locked():return dict(accepted=False,reason='in_progress')
+    cfg=_config().get('codex_announcements') or policy.DEFAULTS
+    if not cfg.get('enabled'):return dict(accepted=False,reason='disabled')
+    with state_store.file_lock(STATE_FILE,operation='announcement-poll'):
+        state=_state(cfg);now=time.time()
+        if now<max(state.get('next_allowed_at',0),state.get('inflight_until',0)):
+            return dict(accepted=False,reason='backoff')
+        if state.get('manual_pending'):return dict(accepted=False,reason='in_progress')
+        state['auth_blocked']=False
+        state['manual_pending']=True
+        state_store.write_json(STATE_FILE,state)
+    threading.Thread(target=lambda:tick(manual=True),name='announcement-manual',daemon=True).start()
+    return dict(accepted=True)
 
 
 def _loop():
